@@ -1,10 +1,10 @@
-# Clipper
+# Clpr
 
 > A full-stack Twitch clip curation platform that showcases product-minded engineering across web, mobile, backend, search, and deployment.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Clipper is a portfolio-ready software project built to help users discover, organize, and share standout Twitch clips. It demonstrates the ability to design and ship a complete product experience: scalable APIs, responsive web UI, mobile apps, search, payments, and production-oriented infrastructure.
+Clpr is a portfolio-ready software project built to help users discover, organize, and share standout Twitch clips. It demonstrates the ability to design and ship a complete product experience: scalable APIs, responsive web UI, mobile apps, search, payments, and production-oriented infrastructure.
 
 ## What this project demonstrates
 
