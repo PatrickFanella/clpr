@@ -1,188 +1,46 @@
 # Clipper
 
-> A modern, community-driven Twitch clip curation platform
+> A full-stack Twitch clip curation platform that showcases product-minded engineering across web, mobile, backend, search, and deployment.
 
-[![CI Status](https://github.com/subculture-collective/clipper/workflows/CI/badge.svg)](https://github.com/subculture-collective/clipper/actions)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Clipper is a full-stack platform for discovering, curating, and sharing the best Twitch clips. It combines powerful search capabilities, community voting, and social features to help users find and organize memorable gaming moments.
+Clipper is a portfolio-ready software project built to help users discover, organize, and share standout Twitch clips. It demonstrates the ability to design and ship a complete product experience: scalable APIs, responsive web UI, mobile apps, search, payments, and production-oriented infrastructure.
 
-## ✨ Key Features
+## What this project demonstrates
 
-- **🔍 Advanced Search**: Hybrid BM25 + semantic vector search with natural language queries
-- **⬆️ Community Curation**: Reddit-style voting, comments, and karma system
-- **📱 Multi-Platform**: Responsive web app + native iOS/Android apps
-- **💎 Premium Features**: Unlimited collections, advanced filters, and cross-device sync
-- **🎮 Twitch Integration**: OAuth login, live streams, and clip submission
-- **🚀 Modern Stack**: Go backend, React frontend, React Native mobile
+- **Full-stack product development**: End-to-end delivery across backend, frontend, mobile, and infrastructure
+- **Modern backend engineering**: Go services, PostgreSQL, Redis, JWT auth, and Twitch OAuth integration
+- **Rich client experiences**: React + TypeScript web app and React Native mobile app with shared product concepts
+- **Search and discovery**: Hybrid keyword/vector search with OpenSearch for fast, relevant clip discovery
+- **Production awareness**: Docker-based environments, CI/CD workflows, monitoring, deployment automation, and secrets management
+- **Monetization and platform thinking**: Premium features, subscription billing, and cross-device user workflows
 
-## 🚀 Quick Start
+## Key highlights
 
-### Prerequisites
+- Built a community-driven platform with clip submission, curation, voting, comments, and collections
+- Implemented a modern search experience using Go, OpenSearch, and natural-language-friendly query patterns
+- Developed multi-platform clients using **React 19**, **TypeScript**, **Tailwind CSS**, **React Native**, and **Expo**
+- Integrated real-world platform concerns such as **Stripe billing**, **email delivery**, observability, and deployment automation
+- Structured the codebase for ongoing development with documentation, testing workflows, and containerized local setup
 
-- **Docker** & **Docker Compose** (recommended)
-- **Node.js** 20+ (for frontend/mobile development)
-- **Go** 1.24+ (for backend development)
-- **PostgreSQL** 17+ (if running without Docker)
-- **Redis** 8+ (if running without Docker)
+## Tech stack
 
-### Getting Started with Docker
+- **Backend:** Go, Gin, PostgreSQL, Redis, OpenSearch
+- **Web:** React, TypeScript, Vite, Tailwind CSS, React Router, TanStack Query
+- **Mobile:** React Native, Expo
+- **Infrastructure:** Docker, GitHub Actions, Caddy, Vault, Prometheus, Grafana
 
-\`\`\`bash
-# Clone the repository
-git clone https://github.com/subculture-collective/clipper.git
-cd clipper
+## Why it matters
 
-# Copy environment files
-cp .env.development.example .env
+This project reflects the kind of work employers look for in a software engineer: building user-facing features, integrating external services, working across multiple layers of a system, and thinking beyond code to reliability, deployment, and maintainability.
 
-# Start all services
-docker-compose up -d
+## Explore more
 
-# Run database migrations
-cd backend
-go run cmd/migrate/main.go up
+- [Architecture overview](docs/ARCHITECTURE.md)
+- [Quickstart documentation](docs/QUICKSTART.md)
+- [Backend overview](backend/README.md)
+- [Project documentation index](docs/index.md)
 
-# Access the application
-# Frontend: http://localhost:5173
-# Backend API: http://localhost:8080
-# Docs: http://localhost:3000
-\`\`\`
+## License
 
-
-This will start all services in Docker containers.
-
-## 🚀 VPS Deployment
-
-For deploying to a production VPS with Vault and Caddy:
-
-\`\`\`bash
-# Quick deploy
-./scripts/deploy-vps.sh
-
-# See quick reference
-cat DEPLOY_VPS_QUICK.md
-\`\`\`
-
-**📖 Complete VPS deployment guide**: [\`docs/VPS_DEPLOYMENT.md\`](docs/VPS_DEPLOYMENT.md)
-
-## Development Without Docker
-
-See the complete [Development Setup Guide](docs/setup/development.md) for detailed instructions.
-
-## 📚 Documentation
-
-Comprehensive documentation is available in the [\`/docs\`](docs/) directory:
-
-- **[Getting Started](docs/setup/development.md)** - Development environment setup
-- **[VPS Deployment](docs/VPS_DEPLOYMENT.md)** - Production VPS deployment guide
-- **[VPS Troubleshooting](docs/VPS_TROUBLESHOOTING.md)** - Common deployment issues
-- **[User Guide](docs/users/user-guide.md)** - Using the platform
-- **[API Reference](docs/backend/api.md)** - REST API documentation
-- **[Architecture](docs/backend/architecture.md)** - System design and components
-- **[Deployment](docs/operations/deployment.md)** - General deployment guide
-- **[Contributing](docs/contributing.md)** - Contribution guidelines
-
-**📖 Full documentation index**: [\`docs/index.md\`](docs/index.md)
-
-## 🏗️ Architecture
-
-Clipper is built as a modern, scalable full-stack application:
-
-\`\`\`
-┌─────────────┐      ┌──────────────┐      ┌───────────────┐
-│   Web App   │      │  Mobile Apps │      │   Backend API │
-│  (React)    │─────▶│ (React Native)│─────▶│    (Go/Gin)   │
-└─────────────┘      └──────────────┘      └───────┬───────┘
-                                                    │
-                          ┌─────────────────────────┼─────────────────────┐
-                          ▼                         ▼                     ▼
-                    ┌──────────┐            ┌──────────┐         ┌─────────────┐
-                    │PostgreSQL│            │  Redis   │         │ OpenSearch  │
-                    │  (Data)  │            │ (Cache)  │         │  (Search)   │
-                    └──────────┘            └──────────┘         └─────────────┘
-\`\`\`
-
-- **Frontend**: React 19 + TypeScript + Vite + TailwindCSS
-- **Mobile**: React Native 0.76 + Expo 52
-- **Backend**: Go 1.24 + Gin + PostgreSQL + Redis
-- **Search**: OpenSearch 2.11 with hybrid BM25 + vector search
-- **Infrastructure**: Docker, Kubernetes, GitHub Actions
-
-See [Architecture Documentation](docs/backend/architecture.md) for details.
-
-## 🛠️ Tech Stack
-
-### Backend
-- **Language**: Go 1.24+
-- **Framework**: Gin (HTTP web framework)
-- **Database**: PostgreSQL 17 with pgx driver
-- **Cache**: Redis 8 with go-redis
-- **Search**: OpenSearch 2.11
-- **Auth**: JWT with Twitch OAuth
-- **Queue**: Redis-based background jobs
-
-### Frontend (Web)
-- **Framework**: React 19 with TypeScript
-- **Build Tool**: Vite
-- **Styling**: TailwindCSS
-- **Routing**: React Router 7
-- **State**: TanStack Query + Zustand
-- **Forms**: React Hook Form
-
-### Mobile (iOS/Android)
-- **Framework**: React Native 0.76
-- **Platform**: Expo 52 with Expo Router
-- **Language**: TypeScript (shared types)
-- **State**: TanStack Query + Zustand
-
-### Infrastructure
-- **Containers**: Docker & Docker Compose
-- **Orchestration**: Kubernetes (production)
-- **CI/CD**: GitHub Actions
-- **Monitoring**: Prometheus + Grafana
-- **Secrets**: HashiCorp Vault
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](docs/contributing.md) for:
-
-- Code of conduct
-- Development workflow
-- Code style guidelines
-- Testing requirements
-- Pull request process
-
-### Quick Contribution Steps
-
-1. Fork the repository
-2. Create a feature branch (\`git checkout -b feature/amazing-feature\`)
-3. Make your changes and add tests
-4. Run linters and tests (\`make test\`)
-5. Commit your changes (\`git commit -m 'Add amazing feature'\`)
-6. Push to the branch (\`git push origin feature/amazing-feature\`)
-7. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🔗 Links
-
-- **Documentation**: [docs/index.md](docs/index.md)
-- **Issue Tracker**: [GitHub Issues](https://github.com/subculture-collective/clipper/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/subculture-collective/clipper/discussions)
-- **Twitch API**: [Twitch Developer Docs](https://dev.twitch.tv/docs/api/)
-
-## 🙏 Acknowledgments
-
-Built with ❤️ by the [Subculture Collective](https://github.com/subculture-collective)
-
-Special thanks to:
-- The Twitch developer community
-- All our contributors
-- Open source projects that make this possible
-
----
-
-**Status**: Active Development | **Version**: v0.x (Pre-release) | **Target**: MVP Release Q2 2025
+Released under the [MIT License](LICENSE).
