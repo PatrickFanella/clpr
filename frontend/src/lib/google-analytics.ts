@@ -63,8 +63,10 @@ export function initGoogleAnalytics(): void {
     window.dataLayer = window.dataLayer || [];
     
     // Define gtag function
-    function gtag(...args: unknown[]) {
-        window.dataLayer.push(args);
+    function gtag(..._args: unknown[]) {
+        // Google consumes command arguments objects; arrays are not processed.
+        // eslint-disable-next-line prefer-rest-params
+        window.dataLayer.push(arguments);
     }
 
     // Set gtag on window for global access
