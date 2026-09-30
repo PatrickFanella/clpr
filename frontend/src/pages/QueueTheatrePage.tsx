@@ -23,7 +23,7 @@ export function QueueTheatrePage() {
     // Convert queue items to playlist items format
     const playlistItems: PlaylistItem[] = useMemo(
         () =>
-            queue?.items.map(item => ({
+            queue?.items?.map(item => ({
                 id: item.id,
                 clip: item.clip,
                 clip_id: item.clip_id,

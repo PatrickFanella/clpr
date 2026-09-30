@@ -192,20 +192,20 @@ export function AdminWebhookDLQPage() {
             <Card className='mb-6'>
                 <div className='p-4'>
                     <div className='flex flex-wrap gap-6'>
-                        {totalPages > 0 && <div>
+                        <div>
                             <p className='text-sm text-muted-foreground'>
                                 Total Failed Deliveries
                             </p>
                             <p className='text-2xl font-bold'>{total}</p>
-                        </div>}
-                        <div>
+                        </div>
+                        {totalPages > 0 && <div>
                             <p className='text-sm text-muted-foreground'>
                                 Current Page
                             </p>
                             <p className='text-2xl font-bold'>
                                 {page} / {totalPages}
                             </p>
-                        </div>
+                        </div>}
                     </div>
                 </div>
             </Card>

@@ -37,7 +37,7 @@ function formatConfidenceScore(score: number | undefined): string {
 }
 
 export function AdminModerationQueuePage() {
-    const { isAuthenticated, isAdmin } = useAuth();
+    const { isAuthenticated, isModeratorOrAdmin } = useAuth();
     const navigate = useNavigate();
     const [items, setItems] = useState<ModerationQueueItem[]>([]);
     const [stats, setStats] = useState<ModerationQueueStats | null>(null);
@@ -152,14 +152,14 @@ export function AdminModerationQueuePage() {
     // (moved above)
 
     useEffect(() => {
-        if (!isAuthenticated || !isAdmin) {
+        if (!isAuthenticated || !isModeratorOrAdmin) {
             navigate('/');
             return;
         }
 
         loadQueue();
         loadStats();
-    }, [isAuthenticated, isAdmin, navigate, loadQueue, loadStats]);
+    }, [isAuthenticated, isModeratorOrAdmin, navigate, loadQueue, loadStats]);
 
     // Clear selection when filters change
     useEffect(() => {
@@ -231,7 +231,7 @@ export function AdminModerationQueuePage() {
         }
     };
 
-    if (!isAuthenticated || !isAdmin) {
+    if (!isAuthenticated || !isModeratorOrAdmin) {
         return null;
     }
 

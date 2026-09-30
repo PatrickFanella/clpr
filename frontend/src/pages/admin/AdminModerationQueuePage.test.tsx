@@ -114,7 +114,8 @@ describe('AdminModerationQueuePage', () => {
             expect(screen.getByText('Moderation Queue')).toBeInTheDocument();
         });
 
-        it('should handle empty queue gracefully', async () => {
+        it('allows a moderator to load an empty review queue', async () => {
+            mockUseAuth.mockReturnValue({ ...mockUseAuth(), isAdmin: false, isModerator: true, isModeratorOrAdmin: true });
             mockGetModerationQueue.mockResolvedValue({
                 success: true,
                 data: [],
