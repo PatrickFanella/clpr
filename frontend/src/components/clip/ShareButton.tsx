@@ -3,6 +3,7 @@ import { useToast } from '@/hooks';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { cn } from '@/lib/utils';
 import { Share2 } from 'lucide-react';
+import { SubmissionEvents, trackEvent } from '@/lib/telemetry';
 
 interface ShareButtonProps {
     clipId?: string;
@@ -51,6 +52,7 @@ export function ShareButton({
     const trackShare = (
         platform: 'link' | 'twitter' | 'facebook' | 'reddit' | 'bluesky',
     ) => {
+        if (clipId) trackEvent(SubmissionEvents.SUBMISSION_SHARED, { clip_id: clipId, share_platform: platform });
         if (!onShare) {
             return;
         }

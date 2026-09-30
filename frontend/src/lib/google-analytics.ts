@@ -133,7 +133,7 @@ export function trackPageView(path: string, title?: string): void {
     gtag('event', 'page_view', {
         page_path: path,
         page_title: title || document.title,
-        page_location: window.location.href,
+        page_location: window.location.origin + path,
     });
 }
 
@@ -153,6 +153,7 @@ export function trackEvent(
     const params = {
         ...eventParams,
         domain: analyticsConfig.domain,
+        page_location: window.location.origin + window.location.pathname,
     };
 
     gtag('event', eventName, params);

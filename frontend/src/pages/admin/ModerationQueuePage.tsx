@@ -19,6 +19,7 @@ import {
 } from '../../lib/submission-api';
 import type { ClipSubmissionWithUser } from '../../types/submission';
 import type { UserRole } from '../../lib/roles';
+import { ModerationEvents, trackEvent } from '../../lib/telemetry';
 
 export function ModerationQueuePage() {
     const { isAuthenticated, isModeratorOrAdmin } = useAuth();
@@ -71,6 +72,7 @@ export function ModerationQueuePage() {
     const handleApprove = async (submissionId: string) => {
         try {
             await approveSubmission(submissionId);
+            trackEvent(ModerationEvents.SUBMISSION_APPROVED, { submission_id: submissionId });
             setSuccess('Submission approved successfully!');
             loadSubmissions(); // Reload the list
         } catch (err: unknown) {
@@ -95,6 +97,7 @@ export function ModerationQueuePage() {
 
         try {
             await rejectSubmission(selectedSubmissionId, rejectionReason);
+            trackEvent(ModerationEvents.SUBMISSION_REJECTED, { submission_id: selectedSubmissionId });
             setSuccess('Submission rejected successfully!');
             setRejectModalOpen(false);
             setSelectedSubmissionId(null);
