@@ -1,77 +1,42 @@
 # CLPR
 
-> A deployed, full-stack Twitch clip curation platform built to make discovery, community context, and moderation usable in one place.
+**Find the Twitch moments worth keeping.**
 
-[![CI status](https://git.subcult.tv/subculture-collective/clpr/actions/workflows/verify.yml/badge.svg)](https://git.subcult.tv/subculture-collective/clpr/actions/workflows/verify.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+CLPR is a place to discover, organize, and share Twitch clips. Find a moment from
+a favorite streamer, collect clips into playlists, and give other viewers a way
+to return to the good parts.
 
-**Live product:** [clpr.tv](https://clpr.tv) · **API contract:** [OpenAPI](docs/openapi/openapi.yaml) · **License:** [MIT](LICENSE)
+[Explore CLPR](https://clpr.tv) · [Product overview](https://subcult.tv/products/clpr) · [Report a bug or suggest a feature](https://git.subcult.tv/subculture-collective/clpr/issues)
 
-> **1.0 scope:** CLPR ships a responsive web client and
-> Go API. Native mobile clients are design/planning work only; there is no
-> buildable `mobile/` workspace in this tree. Stream clip extraction, CDN
-> mirroring, live feed, and watch parties remain disabled while their production
-> acceptance gates are completed. See the
-> [launch feature contract](docs/LAUNCH_FEATURE_INVENTORY.md).
+![CLPR home and clip discovery](https://subcult.tv/screenshots/clpr-home-1440.webp)
 
-## What it demonstrates
+## From a clip to a collection
 
-- Built a Go and PostgreSQL application around Twitch OAuth, ingestion, clip submission, playlists, and community interaction.
-- Designed hybrid BM25 and semantic search, with queue-backed background work and graceful search fallbacks.
-- Shipped moderation and audit controls, media ownership handling, operational runbooks, and a React web client.
-- Provides automated migration drills, documentation checks, release convergence, and a production deployment path.
+- **Discover:** browse Twitch clips and search for the moments you want to revisit.
+- **Collect:** save clips into playlists instead of losing them in a stream of links.
+- **Share:** submit existing clips and share collections with other viewers.
+- **Discuss:** add community context through comments and interactions, with
+  moderation and reporting tools.
 
-## Architecture
+CLPR puts curation at the center. A clip can be a joke, a highlight, or the start
+of a conversation; a collection gives those moments a home.
 
-| Area | Implementation |
-| --- | --- |
-| Product UI | React, TypeScript, Vite, Tailwind |
-| API and jobs | Go, Gin, Redis-backed workers |
-| Data and search | PostgreSQL/pgvector, OpenSearch |
-| Integrations | Twitch OAuth/API, webhooks, object storage |
-| Operations | Docker Compose, Kubernetes manifests, Prometheus/Grafana runbooks |
+## Available today
 
-## Run it locally
+CLPR is available as a responsive web application at [clpr.tv](https://clpr.tv).
+Native mobile apps are planned. Stream clip extraction, live feeds, watch parties,
+and media mirroring remain outside the current release. The
+[launch feature inventory](docs/LAUNCH_FEATURE_INVENTORY.md) records the supported scope.
 
-Backend prerequisites and local setup are documented in the [backend README](backend/README.md). Start by creating the service-specific development configuration files:
+## Build with us
 
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-```
+CLPR is open source, with a React and TypeScript web client, Go API, and PostgreSQL
+storage. Start with the [development guide](DEVELOPMENT.md) for configuration,
+local services, and verification, or the [contributor guide](docs/contributing.md)
+to work on a change.
 
-The root Compose file is an operator deployment path and expects deployment-managed networks and secrets. Use the disposable validation stack below for repository-owned local services.
-
-## Verification
-
-The release-supported clean-clone path uses disposable test services and does
-not require production credentials. Install [Task](https://taskfile.dev/) and
-`golang-migrate`, then run:
-
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-task test:setup
-bash scripts/run-release-critical-backend-tests.sh
-npm --prefix frontend ci
-npm --prefix frontend run test:coverage
-npm --prefix frontend run build
-task test:teardown
-```
-
-Operational backup validation and restore drills require protected provider credentials. Their scheduled public workflows report a safe skip unless the explicit `BACKUP_VALIDATION_ENABLED` or `RESTORE_DRILL_ENABLED` secret is set to `true`; this prevents a missing credential from being misrepresented as a product regression.
-
-## Further reading
-
-- [Backend architecture and design](docs/backend/index.md)
+- [Backend setup](backend/README.md)
 - [API reference](docs/openapi/README.md)
 - [Operations runbooks](docs/operations/runbooks/README.md)
-- [Contributing](docs/contributing.md)
 
-## License
-
-CLPR is released under the [MIT License](LICENSE).
-
-https://www2.onnwee.me
-
-
+Built by [Subcult](https://subcult.tv). Licensed under [MIT](LICENSE).
