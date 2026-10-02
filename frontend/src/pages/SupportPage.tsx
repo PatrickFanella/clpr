@@ -1,5 +1,6 @@
 import { ArrowUpRight, Heart, Infinity as InfinityIcon, ShieldCheck, Sparkles } from 'lucide-react';
 import { SEO } from '../components';
+import { SUPPORT_URL } from '../lib/support-link';
 
 const accessPromises = [
     {
@@ -41,7 +42,7 @@ export default function SupportPage() {
                             </p>
                         </div>
                         <a
-                            href='https://patreon.com/subcult'
+                            href={SUPPORT_URL}
                             target='_blank'
                             rel='noopener noreferrer'
                             className='group flex items-center justify-between border border-brand/40 bg-primary-400 p-6 text-background transition-colors hover:bg-primary-300'

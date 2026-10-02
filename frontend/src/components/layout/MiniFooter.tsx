@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useOverlapsTwitchPlayer } from '@/hooks/useTwitchPlayerLayer';
 import { cn } from '@/lib/utils';
+import { SUPPORT_URL } from '@/lib/support-link';
 
 export function MiniFooter() {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -106,7 +107,7 @@ export function MiniFooter() {
                   About clpr
                 </Link>
                 <a
-                  href="https://patreon.com/subcult"
+                  href={SUPPORT_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block text-sm text-foreground hover:text-link transition-colors"

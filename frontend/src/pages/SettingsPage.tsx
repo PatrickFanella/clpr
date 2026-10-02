@@ -9,6 +9,7 @@ import { effectiveConsentValue } from '../lib/consent-display';
 import type { UpdateProfileRequest, UpdateSettingsRequest } from '../lib/user-settings-api';
 import { getUserSettings, updateProfile, updateUserSettings } from '../lib/user-settings-api';
 import { useFeedAutoplayPreference } from '../hooks';
+import { SUPPORT_URL } from '../lib/support-link';
 
 export function SettingsPage() {
     const { user, refreshUser } = useAuth();
@@ -376,7 +377,7 @@ export function SettingsPage() {
                                         <Link to='/support'>How community support works</Link>
                                     </Button>
                                     <Button asChild variant='primary'>
-                                        <a href='https://patreon.com/subcult' target='_blank' rel='noopener noreferrer'>Support on Patreon</a>
+                                        <a href={SUPPORT_URL} target='_blank' rel='noopener noreferrer'>Support on Patreon</a>
                                     </Button>
                                 </div>
                             </div>

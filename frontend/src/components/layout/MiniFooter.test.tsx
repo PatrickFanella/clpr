@@ -96,7 +96,7 @@ describe('MiniFooter', () => {
     fireEvent.click(expandButton);
     
     const patreonLink = screen.getByRole('link', { name: /patreon/i });
-    expect(patreonLink).toHaveAttribute('href', 'https://patreon.com/subcult');
+    expect(patreonLink).toHaveAttribute('href', 'https://support.subcult.tv');
     expect(patreonLink).toHaveAttribute('target', '_blank');
     expect(patreonLink).toHaveAttribute('rel', 'noopener noreferrer');
   });
