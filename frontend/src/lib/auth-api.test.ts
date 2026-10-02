@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     get: vi.fn(), post: vi.fn(),
@@ -14,6 +14,7 @@ beforeEach(() => {
     vi.resetAllMocks();
     mocks.getSecureItem.mockImplementation(async key => key === 'oauth_state' ? 'expected-state' : 'secret-verifier');
 });
+afterEach(() => { vi.unstubAllEnvs(); });
 
 describe('authentication boundary', () => {
     it.each([true, false])('refresh eligibility follows anonymousProbe=%s', async anonymousProbe => {
@@ -64,12 +65,14 @@ describe('authentication boundary', () => {
         expect(mocks.clearSecureStorage).toHaveBeenCalledOnce();
     });
 
-    it('persists PKCE credentials before handing off to the OAuth endpoint', async () => {
+    it.each(['', '/api/v1', 'https://api.example.test/api/v1'])('persists PKCE credentials before handing off with API base "%s"', async apiBase => {
+        vi.stubEnv('VITE_API_BASE_URL', apiBase);
         mocks.generatePKCEParams.mockResolvedValue({ codeVerifier: 'verifier', codeChallenge: 'challenge', state: 'state' });
         const redirect = vi.fn();
         await initiateOAuth(redirect);
         expect(mocks.setSecureItem.mock.calls).toEqual([['oauth_code_verifier', 'verifier'], ['oauth_state', 'state']]);
-        const target = new URL(redirect.mock.calls[0][0]);
+        const target = new URL(redirect.mock.calls[0][0], window.location.origin);
+        expect(target.href).toMatch(apiBase || 'http://localhost:8080/api/v1');
         expect(target.pathname).toMatch(/\/auth\/twitch$/);
         expect(Object.fromEntries(target.searchParams)).toEqual({ code_challenge: 'challenge', code_challenge_method: 'S256', state: 'state' });
         expect(mocks.setSecureItem.mock.invocationCallOrder.at(-1)).toBeLessThan(redirect.mock.invocationCallOrder[0]);

@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchCreatorClips, updateClipMetadata, updateClipVisibility } from '../lib/clip-api';
 import { Container, Button, ResourceUnavailable } from '../components';
 import type { Clip } from '../types/clip';
+import { CreatorEvents, trackEvent } from '../lib/telemetry';
 
 export function CreatorDashboardPage() {
   const { user } = useAuth();
@@ -26,7 +27,8 @@ export function CreatorDashboardPage() {
   const updateMetadataMutation = useMutation({
     mutationFn: ({ clipId, title }: { clipId: string; title: string }) =>
       updateClipMetadata(clipId, { title }),
-    onSuccess: () => {
+    onSuccess: (_result, { clipId }) => {
+      trackEvent(CreatorEvents.CLIP_TITLE_UPDATED, { clip_id: clipId });
       queryClient.invalidateQueries({ queryKey: ['creatorClips', creatorId] });
       setEditingClipId(null);
       setEditTitle('');
@@ -37,7 +39,8 @@ export function CreatorDashboardPage() {
   const updateVisibilityMutation = useMutation({
     mutationFn: ({ clipId, isHidden }: { clipId: string; isHidden: boolean }) =>
       updateClipVisibility(clipId, isHidden),
-    onSuccess: () => {
+    onSuccess: (_result, { clipId, isHidden }) => {
+      trackEvent(CreatorEvents.CLIP_VISIBILITY_UPDATED, { clip_id: clipId, is_hidden: isHidden });
       queryClient.invalidateQueries({ queryKey: ['creatorClips', creatorId] });
     },
   });

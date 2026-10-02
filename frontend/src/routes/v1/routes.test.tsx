@@ -1,9 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { accountRoutes, type AccountRoutePages } from './AccountRoutes';
 import { adminRoutes, type AdminRoutePages } from './AdminRoutes';
 import { adminNavItems } from '@/components/admin/adminNavigation';
+
+const auth = vi.hoisted(() => ({ isAdmin: true }));
+vi.mock('@/context/AuthContext', () => ({ useAuth: () => auth }));
+beforeEach(() => { auth.isAdmin = true; });
 
 vi.mock('@/components/guards/AdminRoute', () => ({
     AdminRoute: ({ children }: { children: React.ReactNode }) => (
@@ -82,6 +86,18 @@ describe('versioned route boundaries', () => {
         expect(screen.getByTestId('admin-boundary')).toContainElement(
             screen.getByRole('heading', { name: 'Matched page' }),
         );
+    });
+
+    it('filters administrator-only navigation for a moderator', () => {
+        auth.isAdmin = false;
+        render(<MemoryRouter initialEntries={['/admin/moderation']}>
+            <Routes>{adminRoutes(adminPages)}</Routes>
+        </MemoryRouter>);
+        expect(screen.getByRole('link', { name: 'Review queue' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Submissions' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Moderators' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Bans' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'User moderation' })).not.toBeInTheDocument();
     });
 
     it('wraps signed-in account paths in the account boundary', () => {

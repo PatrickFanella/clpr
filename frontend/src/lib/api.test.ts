@@ -75,4 +75,21 @@ describe('API authentication refresh policy', () => {
         expect(mocks.client.post).toHaveBeenCalledTimes(1);
         expect(mocks.client).not.toHaveBeenCalled();
     });
+
+    it('does not start another refresh after an authenticated retry fails', async () => {
+        const error = {
+            config: { url: '/auth/me', _retry: true },
+            response: { status: 401 },
+        } as AxiosError;
+        await expect(getRejectionInterceptor()(error)).rejects.toBe(error);
+        expect(mocks.client.post).not.toHaveBeenCalled();
+        expect(mocks.client).not.toHaveBeenCalled();
+    });
+
+    it('preserves network failures without attempting token refresh', async () => {
+        const error = { config: { url: '/auth/me' } } as AxiosError;
+        await expect(getRejectionInterceptor()(error)).rejects.toBe(error);
+        expect(mocks.client.post).not.toHaveBeenCalled();
+        expect(mocks.client).not.toHaveBeenCalled();
+    });
 });

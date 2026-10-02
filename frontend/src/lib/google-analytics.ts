@@ -63,8 +63,10 @@ export function initGoogleAnalytics(): void {
     window.dataLayer = window.dataLayer || [];
     
     // Define gtag function
-    function gtag(...args: unknown[]) {
-        window.dataLayer.push(args);
+    function gtag(..._args: unknown[]) {
+        // Google consumes command arguments objects; arrays are not processed.
+        // eslint-disable-next-line prefer-rest-params
+        window.dataLayer.push(arguments);
     }
 
     // Set gtag on window for global access
@@ -133,7 +135,7 @@ export function trackPageView(path: string, title?: string): void {
     gtag('event', 'page_view', {
         page_path: path,
         page_title: title || document.title,
-        page_location: window.location.href,
+        page_location: window.location.origin + path,
     });
 }
 
@@ -153,6 +155,7 @@ export function trackEvent(
     const params = {
         ...eventParams,
         domain: analyticsConfig.domain,
+        page_location: window.location.origin + window.location.pathname,
     };
 
     gtag('event', eventName, params);

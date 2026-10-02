@@ -2,8 +2,9 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronDown, Menu, X } from 'lucide-react';
-import { adminNavGroups, adminNavItems } from './adminNavigation';
+import { getAdminNavGroups, adminNavItems } from './adminNavigation';
 import { SEO } from '../SEO';
+import { useAuth } from '../../context/AuthContext';
 
 function itemIsActive(pathname: string, href: string) {
     if (href === '/admin/dashboard') return pathname === href;
@@ -12,6 +13,8 @@ function itemIsActive(pathname: string, href: string) {
 
 function AdminNavigation({ onNavigate }: { onNavigate?: () => void }) {
     const location = useLocation();
+    const { isAdmin } = useAuth();
+    const adminNavGroups = getAdminNavGroups(isAdmin);
     const activeHref = [...adminNavItems]
         .sort((a, b) => b.href.length - a.href.length)
         .find(item => itemIsActive(location.pathname, item.href))?.href;
