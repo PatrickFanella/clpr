@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Clipper - Share Twitch Clips",
-  "short_name": "Clipper",
-  "description": "Share Twitch clips to Clipper with one click. Pre-filled metadata, tag selection, and instant submission.",
+  "name": "clpr - Share Twitch Clips",
+  "short_name": "clpr",
+  "description": "Share Twitch clips to clpr with one click. Pre-filled metadata, tag selection, and instant submission.",
   "version": "1.0.0",
   "permissions": [
     "contextMenus",
@@ -14,7 +14,7 @@
   "host_permissions": [
     "https://www.twitch.tv/*/clip/*",
     "https://clips.twitch.tv/*",
-    "https://api.clpr.gg/*"
+    "https://clpr.tv/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -32,7 +32,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "Share to Clipper",
+    "default_title": "Share to clpr",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -48,7 +48,7 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "extension@clpr.gg",
+      "id": "extension@clpr.tv",
       "strict_min_version": "109.0"
     }
   }

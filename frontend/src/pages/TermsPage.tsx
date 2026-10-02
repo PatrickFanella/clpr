@@ -42,7 +42,7 @@ export function TermsPage() {
           <CardBody>
             <h2 className="text-2xl font-semibold mb-4">1. Eligibility</h2>
             <p className="text-muted-foreground mb-4">
-              To use Clipper, you must:
+              To use clpr, you must:
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li>Be at least 13 years old</li>
@@ -93,7 +93,7 @@ export function TermsPage() {
           <CardBody>
             <h2 className="text-2xl font-semibold mb-4">3. Acceptable Use Policy</h2>
             <p className="text-muted-foreground mb-4">
-              When using Clipper, you agree NOT to:
+              When using clpr, you agree NOT to:
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li>Violate any laws or regulations</li>
@@ -127,7 +127,7 @@ export function TermsPage() {
               <div>
                 <h3 className="text-lg font-semibold mb-2 text-foreground">Your Content</h3>
                 <p className="text-muted-foreground mb-2">
-                  When you submit content to Clipper (clips, comments, votes, etc.), you grant us a worldwide, 
+                  When you submit content to clpr (clips, comments, votes, etc.), you grant us a worldwide, 
                   non-exclusive, royalty-free license to use, reproduce, modify, adapt, publish, and display 
                   that content in connection with the Service.
                 </p>
@@ -154,7 +154,7 @@ export function TermsPage() {
                 <h3 className="text-lg font-semibold mb-2 text-foreground">Our Content</h3>
                 <p className="text-muted-foreground">
                   The Service and its original content (excluding user submissions), features, and functionality 
-                  are owned by Clipper and are protected by copyright, trademark, and other intellectual property 
+                  are owned by clpr and are protected by copyright, trademark, and other intellectual property 
                   laws.
                 </p>
               </div>
@@ -162,7 +162,7 @@ export function TermsPage() {
               <div>
                 <h3 className="text-lg font-semibold mb-2 text-foreground">Twitch Content</h3>
                 <p className="text-muted-foreground">
-                  Clips displayed on Clipper are sourced from Twitch and remain subject to Twitch's Terms of 
+                  Clips displayed on clpr are sourced from Twitch and remain subject to Twitch's Terms of 
                   Service. We display clips via embedded players or direct links, respecting creators' rights 
                   and Twitch's platform policies.
                 </p>
@@ -176,7 +176,7 @@ export function TermsPage() {
           <CardBody>
             <h2 className="text-2xl font-semibold mb-4">5. Copyright and DMCA</h2>
             <p className="text-muted-foreground mb-4">
-              We respect intellectual property rights. If you believe content on Clipper infringes your copyright, 
+              We respect intellectual property rights. If you believe content on clpr infringes your copyright, 
               please follow our <a href="/legal/dmca" className="text-link underline underline-offset-2">DMCA Copyright Policy</a> and send the notice to dmca@clpr.tv with:
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
@@ -266,7 +266,7 @@ export function TermsPage() {
               <div>
                 <h3 className="text-lg font-semibold mb-2 text-foreground">Indemnification</h3>
                 <p className="text-muted-foreground">
-                  You agree to indemnify and hold harmless Clipper and its affiliates from any claims, damages, 
+                  You agree to indemnify and hold harmless clpr and its affiliates from any claims, damages, 
                   or expenses arising from your use of the Service, your content, or your violation of these Terms.
                 </p>
               </div>
@@ -337,7 +337,7 @@ export function TermsPage() {
             <ul className="space-y-3 text-muted-foreground">
               <li>
                 <strong className="text-foreground">Entire Agreement:</strong> These Terms constitute the 
-                entire agreement between you and Clipper regarding the Service.
+                entire agreement between you and clpr regarding the Service.
               </li>
               <li>
                 <strong className="text-foreground">Severability:</strong> If any provision is found invalid, 

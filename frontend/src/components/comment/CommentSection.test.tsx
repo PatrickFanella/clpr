@@ -121,7 +121,6 @@ describe('CommentSection', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/No comments yet/i)).toBeInTheDocument();
-        expect(screen.getByText(/Be the first to comment!/i)).toBeInTheDocument();
       });
     });
 

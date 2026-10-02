@@ -1,5 +1,5 @@
 /**
- * Popup script for the Clipper browser extension.
+ * Popup script for the clpr browser extension.
  *
  * State machine:
  *  loading → no-clip | login | form
@@ -216,7 +216,7 @@ async function handleSubmit(): Promise<void> {
       type: 'basic',
       iconUrl: '../icons/icon-48.png',
       title: 'Clip submitted!',
-      message: `"${title}" is now pending review on Clipper.`,
+      message: `"${title}" is now pending review on clpr.`,
     });
   } catch (err) {
     const message =

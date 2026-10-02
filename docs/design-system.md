@@ -131,6 +131,7 @@ New code should use the semantic names (`primary-*`, `tally`, `seen`, `context`,
 | `.display`   | Condensed 800 uppercase for titles and rank numerals                 |
 | `.burn-in`   | Timecode burned into a media corner (mono on 72% black)              |
 | `.tally-bar` | 3px violet rule across the top of an active panel, menu or modal     |
+| `.crop-corners` | 2px violet crop corners on an empty or placeholder panel; replaces a border |
 
 ### Type scale
 
@@ -662,6 +663,38 @@ Use `text-link` for small accent text and links. Solid violet belongs on filled 
 Clip detail switches to a two-column grid at `xl` (1280px): flexible playback and a 24rem discussion panel. At smaller widths the discussion follows playback. On wide screens the discussion list scrolls independently while its composer remains visible. Full comment text and author/moderation actions remain available in that panel.
 
 The feed uses measured two-way virtualization, stable clip IDs, and an overscan region. Keep the focused row mounted. A failed later page must retain loaded clips and offer a retry; returning upward must restore earlier rows.
+
+### Brand assets
+
+The logo, app icon and promotional graphics follow the CLPR brand pack in the private `subculture-collective/subcult-studio` repository (`branding/2026-10-01-packs/brands/clpr`, direction "Play / Clip stack"). `docs/brand-provenance.json` records the source files and hashes.
+
+| Asset | Location | Notes |
+| ----- | -------- | ----- |
+| Wordmark with play triangle | `frontend/src/assets/brand/clpr-logo.svg`, `frontend/public/clpr-logo.svg` | Header logo at 32px tall. The pack's 220px minimum lockup width applies to promotional layouts; the header is a deliberate exception. The mark alone stays at 32px or wider |
+| Play mark | `frontend/src/assets/brand/clpr-mark.svg` | Outer triangle `#291D47`, inner `#8C5CFF` |
+| App icon | `frontend/public/icons/icon.svg`, `icon-maskable.svg`, `frontend/public/favicon.svg` | Play mark on ink; the maskable icon keeps the mark inside the safe zone |
+| Social card | `frontend/public/social-card.png` | Clip stack layout: wordmark, headline, three clip cards (`#211B30`, back cards ruled `#493C64`), mint progress line, violet rule |
+
+The SVGs copy the Studio path data unchanged, with editor-only attributes removed. Do not stretch, skew, recolour or redraw the marks, and keep a quarter of the mark's height clear around it. Change the logo in Studio first, then copy it here and run `node scripts/render-brand-assets.mjs` from `frontend/` to rebuild the PWA icons, favicons, social card, banner PNGs and browser-extension icons. The script prints the command that assembles `favicon.ico`.
+
+Crop corners and the clip stack are brand graphics. Use `.crop-corners` for empty and placeholder panels; keep the clip stack to promotional images so it is not confused with real clip cards. The earlier tally-dot logo, the top rule on promotional cards and the burned-in timecode on the social card are retired. `.tally-bar` and `.burn-in` remain interface conventions.
+
+### Page widths, controls and vocabulary
+
+Pages use one of two widths. Browsing surfaces (feed, creators, tags, topics, search, collections) fill the 1440px `Container`. Reading and single-task pages (about, support, extension, forum, leaderboards) centre a `max-w-4xl` column inside it. Every shell element, including the sub-navigation and footer, takes its gutter from `page-container` or `Container`; do not add a `px-*` override beside them.
+
+Two controls switch content, and they are not interchangeable:
+
+| Control | Use | Treatment |
+| ------- | --- | --------- |
+| View tabs (`Tab`) | Switch between panels of one page: search result types, sidebar panes | Underline in tally violet under the active label |
+| Filter group | Narrow or re-rank one list: feed timeframe, leaderboard board, forum topic | Bordered group of `Button`s with `aria-pressed`; the active one is `primary` |
+
+"Upvote" is the action on a clip or comment. "Uppies" is the reputation score a member earns from upvotes. Do not use "uppies" for the action.
+
+Playlist cards label only exceptions: private, unlisted or processing. Public is the expected state in a directory, and whether a script built the list is not shown on cards. Counts of zero are omitted. Collection descriptions say what a viewer gets, not how the list is generated.
+
+Marketing and information pages follow the feed's language: kicker, display heading, ruled definition rows and real clips. They do not use icon tiles, glow backgrounds or checkmark lists.
 
 ## 10. Maintenance and verification
 

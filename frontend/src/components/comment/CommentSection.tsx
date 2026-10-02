@@ -79,15 +79,18 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
         </div>
     );
 
+    // An empty discussion takes one line, not the full-height panel.
+    const isEmpty = !isLoading && !error && allComments.length === 0;
+
     if (isCompact) {
         return (
-            <div className={cn('flex flex-col', className)}>
+            <div className={cn('flex flex-col', className, isEmpty && 'h-auto xl:h-auto')}>
                 {/* Header */}
                 <div className='flex flex-wrap items-center justify-between gap-2 mb-3'>
                     <h2 className='text-[14px] font-semibold'>
                         Comments ({totalComments.toLocaleString()})
                     </h2>
-                    {sortControl}
+                    {!isEmpty && sortControl}
                 </div>
                 {recovery}
 
@@ -108,14 +111,9 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                             <Spinner size='lg' />
                         </div>
                     : allComments.length === 0 && !error ?
-                        <div className='text-center py-8'>
-                            <p className='text-sm font-semibold mb-1'>
-                                No comments yet
-                            </p>
-                            <p className='text-xs text-muted-foreground'>
-                                Be the first to comment!
-                            </p>
-                        </div>
+                        <p className='py-2 text-sm text-text-secondary'>
+                            No comments yet
+                        </p>
                     :   <>
                             <CommentTree
                                 comments={allComments}

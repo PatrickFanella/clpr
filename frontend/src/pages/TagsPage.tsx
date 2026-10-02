@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Container, SEO } from '../components';
 import { TagChip } from '../components/tag/TagChip';
 import { tagApi } from '../lib/tag-api';
-import { isChipLane, tagLane } from '../lib/tag-lanes';
+import { isChipLane, tagLane, uniqueByLabel } from '../lib/tag-lanes';
 import type { Tag } from '../types/tag';
 
 type TagQuery = { data?: { tags: Tag[] }; isLoading: boolean; isError: boolean };
@@ -17,7 +17,7 @@ function TagRow({ tags, query, empty }: { tags: Tag[]; query: TagQuery; empty: s
         );
     }
     if (query.isError) return <p className='text-sm text-text-secondary'>These tags could not be loaded.</p>;
-    const visibleTags = tags.filter(tag => isChipLane(tagLane(tag)));
+    const visibleTags = uniqueByLabel(tags.filter(tag => isChipLane(tagLane(tag))));
     if (visibleTags.length === 0) return <p className='text-sm text-text-secondary'>{empty}</p>;
     return (
         <div className='flex flex-wrap content-start items-start gap-1.5'>

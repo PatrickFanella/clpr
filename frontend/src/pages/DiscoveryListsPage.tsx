@@ -45,7 +45,7 @@ export function DiscoveryListsPage() {
               Discovery Lists
             </h1>
             <p className="text-muted-foreground">
-              Explore handpicked and auto-generated collections of the best Twitch clips
+              Clip collections built around creators, topics and moments, refreshed daily and weekly.
             </p>
           </div>
 

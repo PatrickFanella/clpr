@@ -2,7 +2,7 @@
  * Deep Linking Utilities for PWA
  * 
  * Handles deep links from universal links (iOS) and app links (Android)
- * for the Clipper PWA.
+ * for the clpr PWA.
  */
 
 export interface DeepLinkRoute {

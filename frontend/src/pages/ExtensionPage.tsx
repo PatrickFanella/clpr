@@ -1,8 +1,11 @@
 import { Search, MousePointer, Tag, PenLine, Zap, Lock } from 'lucide-react';
 import { Container, Card, CardBody, SEO, Button } from '../components';
 
-const CHROME_STORE_URL = 'https://chrome.google.com/webstore/detail/clpr';
-const FIREFOX_STORE_URL = 'https://addons.mozilla.org/firefox/addon/clpr';
+// Store listings are configured at build time. Until a listing exists its
+// button is not rendered, so the page never links to a missing store page.
+const CHROME_STORE_URL = import.meta.env.VITE_EXTENSION_CHROME_URL || '';
+const FIREFOX_STORE_URL = import.meta.env.VITE_EXTENSION_FIREFOX_URL || '';
+const hasStoreListing = Boolean(CHROME_STORE_URL || FIREFOX_STORE_URL);
 
 interface FeatureProps {
     icon: React.ReactNode;
@@ -29,43 +32,43 @@ export function ExtensionPage() {
         <>
             <SEO
                 title="Browser Extension"
-                description="Share Twitch clips to Clipper with one click. Get the Clipper browser extension for Chrome and Firefox."
+                description="Share Twitch clips to clpr with one click. Get the clpr browser extension for Chrome and Firefox."
                 canonicalUrl="/extension"
             />
             <Container className="py-8 max-w-4xl">
                 {/* Hero */}
                 <div className="mb-10 text-center">
                     <h1 className="text-4xl font-bold mb-4">
-                        Clipper Browser Extension
+                        clpr browser extension
                     </h1>
                     <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                        Share Twitch clips to Clipper with one click. The
+                        Share Twitch clips to clpr with one click. The
                         extension detects clips automatically, pre-fills
                         metadata, and lets you add tags and a description before
                         submitting.
                     </p>
-                    <div className="flex flex-wrap gap-3 justify-center">
-                        <a
-                            href={CHROME_STORE_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label="Get Clipper for Chrome"
-                        >
-                            <Button variant="primary" size="lg">
-                                Add to Chrome
-                            </Button>
-                        </a>
-                        <a
-                            href={FIREFOX_STORE_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label="Get Clipper for Firefox"
-                        >
-                            <Button variant="secondary" size="lg">
-                                Add to Firefox
-                            </Button>
-                        </a>
-                    </div>
+                    {hasStoreListing ? (
+                        <div className="flex flex-wrap gap-3 justify-center">
+                            {CHROME_STORE_URL && (
+                                <Button asChild variant="primary" size="lg">
+                                    <a href={CHROME_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="Get clpr for Chrome">
+                                        Add to Chrome
+                                    </a>
+                                </Button>
+                            )}
+                            {FIREFOX_STORE_URL && (
+                                <Button asChild variant={CHROME_STORE_URL ? 'secondary' : 'primary'} size="lg">
+                                    <a href={FIREFOX_STORE_URL} target="_blank" rel="noopener noreferrer" aria-label="Get clpr for Firefox">
+                                        Add to Firefox
+                                    </a>
+                                </Button>
+                            )}
+                        </div>
+                    ) : (
+                        <p className="kicker" data-testid="extension-unlisted">
+                            Not yet listed in the Chrome Web Store or Firefox Add-ons
+                        </p>
+                    )}
                 </div>
 
                 {/* Features */}
@@ -88,7 +91,7 @@ export function ExtensionPage() {
                                     />
                                 }
                                 title="Context menu"
-                                description='Right-click any Twitch clip page to see "Share to Clipper" in the context menu.'
+                                description='Right-click any Twitch clip page to see "Share to clpr" in the context menu.'
                             />
                             <Feature
                                 icon={<PenLine size={16} strokeWidth={1.75} />}
@@ -98,7 +101,7 @@ export function ExtensionPage() {
                             <Feature
                                 icon={<Tag size={16} strokeWidth={1.75} />}
                                 title="Tag selection"
-                                description="Browse and search all Clipper tags directly in the popup and apply multiple tags to your submission."
+                                description="Browse and search all clpr tags directly in the popup and apply multiple tags to your submission."
                             />
                             <Feature
                                 icon={<Zap size={16} strokeWidth={1.75} />}
@@ -108,7 +111,7 @@ export function ExtensionPage() {
                             <Feature
                                 icon={<Lock size={16} strokeWidth={1.75} />}
                                 title="Secure auth"
-                                description="Authenticates using your existing Clipper account. No separate credentials required."
+                                description="Authenticates using your existing clpr account. No separate credentials required."
                             />
                         </div>
                     </CardBody>
@@ -125,8 +128,8 @@ export function ExtensionPage() {
                                 <strong className="text-foreground">
                                     Install
                                 </strong>{' '}
-                                the extension from the Chrome Web Store or
-                                Firefox Add-ons.
+                                the extension once it is listed for your
+                                browser.
                             </li>
                             <li>
                                 <strong className="text-foreground">
@@ -134,7 +137,7 @@ export function ExtensionPage() {
                                 </strong>{' '}
                                 by clicking the extension icon and selecting{' '}
                                 <em>Login with Twitch</em>. This opens your
-                                Clipper account in a new tab.
+                                clpr account in a new tab.
                             </li>
                             <li>
                                 <strong className="text-foreground">
@@ -147,7 +150,7 @@ export function ExtensionPage() {
                                 <strong className="text-foreground">
                                     Click the icon
                                 </strong>{' '}
-                                (or right-click → Share to Clipper) to open the
+                                (or right-click → Share to clpr) to open the
                                 popup.
                             </li>
                             <li>

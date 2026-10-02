@@ -3341,7 +3341,7 @@
   {
     "method": "GET",
     "path": "/internal/operations/metrics",
-    "handler": "git.subcult.tv/subculture-collective/clpr/cmd/api.registerPublicRoutes.WrapH.func9",
+    "handler": "github.com/gin-gonic/gin.WrapH.func1",
     "operation_id": "getInternalOperationsMetrics",
     "contract_level": "route-specific"
   },

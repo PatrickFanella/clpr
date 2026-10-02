@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { formatTimestamp, cn } from '@/lib/utils';
+import { markdownToPlainText } from '@/lib/markdown-utils';
 import type { ForumThread } from '@/types/forum';
 
 interface ThreadCardProps {
@@ -39,7 +40,7 @@ export function ThreadCard({ thread, className }: ThreadCardProps) {
           </h3>
           
           <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-            {thread.content}
+            {markdownToPlainText(thread.content)}
           </p>
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">

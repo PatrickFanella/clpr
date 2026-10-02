@@ -107,7 +107,7 @@ export function FeedHeader({
                         {title}
                     </Heading>
                     {description && (
-                        <p className='text-muted-foreground text-sm mt-1'>
+                        <p className='hidden text-muted-foreground text-sm mt-1 sm:block'>
                             {description}
                         </p>
                     )}
@@ -178,7 +178,7 @@ export function FeedHeader({
 
             {/* Timeframe row (only when top/trending selected) */}
             {showTimeframe && (
-                <div className='mt-3 inline-flex flex-wrap border border-line-strong' role='group' aria-label='Timeframe'>
+                <div className='mt-3 flex max-w-full overflow-x-auto border border-line-strong scrollbar-hide sm:inline-flex sm:flex-wrap' role='group' aria-label='Timeframe'>
                     {timeframeOptions.map(option => (
                         <Button
                             key={option.value}
@@ -188,7 +188,7 @@ export function FeedHeader({
                             size='sm'
                             aria-pressed={timeframe === option.value}
                             onClick={() => onTimeframeChange(option.value)}
-                            className='px-3 py-1'
+                            className='shrink-0 whitespace-nowrap px-3 py-1'
                         >
                             {sort === 'trending' && option.value === 'all' ? 'Since tracking began' : option.label}
                         </Button>

@@ -20410,6 +20410,17 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "Use `community` to leave out script-generated collections.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "community"
+              ]
+            }
           }
         ],
         "responses": {

@@ -291,7 +291,7 @@ export function ClipDetailPage() {
                         <span className='text-text-disabled'>·</span>
                         {/* view_count is clpr's last Twitch sync; the embed shows Twitch's live count. */}
                         <span title='Twitch view count when clpr last synced this clip. The player shows the live count.'>
-                            {clip.view_count.toLocaleString()} views at last sync
+                            {clip.view_count.toLocaleString()} Twitch views at last sync
                         </span>
                         <span className='text-text-disabled'>·</span>
                         <span>

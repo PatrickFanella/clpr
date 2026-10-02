@@ -32,14 +32,15 @@ describe('playlist reads', () => {
     });
 
     it.each([
-        { name: 'private', useRead: playlists.usePlaylists, path: '/playlists' },
-        { name: 'public', useRead: playlists.usePublicPlaylists, path: '/playlists/public' },
-        { name: 'featured', useRead: playlists.useFeaturedPlaylists, path: '/playlists/featured' },
-    ])('keeps $name lists in their own cache and endpoint', async ({ useRead, path }) => {
+        { name: 'private', useRead: playlists.usePlaylists, path: '/playlists', extra: {} },
+        // The public directory lists playlists people made; scripted collections are featured.
+        { name: 'public', useRead: playlists.usePublicPlaylists, path: '/playlists/public', extra: { source: 'community' } },
+        { name: 'featured', useRead: playlists.useFeaturedPlaylists, path: '/playlists/featured', extra: {} },
+    ])('keeps $name lists in their own cache and endpoint', async ({ useRead, path, extra }) => {
         const { wrapper } = harness();
         const { result } = renderHook(() => useRead(2, 10), { wrapper });
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
-        expect(api.get).toHaveBeenCalledWith(path, { params: { page: 2, limit: 10 } });
+        expect(api.get).toHaveBeenCalledWith(path, { params: { page: 2, limit: 10, ...extra } });
     });
 
     it('does not fetch an absent playlist or disabled account list', () => {

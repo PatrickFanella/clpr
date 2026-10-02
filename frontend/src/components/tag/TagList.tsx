@@ -1,6 +1,6 @@
 import React from 'react';
 import { useClipTags } from '../../hooks/useTags';
-import { isChipLane, sortByPopularity, tagLane } from '@/lib/tag-lanes';
+import { isChipLane, sortByPopularity, tagLane, uniqueByLabel } from '@/lib/tag-lanes';
 import { TagChip } from './TagChip';
 
 interface TagListProps {
@@ -22,7 +22,7 @@ export const TagList: React.FC<TagListProps> = ({ clipId, maxVisible = 5 }) => {
         );
     }
 
-    const tags = sortByPopularity((data?.tags ?? []).filter(tag => isChipLane(tagLane(tag))));
+    const tags = uniqueByLabel(sortByPopularity((data?.tags ?? []).filter(tag => isChipLane(tagLane(tag)))));
     if (tags.length === 0) return null;
 
     const visibleTags = tags.slice(0, maxVisible);

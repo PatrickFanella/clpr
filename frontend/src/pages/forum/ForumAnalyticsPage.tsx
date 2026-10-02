@@ -52,7 +52,7 @@ export function ForumAnalyticsPage() {
     <>
       <SEO
         title="Forum Analytics"
-        description="Discover trending topics, popular discussions, and top contributors in the Clipper community forum"
+        description="Discover trending topics, popular discussions, and top contributors in the clpr community forum"
       />
       <Container className="py-6">
         <div className="max-w-7xl mx-auto">

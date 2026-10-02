@@ -1,16 +1,16 @@
 /**
- * Auth utilities for the Clipper browser extension.
+ * Auth utilities for the clpr browser extension.
  *
  * Authentication strategy:
- * - The extension reads the `access_token` JWT cookie set by the Clipper backend
+ * - The extension reads the `access_token` JWT cookie set by the clpr backend
  *   from the API domain using chrome.cookies.get().
  * - This token is sent as `Authorization: Bearer <token>` on all API requests.
- * - If no token is present, the user is prompted to log in via the Clipper website.
+ * - If no token is present, the user is prompted to log in via the clpr website.
  */
 
 import type { ExtensionConfig, UserProfile } from '../types';
 
-/** Retrieves the JWT access token from the Clipper API domain cookie. */
+/** Retrieves the JWT access token from the clpr API domain cookie. */
 export async function getAccessToken(config: ExtensionConfig): Promise<string | null> {
   return new Promise(resolve => {
     const apiOrigin = new URL(config.apiBaseUrl).origin;
@@ -44,7 +44,7 @@ export async function verifyAuth(
   }
 }
 
-/** Opens the Clipper frontend login page in a new tab. */
+/** Opens the clpr frontend login page in a new tab. */
 export function openLoginPage(config: ExtensionConfig): void {
   chrome.tabs.create({ url: `${config.frontendUrl}/login` });
 }

@@ -12,7 +12,6 @@ import {
     Home,
     Compass,
     Heart,
-    Trophy,
     ListMusic,
     Sparkles,
     Star,
@@ -127,13 +126,6 @@ export function Header() {
                                         <Users size={16} strokeWidth={1.75} /> Creators
                                     </Link>
                                     <Link
-                                        to='/leaderboards'
-                                        className='flex min-h-11 items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors'
-                                        onClick={() => setMoreMenuOpen(false)}
-                                    >
-                                        <Trophy size={16} strokeWidth={1.75} /> {t('nav.leaderboards')}
-                                    </Link>
-                                    <Link
                                         to='/playlists/discover'
                                         className='flex min-h-11 items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors'
                                         onClick={() => setMoreMenuOpen(false)}
@@ -229,12 +221,6 @@ export function Header() {
                             </p>
 
                             <Button asChild variant='ghost' size='sm' className='w-full justify-start'>
-                                <Link
-                                    to='/leaderboards'
-                                    onClick={() => setMobileMenuOpen(false)}
-                                >
-                                    <Trophy size={16} strokeWidth={1.75} className='mr-2' /> {t('nav.leaderboards')}
-                                </Link>
                             </Button>
                             <Button asChild variant='ghost' size='sm' className='w-full justify-start'>
                                 <Link

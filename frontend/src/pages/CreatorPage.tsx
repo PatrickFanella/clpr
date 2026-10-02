@@ -20,7 +20,7 @@ export function CreatorPage() {
     <>
       <SEO
         title={`${creatorId} - Creator Profile`}
-        description={`View all clips created by ${creatorId} on Clipper`}
+        description={`View all clips created by ${creatorId} on clpr`}
       />
       <Container className="py-8">
         <div className="mb-6">

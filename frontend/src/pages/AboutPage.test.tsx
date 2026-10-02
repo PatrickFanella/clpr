@@ -1,38 +1,63 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { AboutPage } from './AboutPage';
 
-vi.mock('../components', () => ({
-  Container: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  CardBody: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SEO: () => null,
-}));
+vi.mock('../components', async () => {
+  const { Button } = await vi.importActual<typeof import('../components/ui/Button')>('../components/ui/Button');
+  return {
+    Button,
+    Container: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    SEO: () => null,
+  };
+});
+
+const fetchClipsMock = vi.hoisted(() => vi.fn());
+vi.mock('../lib/clip-api', () => ({ fetchClips: fetchClipsMock }));
 
 describe('AboutPage', () => {
-  const renderPage = () => render(<MemoryRouter><AboutPage /></MemoryRouter>);
+  const renderPage = () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(<QueryClientProvider client={client}><MemoryRouter><AboutPage /></MemoryRouter></QueryClientProvider>);
+  };
 
   it('presents clpr as creator-first live culture discovery', () => {
+    fetchClipsMock.mockResolvedValue({ clips: [] });
     renderPage();
     expect(screen.getByRole('heading', { name: /find the creators/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /more than gaming/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /made for discovery/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /what you can do/i })).toBeInTheDocument();
   });
 
-  it('shows the favorites feature once with one checkmark', () => {
+  it("shows today's clips and leaves out flagged or thumbnail-less ones", async () => {
+    fetchClipsMock.mockResolvedValue({
+      clips: [
+        { id: 'a', title: 'First clip', broadcaster_name: 'one', thumbnail_url: 'https://example.test/a.jpg' },
+        { id: 'b', title: 'Flagged clip', broadcaster_name: 'two', thumbnail_url: 'https://example.test/b.jpg', is_nsfw: true },
+        { id: 'c', title: 'No thumbnail', broadcaster_name: 'three' },
+      ],
+    });
     renderPage();
-    const favorite = screen.getByText('Save favorites for later viewing').closest('li');
-    expect(favorite).toHaveTextContent('✓Save favorites for later viewing');
-    expect(favorite?.querySelectorAll('span')).toHaveLength(2);
+    expect(await screen.findByRole('link', { name: /first clip/i })).toHaveAttribute('href', '/clip/a');
+    expect(screen.queryByText('Flagged clip')).not.toBeInTheDocument();
+    expect(screen.queryByText('No thumbnail')).not.toBeInTheDocument();
+  });
+
+  it('omits the live section when no clips load', async () => {
+    fetchClipsMock.mockRejectedValue(new Error('offline'));
+    renderPage();
+    expect(screen.queryByRole('heading', { name: /on clpr right now/i })).not.toBeInTheDocument();
   });
 
   it('does not advertise development or repository links', () => {
+    fetchClipsMock.mockResolvedValue({ clips: [] });
     const { container } = renderPage();
     expect(container).not.toHaveTextContent(/open source|technology stack|github/i);
   });
 
   it('links to community rules, contact, and Patreon', () => {
+    fetchClipsMock.mockResolvedValue({ clips: [] });
     renderPage();
     expect(screen.getByRole('link', { name: /community rules/i })).toHaveAttribute('href', '/community-rules');
     expect(screen.getByRole('link', { name: /contact us/i })).toHaveAttribute('href', '/contact');

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { CategoryIcon, Container, SEO, Spinner } from '../components';
+import { Container, SEO, Spinner } from '../components';
 import { useTopicCategories } from '../hooks/useDiscoveryQueries';
 
 export function TopicsPage() {
@@ -26,7 +26,6 @@ export function TopicsPage() {
                     <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
                         {topics.map(topic => (
                             <Link key={topic.id} to={`/topics/${topic.slug}`} className='flex items-start gap-3 rounded-xl border border-border bg-surface p-5 hover:border-brand hover:bg-surface-hover transition-colors'>
-                                <CategoryIcon icon={topic.icon} size='lg' />
                                 <div>
                                     <h2 className='font-semibold text-foreground'>{topic.name}</h2>
                                     {topic.description && <p className='text-sm text-muted-foreground mt-1 line-clamp-2'>{topic.description}</p>}

@@ -115,7 +115,7 @@ describe('ClipDetailPage', () => {
         useClipByIdMock.mockReturnValue({ data: clip, isLoading: false, error: null, refetch: vi.fn() });
         renderClip('clip-1');
 
-        const views = screen.getByText('499 views at last sync');
+        const views = screen.getByText('499 Twitch views at last sync');
         expect(views).toHaveAttribute('title', expect.stringContaining('The player shows the live count'));
     });
 });

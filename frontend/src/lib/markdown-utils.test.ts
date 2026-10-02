@@ -7,6 +7,7 @@ import {
     headingToId,
     convertWikilinks,
     extractTextFromChildren,
+    markdownToPlainText,
 } from './markdown-utils';
 
 describe('markdown-utils', () => {
@@ -141,6 +142,17 @@ Content here.`;
                 },
             };
             expect(extractTextFromChildren(element)).toBe('Text with code');
+        });
+    });
+
+    describe('markdownToPlainText', () => {
+        it('reduces headings, lists, emphasis and links to readable text', () => {
+            const markdown = '## Welcome! 👋\n\n### What you can do\n\n- **Discussion** — Talk about clips\n- [Browse Clips](/) for more\n1. `code` here';
+            expect(markdownToPlainText(markdown)).toBe('Welcome! 👋 What you can do Discussion — Talk about clips Browse Clips for more code here');
+        });
+
+        it('keeps underscores in names', () => {
+            expect(markdownToPlainText('clipped by caseoh_ and x_y')).toBe('clipped by caseoh_ and x_y');
         });
     });
 });
