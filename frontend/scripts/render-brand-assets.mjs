@@ -1,6 +1,7 @@
 // Renders clpr's raster brand assets from the SVG sources in public/ and the
-// self-hosted fonts in src/assets/fonts. Run after changing the logo, icon, or
-// social card: `node scripts/render-brand-assets.mjs`. Requires Playwright's
+// self-hosted fonts in src/assets/fonts. The logo and mark come from the CLPR
+// brand pack in subcult-studio (see docs/brand-provenance.json). Run after
+// changing the logo, icon, or social card: `node scripts/render-brand-assets.mjs`. Requires Playwright's
 // Chromium (installed for the e2e suite).
 import { chromium } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -14,6 +15,7 @@ const icon = await readFile(path.join(publicDir, 'icons/icon.svg'), 'utf8');
 const maskable = await readFile(path.join(publicDir, 'icons/icon-maskable.svg'), 'utf8');
 const favicon = await readFile(path.join(publicDir, 'favicon.svg'), 'utf8');
 const logo = await readFile(path.join(publicDir, 'clpr-logo.svg'), 'utf8');
+const mark = await readFile(path.join(root, 'src/assets/brand/clpr-mark.svg'), 'utf8');
 
 // setContent pages cannot read file:// URLs, so fonts are inlined as data URLs.
 const fontFace = async (family, weight, file) => {
@@ -22,32 +24,54 @@ const fontFace = async (family, weight, file) => {
 };
 const fonts = (await Promise.all([
     fontFace('Barlow', 400, 'barlow-400.woff2'),
-    fontFace('Barlow Condensed', 800, 'barlow-condensed-800.woff2'),
-    fontFace('IBM Plex Mono', 500, 'ibm-plex-mono-500.woff2'),
+    fontFace('Barlow Condensed', 700, 'barlow-condensed-700.woff2'),
+    fontFace('IBM Plex Mono', 400, 'ibm-plex-mono-400.woff2'),
 ])).join('\n');
 
 const sized = (svg, width, height) => svg.replace('<svg ', `<svg width="${width}" height="${height}" `);
+const placed = (svg, x, y, width, height) => svg.replace('<svg ', `<svg x="${x}" y="${y}" width="${width}" height="${height}" `);
 
-/** A wordmark on ink with an optional headline, used for the social card and banners. */
-function card({ width, height, logoHeight, headline, meta }) {
+/** The wordmark centred on ink, used for profile images and banners. */
+function logoCard({ width, height, logoHeight }) {
+    return `<!doctype html><html><head><style>
+        * { margin: 0; box-sizing: border-box; }
+        body { width: ${width}px; height: ${height}px; background: #0E0C13; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        svg { height: ${logoHeight}px; width: auto; display: block; }
+    </style></head><body>${logo}</body></html>`;
+}
+
+/**
+ * The 1200x630 link-preview card. It follows the clip stack layout of the
+ * CLPR brand pack: wordmark, headline, three overlapping clip cards, a violet
+ * rule and a mono destination.
+ */
+function socialCard({ headline, caption }) {
+    const clip = (dx, dy, angle, stroke) =>
+        `<g transform="rotate(${angle} ${985 + dx} ${284 + dy})"><rect x="${820 + dx}" y="${150 + dy}" width="330" height="268" rx="10" fill="#211B30" stroke="${stroke}" stroke-width="2"/></g>`;
+    const lines = headline
+        .map((line, index) => `<text x="48" y="${286 + index * 88}" class="headline">${line}</text>`)
+        .join('');
     return `<!doctype html><html><head><style>
         ${fonts}
-        * { margin: 0; box-sizing: border-box; }
-        body { width: ${width}px; height: ${height}px; background: #0E0C13; color: #EEEDF7; position: relative; overflow: hidden; }
-        .rule { position: absolute; inset: 0 0 auto 0; height: ${Math.round(height * 0.012)}px; background: #8C5CFF; }
-        .wrap { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 ${Math.round(width * 0.07)}px; gap: ${Math.round(height * 0.05)}px; }
-        .logo svg { height: ${logoHeight}px; width: auto; display: block; }
-        h1 { font: 800 ${Math.round(height * 0.1)}px/0.95 'Barlow Condensed'; text-transform: uppercase; letter-spacing: 0.01em; max-width: 20ch; }
-        .meta { font: 500 ${Math.round(height * 0.032)}px 'IBM Plex Mono'; letter-spacing: 0.12em; text-transform: uppercase; color: #8F8A9C; }
-        .burn { position: absolute; right: ${Math.round(width * 0.04)}px; bottom: ${Math.round(height * 0.06)}px; font: 500 ${Math.round(height * 0.03)}px 'IBM Plex Mono'; background: #000000b8; color: #fff; padding: 4px 10px; }
+        * { margin: 0; }
+        body { width: 1200px; height: 630px; overflow: hidden; }
+        .headline { font: 700 84px 'Barlow Condensed'; text-transform: uppercase; fill: #EEEDF7; }
+        .caption { font: 400 24px 'Barlow'; fill: #EEEDF7; }
+        .site { font: 400 18px 'IBM Plex Mono'; fill: #EEEDF7; }
     </style></head><body>
-        <div class="rule"></div>
-        <div class="wrap">
-            <div class="logo">${logo}</div>
-            ${headline ? `<h1>${headline}</h1>` : ''}
-            ${meta ? `<p class="meta">${meta}</p>` : ''}
-        </div>
-        ${headline ? '<span class="burn">00:00:20:14</span>' : ''}
+        <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+            <rect width="1200" height="630" fill="#0E0C13"/>
+            ${placed(logo, 48, 40, 261, 120)}
+            ${lines}
+            <text x="48" y="456" class="caption">${caption}</text>
+            ${clip(24, 24, 6, '#493C64')}
+            ${clip(12, 12, -5, '#493C64')}
+            ${clip(0, 0, 0, '#8C5CFF')}
+            ${placed(mark, 925, 218, 120, 120)}
+            <path d="M840 394H1130" stroke="#3DDC97" stroke-width="3"/>
+            <path d="M48 548H1152" stroke="#8C5CFF" stroke-width="2"/>
+            <text x="48" y="588" class="site">clpr.tv</text>
+        </svg>
     </body></html>`;
 }
 
@@ -76,21 +100,25 @@ for (const size of [16, 32]) {
 }
 
 await shoot(
-    card({
-        width: 1200,
-        height: 630,
-        logoHeight: 120,
-        headline: 'The moments shaping live culture',
-        meta: 'clpr.tv · Twitch clips by creator, topic and tag',
+    socialCard({
+        headline: ['The moments shaping', 'live culture'],
+        caption: 'Twitch clips by creator, topic and tag',
     }),
     1200,
     630,
     'social-card.png',
 );
-await shoot(card({ width: 500, height: 500, logoHeight: 110 }), 500, 500, 'clpr-500px.png');
-await shoot(card({ width: 1024, height: 1024, logoHeight: 230 }), 1024, 1024, 'clpr-1021px.png');
-await shoot(card({ width: 500, height: 294, logoHeight: 90 }), 500, 294, 'clpr-banner-500px.png');
-await shoot(card({ width: 1021, height: 601, logoHeight: 180 }), 1021, 601, 'clpr-banner-1021px.png');
+await shoot(logoCard({ width: 500, height: 500, logoHeight: 110 }), 500, 500, 'clpr-500px.png');
+await shoot(logoCard({ width: 1024, height: 1024, logoHeight: 230 }), 1024, 1024, 'clpr-1021px.png');
+await shoot(logoCard({ width: 500, height: 294, logoHeight: 90 }), 500, 294, 'clpr-banner-500px.png');
+await shoot(logoCard({ width: 1021, height: 601, logoHeight: 180 }), 1021, 601, 'clpr-banner-1021px.png');
+
+// The browser extension ships the same icon; the smallest size uses the larger favicon mark.
+for (const size of [16, 32, 48, 128]) {
+    const source = size === 16 ? favicon : icon;
+    await shoot(svgPage(sized(source, size, size)), size, size, `../../extension/icons/icon-${size}.png`);
+}
 
 await browser.close();
-console.log('Brand assets rendered. favicon.ico is assembled separately from the favicon PNGs.');
+console.log('Brand assets rendered. Assemble favicon.ico from the favicon PNGs:');
+console.log('  magick public/favicon_io/favicon-16x16.png public/favicon_io/favicon-32x32.png public/favicon_io/favicon.ico');

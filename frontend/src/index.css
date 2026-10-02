@@ -250,6 +250,17 @@
     box-shadow: inset 0 3px 0 rgb(var(--clpr-brand));
 }
 
+/* Clip frame: violet crop corners, from the CLPR brand pack's screenshot frame. */
+@utility crop-corners {
+    --crop-arm: 1.25rem;
+    --crop-line: 2px;
+    --crop-ink: linear-gradient(rgb(var(--clpr-brand)) 0 0);
+    background-image: var(--crop-ink), var(--crop-ink), var(--crop-ink), var(--crop-ink), var(--crop-ink), var(--crop-ink), var(--crop-ink), var(--crop-ink);
+    background-repeat: no-repeat;
+    background-size: var(--crop-arm) var(--crop-line), var(--crop-line) var(--crop-arm);
+    background-position: left top, left top, right top, right top, left bottom, left bottom, right bottom, right bottom;
+}
+
 /* Base layer - custom CSS resets and base styles */
 @layer base {
     :root {

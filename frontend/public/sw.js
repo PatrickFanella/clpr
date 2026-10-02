@@ -3,7 +3,7 @@
 // Does NOT cache authenticated or sensitive API data
 
 // Bump when precached files (offline page, icons) change so clients refresh them.
-const CACHE_NAME = 'clpr-v4';
+const CACHE_NAME = 'clpr-v5';
 const OFFLINE_URL = '/offline.html';
 
 // Static assets to cache for offline shell
