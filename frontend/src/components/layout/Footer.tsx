@@ -7,8 +7,8 @@ export function Footer() {
 
     return (
         <footer className='bg-background border-t border-border mt-auto'>
-            <div className='page-container mx-auto px-4 py-8'>
-                <div className='grid grid-cols-1 md:grid-cols-4 gap-8'>
+            <div className='page-container py-8'>
+                <div className='grid grid-cols-1 md:grid-cols-3 gap-8'>
                     {/* About Section */}
                     <div>
                         <h3 className='kicker mb-4'>
@@ -29,6 +29,14 @@ export function Footer() {
                                     className='text-muted-foreground hover:text-foreground transition-colors'
                                 >
                                     Support clpr
+                                </Link>
+                            </li>
+                            <li>
+                                <Link
+                                    to='/contact'
+                                    className='text-muted-foreground hover:text-foreground transition-colors'
+                                >
+                                    {t('footer.contactUs')}
                                 </Link>
                             </li>
                         </ul>
@@ -103,31 +111,6 @@ export function Footer() {
                             </li>
                         </ul>
                     </div>
-
-                    {/* Resources Section */}
-                    <div>
-                        <h3 className='kicker mb-4'>
-                            {t('footer.resources')}
-                        </h3>
-                        <ul className='space-y-2'>
-                            {/* <li>
-                <Link
-                  to="/docs"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Documentation
-                </Link>
-              </li> */}
-                            <li>
-                                <Link
-                                    to='/contact'
-                                    className='text-muted-foreground hover:text-foreground transition-colors'
-                                >
-                                    {t('footer.contactUs')}
-                                </Link>
-                            </li>
-                        </ul>
-                    </div>
                 </div>
 
                 {/* Copyright */}
@@ -140,8 +123,7 @@ export function Footer() {
                             rel='noopener noreferrer'
                         >
                             subcult.tv
-                        </a>{' '}
-                        💜
+                        </a>
                     </p>
                 </div>
             </div>

@@ -170,7 +170,7 @@ export function BroadcasterPage() {
         <>
             <SEO
                 title={`${profile.display_name} - Creator Profile`}
-                description={`View all clips featuring ${profile.display_name} on Clipper`}
+                description={`View all clips featuring ${profile.display_name} on clpr`}
             />
             <Container className='py-8'>
                 {/* Broadcaster Profile Header */}

@@ -49,7 +49,7 @@ export function EmptyStateWithAction({
   tips,
 }: EmptyStateWithActionProps) {
   return (
-    <div className="bg-card border border-dashed border-line-strong p-8 text-center" data-testid="empty-state">
+    <div className="bg-card crop-corners p-8 text-center" data-testid="empty-state">
       {/* Icon */}
       {icon && (
         <div className="flex justify-center mb-4 text-muted-foreground">

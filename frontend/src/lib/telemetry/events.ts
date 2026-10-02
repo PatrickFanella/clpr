@@ -330,7 +330,19 @@ export interface PerformanceEventProperties extends BaseEventProperties {
 // Type Exports
 // ============================================================================
 
+export const CreatorEvents = {
+  CLIP_TITLE_UPDATED: 'creator_clip_title_updated',
+  CLIP_VISIBILITY_UPDATED: 'creator_clip_visibility_updated',
+} as const;
+
+export const ModerationEvents = {
+  SUBMISSION_APPROVED: 'moderation_submission_approved',
+  SUBMISSION_REJECTED: 'moderation_submission_rejected',
+} as const;
+
 export type EventName =
+  | typeof CreatorEvents[keyof typeof CreatorEvents]
+  | typeof ModerationEvents[keyof typeof ModerationEvents]
   | typeof AuthEvents[keyof typeof AuthEvents]
   | typeof SubmissionEvents[keyof typeof SubmissionEvents]
   | typeof EngagementEvents[keyof typeof EngagementEvents]

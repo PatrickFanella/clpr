@@ -96,7 +96,7 @@ export function ForumIndex() {
                 to="/forum/analytics"
                 className="text-sm text-primary-300 hover:text-primary-200 underline underline-offset-2 transition-colors motion-reduce:transition-none mt-1 inline-block"
               >
-                View Analytics →
+                Popular threads and contributors
               </Link>
             </div>
             {user && (
@@ -143,10 +143,9 @@ export function ForumIndex() {
                   className={cn(
                     'min-h-[44px] px-3 py-1.5 text-sm font-medium border transition-colors motion-reduce:transition-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
                     isActive
-                      ? 'text-white border-transparent'
+                      ? 'bg-brand text-background border-transparent'
                       : 'text-text-secondary border-border hover:border-text-tertiary hover:text-text-primary',
                   )}
-                  style={isActive ? { backgroundColor: t.color } : undefined}
                 >
                   {t.label}
                 </button>

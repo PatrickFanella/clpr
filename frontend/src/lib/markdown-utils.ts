@@ -234,3 +234,18 @@ export function convertWikilinks(markdown: string): string {
         }
     );
 }
+
+/**
+ * Markdown reduced to readable plain text for one-line previews, where
+ * rendering headings and lists would break the layout.
+ */
+export function markdownToPlainText(markdown: string): string {
+    return markdown
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+        .replace(/^\s{0,3}(?:#{1,6}|>|[-*+]|\d+\.)\s+/gm, '')
+        .replace(/(\*\*|\*|~~|`)/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}

@@ -1,8 +1,8 @@
 /**
- * Background service worker for the Clipper extension.
+ * Background service worker for the clpr extension.
  *
  * Responsibilities:
- *  - Register and update the "Share to Clipper" context menu item.
+ *  - Register and update the "Share to clpr" context menu item.
  *  - Listen for context menu clicks and open the popup or a new tab.
  *  - Track the clip URL detected on the active tab so the popup can read it.
  */
@@ -20,7 +20,7 @@ const tabClips = new Map<number, TwitchClipInfo>();
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: MENU_ITEM_ID,
-    title: 'Share to Clipper',
+    title: 'Share to clpr',
     contexts: ['page', 'link'],
     documentUrlPatterns: [
       'https://www.twitch.tv/*/clip/*',
@@ -52,8 +52,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       chrome.notifications.create({
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-        title: 'Share to Clipper',
-        message: 'Click the Clipper toolbar button to share this clip.',
+        title: 'Share to clpr',
+        message: 'Click the clpr toolbar button to share this clip.',
       });
     } else if (chrome.tabs && typeof chrome.tabs.create === 'function') {
       // Last-resort fallback: open the extension page in a new tab.

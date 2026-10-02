@@ -5,18 +5,18 @@ import { AdminRoute } from './AdminRoute';
 import { ProtectedRoute } from './ProtectedRoute';
 import { GuestRoute } from './GuestRoute';
 
-const auth = vi.hoisted(() => ({ isAuthenticated: false, isLoading: false, isModeratorOrAdmin: false }));
+const auth = vi.hoisted(() => ({ isAuthenticated: false, isLoading: false, isModeratorOrAdmin: false, isAdmin: false }));
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => auth }));
 
 function LoginDestination() {
     const location = useLocation();
     return <p>Login return: {location.state?.from?.pathname}{location.state?.from?.search}</p>;
 }
-function renderGuard(Guard: typeof ProtectedRoute) {
+function renderGuard(Guard: typeof ProtectedRoute, path = '/private') {
     return render(
-        <MemoryRouter initialEntries={['/private?tab=history']}>
+        <MemoryRouter initialEntries={[`${path}?tab=history`]}>
             <Routes>
-                <Route path='/private' element={<Guard><h1>Private content</h1></Guard>} />
+                <Route path={path} element={<Guard><h1>Private content</h1></Guard>} />
                 <Route path='/login' element={<LoginDestination />} />
                 <Route path='/' element={<h1>Home</h1>} />
             </Routes>
@@ -24,7 +24,7 @@ function renderGuard(Guard: typeof ProtectedRoute) {
     );
 }
 
-beforeEach(() => Object.assign(auth, { isAuthenticated: false, isLoading: false, isModeratorOrAdmin: false }));
+beforeEach(() => Object.assign(auth, { isAuthenticated: false, isLoading: false, isModeratorOrAdmin: false, isAdmin: false }));
 
 describe('route access decisions', () => {
     it.each([ProtectedRoute, AdminRoute, GuestRoute])('%s does not expose content or redirect before identity resolves', Guard => {
@@ -63,6 +63,19 @@ describe('route access decisions', () => {
         auth.isModeratorOrAdmin = true;
         renderGuard(AdminRoute);
         expect(screen.getByRole('heading', { name: 'Private content' })).toBeInTheDocument();
+    });
+
+    it.each(['/admin/moderators', '/admin/moderators/', '/admin/bans', '/moderation/users'])('denies a moderator direct access to %s', path => {
+        Object.assign(auth, { isAuthenticated: true, isModeratorOrAdmin: true });
+        renderGuard(AdminRoute, path);
+        expect(screen.getByRole('heading', { name: /403/ })).toBeInTheDocument();
+        expect(screen.queryByText('Private content')).not.toBeInTheDocument();
+    });
+
+    it('allows an administrator into user management', () => {
+        Object.assign(auth, { isAuthenticated: true, isModeratorOrAdmin: true, isAdmin: true });
+        renderGuard(AdminRoute, '/admin/moderators');
+        expect(screen.getByText('Private content')).toBeInTheDocument();
     });
 
     it('returns an already authenticated visitor from guest-only pages to home', () => {

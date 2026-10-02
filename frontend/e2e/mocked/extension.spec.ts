@@ -5,13 +5,17 @@ test.describe('mocked UI smoke', () => {
         await page.goto('/extension');
 
         await expect(
-            page.getByRole('heading', { name: 'Clipper Browser Extension' }),
+            page.getByRole('heading', { name: 'clpr browser extension' }),
         ).toBeVisible();
-        await expect(
-            page.getByRole('link', { name: 'Get Clipper for Chrome' }),
-        ).toHaveAttribute('href', /chrome|extension/);
-        await expect(
-            page.getByRole('link', { name: 'Get Clipper for Firefox' }),
-        ).toHaveAttribute('href', /addons\.mozilla\.org/);
+        // Install buttons render only for configured store listings; without
+        // one the page must say so instead of linking to a missing page.
+        const installLinks = page.getByRole('link', { name: /Get clpr for (Chrome|Firefox)/ });
+        if ((await installLinks.count()) === 0) {
+            await expect(page.getByTestId('extension-unlisted')).toBeVisible();
+        } else {
+            for (const link of await installLinks.all()) {
+                await expect(link).toHaveAttribute('href', /^https:\/\//);
+            }
+        }
     });
 });

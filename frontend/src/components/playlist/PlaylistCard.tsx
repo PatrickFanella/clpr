@@ -49,14 +49,6 @@ export function PlaylistCard({ playlist }: PlaylistCardProps) {
 		});
 	}
 
-	if (playlist.script_id) {
-		statusBadges.push({
-			label: "Scripted",
-			className:
-				"shrink-0 border border-violet-400/40 bg-violet-500/12 text-[11px] text-violet-100 shadow-xs",
-		});
-	}
-
 	const getVisibilityIcon = () => {
 		switch (playlist.visibility) {
 			case "private":
@@ -264,14 +256,17 @@ export function PlaylistCard({ playlist }: PlaylistCardProps) {
 							))}
 						</div>
 
-						<Badge
-							variant="secondary"
-							size="sm"
-							className="shrink-0 border border-border bg-background/90 text-[11px] text-foreground shadow-xs"
-						>
-							{getVisibilityIcon()}
-							<span>{getVisibilityLabel()}</span>
-						</Badge>
+						{/* Public is the expected state in a directory; only exceptions are labelled. */}
+						{playlist.visibility !== "public" && (
+							<Badge
+								variant="secondary"
+								size="sm"
+								className="shrink-0 border border-border bg-background/90 text-[11px] text-foreground shadow-xs"
+							>
+								{getVisibilityIcon()}
+								<span>{getVisibilityLabel()}</span>
+							</Badge>
+						)}
 					</div>
 
 					<div className="-mb-3 flex flex-no-wrap items-center justify-between gap-1.5 text-xs text-muted-foreground">
@@ -290,6 +285,7 @@ export function PlaylistCard({ playlist }: PlaylistCardProps) {
 								onClick={handleLikeClick}
 								disabled={likeMutation.isPending || unlikeMutation.isPending}
 								className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded px-2 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-link cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+								aria-label={isLiked ? "Unlike playlist" : "Like playlist"}
 								title={
 									isAuthenticated
 										? isLiked
@@ -302,9 +298,11 @@ export function PlaylistCard({ playlist }: PlaylistCardProps) {
 									size={14}
 									className={cn(isLiked && "fill-current text-link")}
 								/>
-								<span className="font-medium text-foreground/90">
-									{likeCount}
-								</span>
+								{likeCount > 0 && (
+									<span className="font-medium text-foreground/90">
+										{likeCount}
+									</span>
+								)}
 							</button>
 
 							<button
@@ -314,6 +312,7 @@ export function PlaylistCard({ playlist }: PlaylistCardProps) {
 									bookmarkMutation.isPending || unbookmarkMutation.isPending
 								}
 								className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded px-2 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-link cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+								aria-label={isBookmarked ? "Remove bookmark" : "Bookmark playlist"}
 								title={
 									isAuthenticated
 										? isBookmarked
@@ -326,9 +325,11 @@ export function PlaylistCard({ playlist }: PlaylistCardProps) {
 									size={14}
 									className={cn(isBookmarked && "fill-current text-link")}
 								/>
-								<span className="font-medium text-foreground/90">
-									{bookmarkCount}
-								</span>
+								{bookmarkCount > 0 && (
+									<span className="font-medium text-foreground/90">
+										{bookmarkCount}
+									</span>
+								)}
 							</button>
 
 							{playlist.visibility !== "private" && (

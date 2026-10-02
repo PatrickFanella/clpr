@@ -379,7 +379,7 @@ export function AdminAPIDocsPage() {
         <>
             <SEO
                 title="API Documentation"
-                description="Complete API reference documentation for Clipper platform"
+                description="Complete API reference documentation for clpr platform"
                 canonicalUrl="/admin/api-docs"
             />
             <Container className="py-8 max-w-7xl">

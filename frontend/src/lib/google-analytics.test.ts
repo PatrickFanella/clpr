@@ -84,6 +84,23 @@ describe('Google Analytics Utilities', () => {
             expect(window.dataLayer).toBeDefined();
             expect(Array.isArray(window.dataLayer)).toBe(true);
         });
+
+        it('queues commands in the arguments-object format consumed by Google', () => {
+            initGoogleAnalytics();
+            trackPageView('/settings');
+
+            const commands = window.dataLayer as IArguments[];
+            expect(commands).toHaveLength(3);
+            expect(commands.every(command =>
+                Object.prototype.toString.call(command) === '[object Arguments]',
+            )).toBe(true);
+            expect(Array.from(commands[1])).toEqual([
+                'config', 'G-TEST123456', expect.objectContaining({ send_page_view: false }),
+            ]);
+            expect(Array.from(commands[2])).toEqual([
+                'event', 'page_view', expect.objectContaining({ page_path: '/settings' }),
+            ]);
+        });
     });
 
     describe('disableGoogleAnalytics', () => {

@@ -6,7 +6,7 @@ import {
     LeaderboardSummary,
     LeaderboardTable,
 } from '../components/reputation/LeaderboardTable';
-import { LeaderboardSkeleton, EmptyStateWithAction } from '../components/ui';
+import { Button, LeaderboardSkeleton, EmptyStateWithAction } from '../components/ui';
 import { SEO } from '../components';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../lib/api';
@@ -24,9 +24,9 @@ interface StreamerRanking {
 }
 
 const tabs: Array<{ type: LeaderboardType; label: string; icon: ReactNode }> = [
-    { type: 'karma', label: 'Uppies', icon: <Trophy size={20} aria-hidden='true' /> },
-    { type: 'engagement', label: 'Engagement', icon: <Zap size={20} aria-hidden='true' /> },
-    { type: 'streamers', label: 'Creators', icon: <Tv size={20} aria-hidden='true' /> },
+    { type: 'karma', label: 'Uppies', icon: <Trophy size={16} aria-hidden='true' /> },
+    { type: 'engagement', label: 'Engagement', icon: <Zap size={16} aria-hidden='true' /> },
+    { type: 'streamers', label: 'Creators', icon: <Tv size={16} aria-hidden='true' /> },
 ];
 
 const emptyCopy: Record<LeaderboardType, string> = {
@@ -126,7 +126,7 @@ export default function LeaderboardPage() {
     const displayValue = (value: number) => value > 0 ? value.toLocaleString() : '—';
 
     return (
-        <><SEO title='Leaderboards' description='Community rankings for clpr contributors, clips, and creators.' canonicalUrl='/leaderboards' /><div className='max-w-6xl mx-auto px-4 py-8'>
+        <><SEO title='Leaderboards' description='Community rankings for clpr contributors, clips, and creators.' canonicalUrl='/leaderboards' /><div className='page-container py-8'><div className='mx-auto max-w-4xl'>
             {/* Header */}
             <div className='mb-8'>
                 <h1 className='text-4xl font-bold text-white mb-2'>
@@ -138,21 +138,17 @@ export default function LeaderboardPage() {
             </div>
 
             {/* Type Selector */}
-            <div className='flex flex-wrap gap-2 mb-6' role='group' aria-label='Leaderboard type'>
+            <div className='mb-6 inline-flex flex-wrap border border-line-strong' role='group' aria-label='Leaderboard type'>
                 {tabs.map(tab => (
-                    <button
+                    <Button
                         key={tab.type}
-                        type='button'
+                        variant={type === tab.type ? 'primary' : 'ghost'}
                         onClick={() => handleTypeChange(tab.type)}
                         aria-pressed={type === tab.type}
-                        className={`flex min-h-11 items-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-colors sm:px-6 sm:py-3 ${
-                            type === tab.type
-                                ? 'bg-primary-400 text-background'
-                                : 'bg-surface text-muted-foreground hover:bg-surface-hover'
-                        }`}
+                        className='gap-2'
                     >
                         {tab.icon} {tab.label}
-                    </button>
+                    </Button>
                 ))}
             </div>
 
@@ -304,6 +300,6 @@ export default function LeaderboardPage() {
                     )}
                 </>
             )}
-        </div></>
+        </div></div></>
     );
 }

@@ -24,7 +24,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
         // The query string is part of Cloudflare's cache key. Bump it with the
         // worker's CACHE_NAME so returning visitors never get a stale edge copy
         // of /sw.js, which was once cached with a year-long immutable header.
-        const registration = await navigator.serviceWorker.register('/sw.js?v=4', {
+        const registration = await navigator.serviceWorker.register('/sw.js?v=5', {
             scope: '/',
         });
 
@@ -47,7 +47,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
         const offerUpdate = (worker: ServiceWorker) => {
             if (!navigator.serviceWorker.controller || promptedWorkers.has(worker)) return;
             promptedWorkers.add(worker);
-            if (window.confirm('A new version of Clipper is available. Reload to update?')) {
+            if (window.confirm('A new version of clpr is available. Reload to update?')) {
                 reloadRequested = true;
                 worker.postMessage({ type: 'SKIP_WAITING' });
             }

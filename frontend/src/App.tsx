@@ -11,6 +11,7 @@ import { Spinner } from './components/ui/Spinner';
 import { ConsentBanner } from './components/consent/ConsentBanner';
 import { adminRoutes } from './routes/v1/AdminRoutes';
 import { accountRoutes } from './routes/v1/AccountRoutes';
+import { AnalyticsPageTracker } from './components/analytics/AnalyticsPageTracker';
 
 // Lazy load page components for code splitting
 const HomePage = lazy(() =>
@@ -409,6 +410,7 @@ function App() {
                 <ConsentProvider>
                     <ToastProvider>
                         <BrowserRouter>
+                            <AnalyticsPageTracker />
                             <Suspense fallback={<LoadingFallback />}>
                                 <Routes>
                                     <Route element={<AppLayout />}>

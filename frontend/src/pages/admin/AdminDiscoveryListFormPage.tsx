@@ -25,7 +25,7 @@ export function AdminDiscoveryListFormPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const isEditing = id !== 'new';
+  const isEditing = Boolean(id && id !== 'new');
 
   // Form state
   const [name, setName] = useState('');

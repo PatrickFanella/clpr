@@ -115,7 +115,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 	presets := []siteFreshnessPreset{
 		{
 			Name:           "Clip of the Day",
-			Description:    "A daily spotlight on the strongest current clip, balancing momentum, audience size, and freshness.",
+			Description:    "One clip a day: the strongest by momentum, audience and freshness.",
 			Sort:           "trending",
 			Timeframe:      day,
 			ClipLimit:      1,
@@ -128,7 +128,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Viral Velocity",
-			Description:    "Automatically refreshed playlist highlighting clips with the fastest recent momentum.",
+			Description:    "The clips gaining views fastest right now.",
 			Sort:           "trending",
 			Timeframe:      day,
 			ClipLimit:      20,
@@ -141,7 +141,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Fresh Faces",
-			Description:    "Daily playlist surfacing standout clips from newer creators so discovery does not get stuck on the usual suspects.",
+			Description:    "Standout clips from creators with only a few clips on clpr.",
 			Sort:           "top",
 			Timeframe:      week,
 			ClipLimit:      20,
@@ -154,7 +154,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Creator Roulette",
-			Description:    "Daily variety rail with one standout clip per creator so the homepage stays diverse and surprising.",
+			Description:    "One standout clip from each of a varied set of creators, refreshed daily.",
 			Sort:           "top",
 			Timeframe:      week,
 			ClipLimit:      20,
@@ -167,7 +167,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Across the Culture",
-			Description:    "A daily, lightly shuffled tour led by distinct creators and spread across the topics shaping live culture.",
+			Description:    "A daily tour across topics, one creator at a time.",
 			Sort:           "top",
 			Timeframe:      week,
 			ClipLimit:      20,
@@ -180,7 +180,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Weekend Mix",
-			Description:    "A weekly quality-and-surprise mix capped at one clip per creator with a soft topic cap.",
+			Description:    "A weekly mix with one clip per creator across a spread of topics.",
 			Sort:           "top",
 			Timeframe:      week,
 			ClipLimit:      30,
@@ -193,7 +193,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Hidden Gems",
-			Description:    "Daily playlist of sleeper-hit clips with strong retention that deserve a much bigger audience.",
+			Description:    "Clips people watch all the way through that have not found a big audience yet.",
 			Sort:           "top",
 			Timeframe:      week,
 			ClipLimit:      20,
@@ -206,7 +206,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Community Favorites",
-			Description:    "Automatically refreshed playlist of the clips people save and come back to most often.",
+			Description:    "The clips people save and come back to most.",
 			Sort:           "top",
 			Timeframe:      month,
 			ClipLimit:      20,
@@ -219,7 +219,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Breakout Board",
-			Description:    "Daily spotlight on creators whose recent clips are outperforming their usual baseline.",
+			Description:    "Creators whose recent clips are beating their usual numbers.",
 			Sort:           "top",
 			Timeframe:      month,
 			ClipLimit:      20,
@@ -232,7 +232,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Deep Cuts Weekly",
-			Description:    "Weekly playlist of underrated gems with strong watch-through and engagement.",
+			Description:    "A weekly set of underrated clips with strong watch-through.",
 			Sort:           "top",
 			Timeframe:      week,
 			ClipLimit:      25,
@@ -245,7 +245,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Binge Loop",
-			Description:    "Daily playlist of clips that tend to keep people watching through multi-clip sessions.",
+			Description:    "Clips that keep people watching for several in a row.",
 			Sort:           "top",
 			Timeframe:      week,
 			ClipLimit:      24,
@@ -258,7 +258,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		},
 		{
 			Name:           "Hot Takes",
-			Description:    "Daily playlist of the clips that sparked the most debate, reactions, and comment-fueled chaos.",
+			Description:    "The clips drawing the most comments and debate.",
 			Sort:           "trending",
 			Timeframe:      week,
 			ClipLimit:      18,
@@ -275,7 +275,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 		presets = append(presets,
 			siteFreshnessPreset{
 				Name:           "Trending Now",
-				Description:    "Automatically imports and publishes a fresh mix of top clips from Twitch's current hottest creators and categories.",
+				Description:    "Top clips from the creators and categories drawing the biggest audiences on Twitch right now.",
 				Sort:           "trending",
 				Timeframe:      day,
 				ClipLimit:      25,
@@ -288,7 +288,7 @@ func defaultSiteFreshnessPresets(includeTwitch bool) []siteFreshnessPreset {
 			},
 			siteFreshnessPreset{
 				Name:           "Discovery Mix",
-				Description:    "Daily discovery playlist pulling clips from beyond Twitch's main categories to keep the catalog surprising.",
+				Description:    "Clips from outside Twitch's biggest categories, refreshed daily.",
 				Sort:           "top",
 				Timeframe:      week,
 				ClipLimit:      25,

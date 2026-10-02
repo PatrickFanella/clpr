@@ -49,7 +49,7 @@ export function VerifiedBadgeTestPage() {
                   <VerifiedBadge size="lg" />
                 </div>
                 <p className="text-muted-foreground mb-2">@johnverified</p>
-                <p className="text-foreground">This user is verified by Clipper administrators.</p>
+                <p className="text-foreground">This user is verified by clpr administrators.</p>
               </div>
             </div>
           </CardBody>

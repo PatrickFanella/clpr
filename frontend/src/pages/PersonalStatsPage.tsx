@@ -1,4 +1,5 @@
 import React from 'react';
+import { isAxiosError } from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { Helmet } from '@dr.pogodin/react-helmet';
 import { getUserStats } from '../lib/analytics-api';
@@ -11,6 +12,16 @@ const PersonalStatsPage: React.FC = () => {
     queryKey: ['userStats'],
     queryFn: getUserStats,
   });
+
+  if (isAxiosError(error) && error.response?.status === 404) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Helmet><title>My Statistics - Clipper</title></Helmet>
+        <h1 className="text-3xl font-bold text-foreground mb-4">My Statistics</h1>
+        <p className="text-muted-foreground">No statistics yet. Your activity will appear here once it has been recorded.</p>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -27,7 +38,7 @@ const PersonalStatsPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>My Statistics - Clipper</title>
+        <title>My Statistics - clpr</title>
       </Helmet>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

@@ -507,7 +507,9 @@ func (h *PlaylistHandler) ListPublicPlaylists(c *gin.Context) {
 	}
 
 	// Get public playlists
-	playlists, total, err := h.playlistService.ListPublicPlaylists(c.Request.Context(), userID, page, limit)
+	// source=community leaves out script-generated collections.
+	communityOnly := c.Query("source") == "community"
+	playlists, total, err := h.playlistService.ListPublicPlaylists(c.Request.Context(), userID, page, limit, communityOnly)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, StandardResponse{
 			Success: false,

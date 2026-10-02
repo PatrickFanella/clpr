@@ -3,7 +3,7 @@ import { TagChip } from '../tag/TagChip';
 import { useQuery } from '@tanstack/react-query';
 import { FEATURED_PLAYLISTS_PREVIEW_LIMIT, useFeaturedPlaylists, usePlaylists } from '@/hooks/usePlaylist';
 import { usePopularTags, useTopicCategories } from '@/hooks/useDiscoveryQueries';
-import { isChipLane, tagLane } from '@/lib/tag-lanes';
+import { isChipLane, tagLane, uniqueByLabel } from '@/lib/tag-lanes';
 import { useQueueCount } from '@/hooks/useQueue';
 import { useIsAuthenticated } from '@/hooks';
 import { apiClient } from '@/lib/api';
@@ -99,8 +99,7 @@ export function FeedSidebar({ showTrendingPlaylists = true }: FeedSidebarProps) 
         : [];
 
     const { data: tagsResponse } = usePopularTags();
-    const tags = (tagsResponse?.tags ?? [])
-        .filter(tag => isChipLane(tagLane(tag)))
+    const tags = uniqueByLabel((tagsResponse?.tags ?? []).filter(tag => isChipLane(tagLane(tag))))
         .slice(0, SIDEBAR_TAG_COUNT);
 
     const { data: topicsResponse } = useTopicCategories();

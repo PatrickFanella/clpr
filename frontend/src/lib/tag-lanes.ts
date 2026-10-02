@@ -46,6 +46,21 @@ export function sortByPopularity<T extends Pick<Tag, 'usage_count'>>(tags: T[]):
     return [...tags].sort((a, b) => (b.usage_count ?? 0) - (a.usage_count ?? 0));
 }
 
+/**
+ * One tag per visible label. The same word can exist in several lanes (a
+ * streamer's "VTuber" and a community "vtuber"), which reads as a duplicate in
+ * a directory. The first tag for a label wins, so pass tags in display order.
+ */
+export function uniqueByLabel<T extends Pick<Tag, 'name' | 'display_name'>>(tags: T[]): T[] {
+    const seen = new Set<string>();
+    return tags.filter(tag => {
+        const key = tagLabel(tag).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 const TAG_ACCENTS = [
     'text-primary-300',
     'text-success-300',

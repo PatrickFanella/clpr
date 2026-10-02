@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isChipLane, sortByPopularity, tagHref, tagLabel, tagLane } from './tag-lanes';
+import { isChipLane, sortByPopularity, tagHref, tagLabel, tagLane, uniqueByLabel } from './tag-lanes';
 
 describe('tag lanes', () => {
     it('prefers the API lane and display name', () => {
@@ -32,5 +32,16 @@ describe('tag lanes', () => {
             'content/singing',
             'goosebumps',
         ]);
+    });
+
+    it('keeps the first tag for a label that exists in several lanes', () => {
+        const tags = [
+            { slug: 'vtuber', name: 'vtuber' },
+            { slug: 'streamer/vtuber', name: 'Streamer: VTuber' },
+            { slug: 'streamer/drops-enabled', name: 'Streamer: Drops Enabled' },
+            { slug: 'dropsenabled', name: 'Dropsenabled' },
+            { slug: 'content/english', name: 'Content: english', display_name: 'English' },
+        ];
+        expect(uniqueByLabel(tags).map(tag => tag.slug)).toEqual(['vtuber', 'streamer/drops-enabled', 'content/english']);
     });
 });

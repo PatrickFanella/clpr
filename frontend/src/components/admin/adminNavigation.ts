@@ -39,3 +39,17 @@ export const adminNavGroups: AdminNavGroup[] = [
 ];
 
 export const adminNavItems = adminNavGroups.flatMap(group => group.items);
+
+// Keep administrator-only routes and navigation aligned with their API/page access.
+export const adminOnlyPaths = new Set([
+    '/admin/dashboard', '/admin/analytics', '/admin/reports', '/admin/verification',
+    '/admin/bans', '/admin/moderators', '/moderation/users', '/admin/users',
+    '/admin/playlist-scripts', '/admin/tags', '/admin/tag-promotion',
+    '/admin/webhooks/dlq', '/admin/campaigns', '/admin/api-docs',
+]);
+
+export function getAdminNavGroups(isAdmin: boolean): AdminNavGroup[] {
+    return adminNavGroups
+        .map(group => ({ ...group, items: group.items.filter(item => isAdmin || !adminOnlyPaths.has(item.href)) }))
+        .filter(group => group.items.length > 0);
+}

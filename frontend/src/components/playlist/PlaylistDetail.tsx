@@ -413,7 +413,7 @@ export function PlaylistDetail() {
                             size='sm'
                             className='shrink-0 border border-violet-400/40 bg-violet-500/12 text-[11px] text-violet-100 shadow-xs'
                         >
-                            Scripted
+                            Auto-updated
                         </Badge>
                     )}
 

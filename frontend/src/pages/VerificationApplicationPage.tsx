@@ -276,7 +276,7 @@ export function VerificationApplicationPage() {
                         What is Creator Verification?
                     </h3>
                     <p className="text-sm text-muted-foreground mb-3">
-                        Creator verification is a trust signal that helps viewers identify authentic creators on Clipper.
+                        Creator verification is a trust signal that helps viewers identify authentic creators on clpr.
                         Verified creators receive a blue checkmark badge displayed next to their name.
                     </p>
                     <h4 className="text-md font-semibold text-foreground mb-2">

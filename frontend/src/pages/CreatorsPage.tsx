@@ -36,7 +36,7 @@ export function CreatorsPage() {
                 description='Find trending, rising, live, and newly discovered creators shaping live culture.'
                 canonicalUrl='/creators'
             />
-            <div className='page-container mx-auto px-4 py-8 sm:py-12'>
+            <div className='page-container py-8 sm:py-12'>
                 <header className='relative mb-12 overflow-hidden border-y border-border py-10 sm:py-14'>
                     <div className='absolute right-0 top-0 h-full w-px bg-line-strong' />
                     <div className='relative max-w-4xl'>

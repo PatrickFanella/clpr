@@ -1,8 +1,8 @@
 /**
- * Clipper API client for the browser extension.
+ * clpr API client for the browser extension.
  *
  * All requests include `Authorization: Bearer <token>` obtained from the
- * Clipper access_token cookie.  The extension must declare host_permissions
+ * clpr access_token cookie.  The extension must declare host_permissions
  * for the API origin so Chrome relaxes CORS enforcement for extension contexts.
  */
 
@@ -26,7 +26,7 @@ interface MetadataApiResponse {
 }
 
 /**
- * Fetches clip metadata from the Clipper API (which proxies Twitch).
+ * Fetches clip metadata from the clpr API (which proxies Twitch).
  */
 export async function fetchClipMetadata(
   clipUrl: string,
@@ -45,7 +45,7 @@ export async function fetchClipMetadata(
 }
 
 /**
- * Fetches the list of available tags from the Clipper API.
+ * Fetches the list of available tags from the clpr API.
  */
 export async function fetchTags(
   token: string,
@@ -60,7 +60,7 @@ export async function fetchTags(
 }
 
 /**
- * Submits a clip to Clipper.
+ * Submits a clip to clpr.
  */
 export async function submitClip(
   request: SubmitClipRequest,

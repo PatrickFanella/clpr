@@ -375,9 +375,9 @@ func (s *PlaylistService) ListUserPlaylists(ctx context.Context, userID uuid.UUI
 }
 
 // ListPublicPlaylists retrieves public playlists for discovery
-func (s *PlaylistService) ListPublicPlaylists(ctx context.Context, userID *uuid.UUID, page, limit int) ([]*models.PlaylistListItem, int, error) {
+func (s *PlaylistService) ListPublicPlaylists(ctx context.Context, userID *uuid.UUID, page, limit int, communityOnly bool) ([]*models.PlaylistListItem, int, error) {
 	offset := (page - 1) * limit
-	playlists, total, err := s.playlistRepo.ListPublic(ctx, userID, limit, offset)
+	playlists, total, err := s.playlistRepo.ListPublic(ctx, userID, limit, offset, communityOnly)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list public playlists: %w", err)
 	}

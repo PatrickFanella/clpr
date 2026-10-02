@@ -354,8 +354,8 @@ export function SearchPage() {
     const seoTitle = query ? `Search: ${query}` : 'Search Clips';
     const seoDescription =
         query ?
-            `Search results for "${query}" on Clipper. Find Twitch clips, creators, tags, and categories matching your query.`
-        :   'Search Twitch clips, creators, tags, and categories on Clipper. Discover the people and moments shaping live culture.';
+            `Search results for "${query}" on clpr. Find Twitch clips, creators, tags, and categories matching your query.`
+        :   'Search Twitch clips, creators, tags, and categories on clpr. Discover the people and moments shaping live culture.';
 
     if (!query.trim()) {
         return (
@@ -509,7 +509,7 @@ export function SearchPage() {
                         onChange={e =>
                             handleSortChange(e.target.value as SortType)
                         }
-                        className='w-full md:w-auto px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 touch-target'
+                        className='w-full md:w-40 pl-3 pr-8 py-2 rounded-md border border-border bg-background text-foreground text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 touch-target'
                         data-testid='search-sort-select'
                     >
                         <option value='relevance'>Relevance</option>

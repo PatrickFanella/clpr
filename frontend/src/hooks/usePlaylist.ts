@@ -27,6 +27,7 @@ const fetchPlaylists = async (
     return response.data;
 };
 
+/** Public playlists made by people; script-generated collections are featured instead. */
 const fetchPublicPlaylists = async (
     page = 1,
     limit = 20,
@@ -34,7 +35,7 @@ const fetchPublicPlaylists = async (
     const response = await apiClient.get<PlaylistListResponse>(
         '/playlists/public',
         {
-            params: { page, limit },
+            params: { page, limit, source: 'community' },
         },
     );
     return response.data;
@@ -165,7 +166,7 @@ export const usePlaylists = (page = 1, limit = 20, enabled = true) => {
 
 export const usePublicPlaylists = (page = 1, limit = 20) => {
     return useQuery({
-        queryKey: ['playlists', 'public', page, limit],
+        queryKey: ['playlists', 'public', 'community', page, limit],
         queryFn: () => fetchPublicPlaylists(page, limit),
     });
 };

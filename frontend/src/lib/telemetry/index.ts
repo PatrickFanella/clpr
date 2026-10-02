@@ -29,6 +29,8 @@ export {
   SettingsEvents,
   ErrorEvents,
   PerformanceEvents,
+  CreatorEvents,
+  ModerationEvents,
 } from './events';
 
 export type {

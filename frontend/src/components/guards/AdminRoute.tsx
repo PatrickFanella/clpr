@@ -1,12 +1,15 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { adminOnlyPaths } from '../admin/adminNavigation';
 
 interface AdminRouteProps {
   children: React.ReactNode;
 }
 
 export function AdminRoute({ children }: AdminRouteProps) {
-  const { isAuthenticated, isModeratorOrAdmin, isLoading } = useAuth();
+  const { isAuthenticated, isModeratorOrAdmin, isAdmin, isLoading } = useAuth();
+
+  const { pathname } = useLocation();
 
   if (isLoading) {
     return (
@@ -20,7 +23,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!isModeratorOrAdmin) {
+  if (!isModeratorOrAdmin || (adminOnlyPaths.has(pathname.replace(/\/+$/, '')) && !isAdmin)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center" data-testid="access-denied">
