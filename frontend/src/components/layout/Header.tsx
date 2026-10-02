@@ -221,8 +221,6 @@ export function Header() {
                             </p>
 
                             <Button asChild variant='ghost' size='sm' className='w-full justify-start'>
-                            </Button>
-                            <Button asChild variant='ghost' size='sm' className='w-full justify-start'>
                                 <Link
                                     to='/playlists/discover'
                                     onClick={() => setMobileMenuOpen(false)}
