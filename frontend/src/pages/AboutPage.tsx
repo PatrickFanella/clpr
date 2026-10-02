@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Card, CardBody, Container, SEO } from '../components';
+import { SUPPORT_URL } from '../lib/support-link';
 
 const features = [
   'Discover creators across topics and communities',
@@ -54,7 +55,7 @@ export function AboutPage() {
             <p className='text-muted-foreground mb-4'>Watch, save, vote, share, and submit the moments that deserve a wider audience. Please read our <Link to='/community-rules' className='text-link underline underline-offset-2'>community rules</Link> and help keep clpr welcoming to creators and viewers alike.</p>
             <div className='flex flex-wrap gap-4'>
               <Link to='/contact' className='inline-flex px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90'>Contact us</Link>
-              <a href='https://patreon.com/subcult' target='_blank' rel='noopener noreferrer' className='inline-flex px-4 py-2 border border-border rounded-md hover:bg-accent'>Support us on Patreon</a>
+              <a href={SUPPORT_URL} target='_blank' rel='noopener noreferrer' className='inline-flex px-4 py-2 border border-border rounded-md hover:bg-accent'>Support us on Patreon</a>
             </div>
           </CardBody></Card>
         </div>

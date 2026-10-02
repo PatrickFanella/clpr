@@ -14,7 +14,7 @@ test('account access is open and support is optional', async ({ page }) => {
     await expect(page.getByText('No feature paywalls')).toBeVisible();
     await expect(page.getByRole('link', { name: /support subcult on patreon/i })).toHaveAttribute(
         'href',
-        'https://patreon.com/subcult',
+        'https://support.subcult.tv',
     );
     expect(checkoutRequests).toEqual([]);
 });

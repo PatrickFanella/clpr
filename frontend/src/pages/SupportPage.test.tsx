@@ -12,7 +12,7 @@ describe('SupportPage', () => {
         expect(screen.getByText('No feature paywalls')).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /support subcult on patreon/i })).toHaveAttribute(
             'href',
-            'https://patreon.com/subcult',
+            'https://support.subcult.tv',
         );
         expect(screen.queryByText(/upgrade to pro/i)).not.toBeInTheDocument();
     });
