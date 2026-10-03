@@ -696,6 +696,25 @@ Playlist cards label only exceptions: private, unlisted or processing. Public is
 
 Marketing and information pages follow the feed's language: kicker, display heading, ruled definition rows and real clips. They do not use icon tiles, glow backgrounds or checkmark lists.
 
+### Voice
+
+The governing guide is `studio/content/VOICE.md` in the private `subculture-collective/subcult-tv` repository (section "clpr"). Facts and limits come from the claims register beside it and from `docs/LAUNCH_FEATURE_INVENTORY.md`. This summary covers what interface copy needs.
+
+clpr talks like a regular in chat who clips everything and remembers which stream it was: quick, a little amused, and specific about clips. "The one from last Tuesday" is the register.
+
+- Write `clpr` in lowercase in interface text. `CLPR` is for Studio documents, artwork labels and this repository's README.
+- "Clip" works as a verb. Say "creator", "topic", "tag", "playlist" and "collection"; these are the names in the navigation.
+- Avoid "content", "discover" in running copy, "moments that matter", "live culture" and "curated". The route and navigation label "Discover" stay until the owner renames them.
+- Voice belongs in headings, empty states, onboarding and the marketing pages. Buttons, labels, settings and legal pages stay plain.
+- Errors say what failed and what to do next. No apology paragraph.
+- At most one exclamation mark on a page, and none in email subjects. No emoji in interface copy or in email subjects.
+- Do not advertise anything the launch inventory disables: watch parties, the live feed, stream clip creation, CDN delivery, mirroring, automated account deletion or automated data export.
+- Never add a number, user count, testimonial or availability claim that the code does not produce.
+
+Sample lines in use: "Somebody clipped it. It's probably in here." (About), "You missed it live" (home feed), "You remember who. Start there." (creators).
+
+The social card headline ("The moments shaping live culture") is rendered by `frontend/scripts/render-brand-assets.mjs` and predates this section. Changing it means re-rendering `social-card.png`, so it waits for an owner decision.
+
 ## 10. Maintenance and verification
 
 Treat the implementation and executed browser evidence as authoritative. Design examples elsewhere in this document describe visual intent; they do not establish that a feature is enabled or released.
