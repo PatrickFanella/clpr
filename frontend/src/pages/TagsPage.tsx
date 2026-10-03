@@ -39,12 +39,12 @@ export function TagsPage() {
 
     return (
         <>
-            <SEO title='Tags' description='Find Twitch clips by your favorite games, moments, and interests.' canonicalUrl='/tags' />
+            <SEO title='Tags' description='Twitch clips by tag: what is trending this week and what is popular overall.' canonicalUrl='/tags' />
             <Container className='py-8'>
                 <p className='kicker mb-2'>Browse</p>
                 <h1 className='mb-3 text-4xl'>Tags</h1>
                 <p className='mb-6 max-w-2xl text-text-secondary'>
-                    Find more of what you like. Pick a tag to explore clips.
+                    Pick a tag, get every clip that carries it.
                 </p>
 
                 <label className='mb-10 block max-w-xl'>
@@ -68,7 +68,7 @@ export function TagsPage() {
                         <section className='border-t border-line-strong pt-4' aria-labelledby='tags-trending'>
                             <div className='mb-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1'>
                                 <h2 id='tags-trending' className='text-2xl'>Trending this week</h2>
-                                <p className='text-sm text-text-secondary'>Explore tags from the last seven days.</p>
+                                <p className='text-sm text-text-secondary'>Tags picking up over the last seven days.</p>
                             </div>
                             <TagRow tags={trending.data?.tags ?? []} query={trending} empty='Nothing is trending yet this week.' />
                         </section>

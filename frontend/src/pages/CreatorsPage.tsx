@@ -32,8 +32,8 @@ export function CreatorsPage() {
     return (
         <>
             <SEO
-                title='Discover Creators'
-                description='Find trending, rising, live, and newly discovered creators shaping live culture.'
+                title='Creators'
+                description='Twitch creators on clpr: who is trending, who is climbing, who is live and who just showed up.'
                 canonicalUrl='/creators'
             />
             <div className='page-container py-8 sm:py-12'>
@@ -41,16 +41,15 @@ export function CreatorsPage() {
                     <div className='absolute right-0 top-0 h-full w-px bg-line-strong' />
                     <div className='relative max-w-4xl'>
                         <p className='mb-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-link'>
-                            Creator index / live culture
+                            Creator index
                         </p>
                         <h1 className='font-heading text-4xl font-bold leading-[1.05] text-foreground sm:text-6xl'>
-                            Follow the people,
+                            You remember who.
                             <br />
-                            <span className='text-text-secondary'>not just the category.</span>
+                            <span className='text-text-secondary'>Start there.</span>
                         </h1>
                         <p className='mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg'>
-                            Meet the creators driving today&apos;s conversations, performances,
-                            reactions, adventures, and unforgettable live moments.
+                            Creators ranked by what their clips are doing: who&apos;s trending, who&apos;s climbing, who&apos;s live and who just showed up.
                         </p>
                     </div>
                 </header>
@@ -65,7 +64,7 @@ export function CreatorsPage() {
 
                 {discoveryQuery.isError && (
                     <div className='rounded-xl border border-error-500/30 bg-error-500/5 p-6 text-sm text-error-600'>
-                        Creator discovery is temporarily unavailable. Please try again shortly.
+                        Creators could not be loaded. Try again in a minute.
                     </div>
                 )}
 
@@ -73,13 +72,13 @@ export function CreatorsPage() {
                     <div className='space-y-14'>
                         <CreatorDiscoveryRail
                             title='Creators moving now'
-                            description='Current view velocity, fresh clips, and community response—weighted toward what is happening now.'
+                            description='Recent views, new clips and community response, weighted toward right now.'
                             tone='trending'
                             creators={rails?.trending ?? []}
                         />
                         <CreatorDiscoveryRail
                             title='On the rise'
-                            description='Momentum relative to catalog size, giving smaller and emerging creators room to break through.'
+                            description='Momentum measured against catalog size, so smaller channels get a shot.'
                             tone='rising'
                             creators={rails?.rising ?? []}
                         />
@@ -93,7 +92,7 @@ export function CreatorsPage() {
                                 <span className='text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary'>Live</span>
                             </div>
                             <h2 id='live-creators-heading' className='font-heading text-2xl font-bold'>Live right now</h2>
-                            <p className='mt-1 text-sm text-muted-foreground'>Creators currently broadcasting, ordered by the live audience gathered around them.</p>
+                            <p className='mt-1 text-sm text-muted-foreground'>On air now, ordered by viewer count.</p>
                             {liveCreators.length > 0 ? (
                                 <div className='mt-4 flex snap-x gap-4 overflow-x-auto pb-3 scrollbar-hide'>
                                     {liveCreators.map(creator => (
@@ -117,14 +116,14 @@ export function CreatorsPage() {
                             ) : (
                                 <div className='mt-4 flex items-center gap-3 rounded-xl border border-dashed border-border px-5 py-4 text-sm text-muted-foreground'>
                                     <Radio className='h-4 w-4' />
-                                    Live tracking is quiet right now. Check back as creators go live.
+                                    Nobody tracked here is live right now. Check back later.
                                 </div>
                             )}
                         </section>
 
                         <CreatorDiscoveryRail
                             title='Fresh faces'
-                            description='Creators first discovered by Clpr in the last seven days, ordered by recency.'
+                            description='New to clpr in the last seven days, newest first.'
                             tone='new'
                             creators={rails?.new ?? []}
                         />
@@ -134,8 +133,8 @@ export function CreatorsPage() {
                 {isEmpty && (
                     <div className='flex flex-col items-center py-16 text-center'>
                         <Users className='mb-4 h-10 w-10 text-text-tertiary' />
-                        <h2 className='font-heading text-xl font-bold'>The creator index is warming up</h2>
-                        <p className='mt-2 max-w-md text-sm text-muted-foreground'>Fresh creator signals will appear as new clips arrive and audiences respond.</p>
+                        <h2 className='font-heading text-xl font-bold'>No creators to rank yet</h2>
+                        <p className='mt-2 max-w-md text-sm text-muted-foreground'>This fills in as clips arrive and people watch them.</p>
                     </div>
                 )}
             </div>

@@ -24,11 +24,11 @@ export interface SEOProps {
     structuredData?: Record<string, unknown>;
 }
 
-const DEFAULT_TITLE = 'clpr - Discover Creators and Live Moments';
+const DEFAULT_TITLE = 'clpr - Twitch clips by creator, topic and tag';
 const DEFAULT_DESCRIPTION =
-    'Discover the creators and moments shaping live culture. Browse Twitch clips by creator, topic, tag, or collection.';
+    'Twitch clips by creator, topic and tag. Playlists for the ones you keep sending people.';
 const DEFAULT_IMAGE = '/social-card.png';
-const DEFAULT_IMAGE_ALT = 'clpr — Discover creators and live moments';
+const DEFAULT_IMAGE_ALT = 'clpr: Twitch clips by creator, topic and tag';
 const SITE_NAME = 'clpr';
 const TWITTER_HANDLE = '@clpr_tv';
 

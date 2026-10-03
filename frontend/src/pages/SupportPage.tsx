@@ -9,10 +9,10 @@ const accessPromises = [
     },
     {
         title: 'No feature paywalls',
-        description: 'Discovery, favorites, collections, and creator tools are part of clpr, not add-ons.',
+        description: 'Search, favorites, playlists and creator tools all come with the account.',
     },
     {
-        title: 'Community safeguards only',
+        title: 'Limits for safety only',
         description: 'Operational limits exist only for security, spam prevention, and service reliability.',
     },
 ];
@@ -22,17 +22,17 @@ export default function SupportPage() {
         <>
             <SEO
                 title='Support clpr'
-                description='clpr is free to use. If it matters to you, help sustain the project through Subcult on Patreon.'
+                description='clpr is free to use. If you want to chip in, Subcult has a Patreon. It is optional and changes nothing about your account.'
                 canonicalUrl='/support'
             />
             <Container className='py-8'>
                 <div className='mx-auto max-w-4xl'>
                     <p className='kicker mb-3'>Community supported</p>
                     <h1 className='display text-4xl sm:text-6xl'>
-                        clpr is for the culture,<br />not a customer tier.
+                        clpr is free.<br />Patreon is the tip jar.
                     </h1>
                     <p className='mt-6 max-w-2xl text-lg text-text-secondary'>
-                        Accounts are free and features are not held behind a subscription. If clpr is useful to you, Patreon is an optional way to help Subcult keep it running and growing.
+                        Accounts are free and nothing sits behind a subscription. If clpr is useful to you, Patreon is an optional way to help Subcult keep it running.
                     </p>
                     <div className='mt-8 flex flex-wrap items-center gap-x-4 gap-y-2'>
                         <Button asChild size='lg'>

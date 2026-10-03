@@ -56,16 +56,16 @@ export function ContactPage() {
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-4">Contact Us</h1>
         <p className="text-muted-foreground">
-          Have a question, feedback, or need help? We're here to assist you.
+          Questions, bugs, feedback or a problem with your account: send it here.
         </p>
       </div>
 
       {submitSuccess && (
         <Alert variant="success" className="mb-6">
           <div>
-            <p className="font-semibold">Message sent successfully!</p>
+            <p className="font-semibold">Message sent successfully</p>
             <p className="text-sm mt-1">
-              We've received your message and will get back to you as soon as possible.
+              We got it and will reply as soon as we can.
             </p>
           </div>
         </Alert>

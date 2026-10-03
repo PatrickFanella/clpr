@@ -15,8 +15,7 @@ export function CommunityRulesPage() {
         <Card>
           <CardBody>
             <p className="text-muted-foreground">
-              Welcome to clpr! Our community is built on respect, authenticity, and a shared appreciation for creators and live culture.
-              These rules help ensure clpr remains a positive space for everyone to discover, share, and celebrate memorable moments.
+              clpr is for sharing Twitch clips and talking about them. These rules cover how to treat creators and each other while you do, what you can submit, and what happens when someone breaks them.
             </p>
           </CardBody>
         </Card>

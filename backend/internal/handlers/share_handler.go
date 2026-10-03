@@ -44,8 +44,8 @@ var shareClipIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 const (
 	shareSiteName           = "clpr"
-	shareDefaultTitle       = "clpr - Discover Creators and Live Moments"
-	shareDefaultDescription = "Discover the creators and moments shaping live culture. Browse Twitch clips by creator, topic, tag, or collection."
+	shareDefaultTitle       = "clpr - Twitch clips by creator, topic and tag"
+	shareDefaultDescription = "Twitch clips by creator, topic and tag. Playlists for the ones you keep sending people."
 	shareCacheControl       = "public, max-age=300"
 )
 
@@ -168,7 +168,7 @@ func defaultClipPreview(baseURL string) clipPreview {
 		Description:  shareDefaultDescription,
 		PageURL:      baseURL + "/",
 		ImageURL:     baseURL + "/social-card.png",
-		ImageAlt:     "clpr — Discover creators and live moments",
+		ImageAlt:     "clpr: Twitch clips by creator, topic and tag",
 		IsDefault:    true,
 		DefaultImage: true,
 		LinkText:     "Open clpr",

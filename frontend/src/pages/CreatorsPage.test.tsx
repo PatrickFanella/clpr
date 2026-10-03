@@ -56,7 +56,7 @@ describe('CreatorsPage', () => {
         render(<CreatorsPage />);
 
         expect(
-            screen.getByRole('heading', { name: /follow the people/i }),
+            screen.getByRole('heading', { name: /you remember who/i }),
         ).toBeInTheDocument();
         expect(
             await screen.findByRole('heading', { name: 'Creators moving now' }),

@@ -59,7 +59,7 @@ export function HomePage() {
     }, [featuredPlaylists.length, updateCarouselControls]);
 
     const collectionsModule = isLoading ? (
-        <section className='min-h-64 animate-pulse rounded-2xl border border-border bg-card p-4' aria-label='Loading curated collections'>
+        <section className='min-h-64 animate-pulse rounded-2xl border border-border bg-card p-4' aria-label='Loading collections'>
             <div className='mb-4 h-7 w-52 rounded bg-surface-raised' />
             <div className='h-44 rounded-xl bg-surface-raised' />
         </section>
@@ -67,9 +67,9 @@ export function HomePage() {
         <section className='overflow-hidden' aria-labelledby='curated-collections-title'>
             <div className='flex items-end justify-between gap-4 mb-4 px-4 md:px-0'>
                 <div>
-                    <p className='mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary-400'>Keep exploring</p>
-                    <h2 id='curated-collections-title' className='text-xl md:text-2xl font-bold text-foreground'>Curated Collections</h2>
-                    <p className='text-muted-foreground text-sm mt-1'>Handpicked creator moments, assembled for a longer watch.</p>
+                    <p className='mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary-400'>Longer watch</p>
+                    <h2 id='curated-collections-title' className='text-xl md:text-2xl font-bold text-foreground'>Collections</h2>
+                    <p className='text-muted-foreground text-sm mt-1'>Clips grouped by creator, topic or moment, for when one isn&apos;t enough.</p>
                 </div>
                 <Link to='/discover/lists' className='flex min-h-11 shrink-0 items-center gap-1 text-primary-400 hover:text-primary-300 text-sm font-semibold'>
                     View all <ChevronRight className='w-4 h-4' />
@@ -77,15 +77,15 @@ export function HomePage() {
             </div>
             <div className='relative'>
                 <div className='absolute inset-y-0 right-0 w-px bg-line-strong pointer-events-none z-10' />
-                <div ref={carouselRef} className='flex gap-4 md:gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 px-4 md:px-0 scrollbar-hide scrolling-touch touch-pan-x overscroll-x-contain' aria-label='Curated collections carousel'>
+                <div ref={carouselRef} className='flex gap-4 md:gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 px-4 md:px-0 scrollbar-hide scrolling-touch touch-pan-x overscroll-x-contain' aria-label='Collections carousel'>
                     {featuredPlaylists.map(playlist => (
                         <div key={playlist.id} className='snap-start shrink-0 w-[82vw] max-w-90 lg:w-100'>
                             <PlaylistCard playlist={playlist} />
                         </div>
                     ))}
                 </div>
-                {canScrollLeft && <div className='absolute top-1/2 -translate-y-1/2 left-2 hidden sm:flex'><button type='button' onClick={() => scrollCarousel('left')} className='h-9 w-9 rounded-full border border-border bg-background/90 shadow-md hover:bg-background flex items-center justify-center' aria-label='Scroll curated collections left'><ChevronLeft className='h-4 w-4' /></button></div>}
-                {canScrollRight && <div className='absolute top-1/2 -translate-y-1/2 right-2 hidden sm:flex'><button type='button' onClick={() => scrollCarousel('right')} className='h-9 w-9 rounded-full border border-border bg-background/90 shadow-md hover:bg-background flex items-center justify-center' aria-label='Scroll curated collections right'><ChevronRight className='h-4 w-4' /></button></div>}
+                {canScrollLeft && <div className='absolute top-1/2 -translate-y-1/2 left-2 hidden sm:flex'><button type='button' onClick={() => scrollCarousel('left')} className='h-9 w-9 rounded-full border border-border bg-background/90 shadow-md hover:bg-background flex items-center justify-center' aria-label='Scroll collections left'><ChevronLeft className='h-4 w-4' /></button></div>}
+                {canScrollRight && <div className='absolute top-1/2 -translate-y-1/2 right-2 hidden sm:flex'><button type='button' onClick={() => scrollCarousel('right')} className='h-9 w-9 rounded-full border border-border bg-background/90 shadow-md hover:bg-background flex items-center justify-center' aria-label='Scroll collections right'><ChevronRight className='h-4 w-4' /></button></div>}
             </div>
         </section>
     ) : null;
@@ -94,14 +94,14 @@ export function HomePage() {
         <>
             <SEO
                 title='Home'
-                description='Discover the creators and live moments people are talking about. Explore fresh clips, follow creators, and join the conversation.'
+                description="Trending Twitch clips and the creators behind them. Vote, comment, and save the ones you'll want to find again."
                 canonicalUrl='/'
             />
             <FeedLayout sidebar={<FeedSidebar />}>
                 {/* Main Clip Feed */}
                 <ClipFeed
-                    title='Live culture, clipped'
-                    description='Fresh moments from creators across Twitch'
+                    title='You missed it live'
+                    description='Good thing somebody clipped it. These are the ones trending now.'
                     defaultSort='trending'
                     showSearch
                     insertAfter={5}

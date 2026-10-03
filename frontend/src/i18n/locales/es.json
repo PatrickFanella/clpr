@@ -82,12 +82,12 @@
   },
   "error": {
     "somethingWentWrong": "Algo salió mal",
-    "unexpectedError": "Lo sentimos, pero ocurrió algo inesperado. El error ha sido reportado y lo investigaremos.",
+    "unexpectedError": "Algo se rompió de nuestro lado. El error quedó registrado. Recarga la página para volver a intentarlo.",
     "devDetails": "Detalles del error (modo desarrollo):",
     "persistContact": "Si este problema persiste, por favor contacte a soporte:",
     "authFailed": "Autenticación fallida: {{error}}",
-    "notFound": "Página No Encontrada",
-    "notFoundDescription": "La página que buscas no existe o ha sido movida.",
+    "notFound": "Página no encontrada",
+    "notFoundDescription": "No hay nada en esta dirección. Puede que el enlace sea viejo o que la página se haya movido.",
     "notFoundCode": "404"
   },
   "login": {

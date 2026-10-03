@@ -32,7 +32,7 @@ export function ExtensionPage() {
         <>
             <SEO
                 title="Browser Extension"
-                description="Share Twitch clips to clpr with one click. Get the clpr browser extension for Chrome and Firefox."
+                description="A browser extension for Chrome and Firefox that submits the Twitch clip you are watching to clpr."
                 canonicalUrl="/extension"
             />
             <Container className="py-8 max-w-4xl">
@@ -42,10 +42,7 @@ export function ExtensionPage() {
                         clpr browser extension
                     </h1>
                     <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                        Share Twitch clips to clpr with one click. The
-                        extension detects clips automatically, pre-fills
-                        metadata, and lets you add tags and a description before
-                        submitting.
+                        Watching a clip on Twitch that should be on clpr? The extension notices the clip page, fills in the title, and lets you add tags and a description before you submit.
                     </p>
                     {hasStoreListing ? (
                         <div className="flex flex-wrap gap-3 justify-center">
@@ -74,14 +71,12 @@ export function ExtensionPage() {
                 {/* Features */}
                 <Card className="mb-8">
                     <CardBody>
-                        <h2 className="text-2xl font-semibold mb-6">
-                            Features
-                        </h2>
+                        <h2 className="text-2xl font-semibold mb-6">What it does</h2>
                         <div className="grid gap-6 sm:grid-cols-2">
                             <Feature
                                 icon={<Search size={16} strokeWidth={1.75} />}
                                 title="Auto-detect clips"
-                                description="Automatically detects Twitch clip pages (twitch.tv and clips.twitch.tv) and enables the share button."
+                                description="Notices Twitch clip pages (twitch.tv and clips.twitch.tv) and turns on the share button."
                             />
                             <Feature
                                 icon={
@@ -101,17 +96,17 @@ export function ExtensionPage() {
                             <Feature
                                 icon={<Tag size={16} strokeWidth={1.75} />}
                                 title="Tag selection"
-                                description="Browse and search all clpr tags directly in the popup and apply multiple tags to your submission."
+                                description="Search clpr tags in the popup and pick the ones that apply."
                             />
                             <Feature
                                 icon={<Zap size={16} strokeWidth={1.75} />}
-                                title="One-click submit"
-                                description="Click Share Clip to submit instantly. A desktop notification confirms when your clip is pending review."
+                                title="Submit from the popup"
+                                description="Click Share Clip and it is sent. A desktop notification confirms the clip is pending review."
                             />
                             <Feature
                                 icon={<Lock size={16} strokeWidth={1.75} />}
-                                title="Secure auth"
-                                description="Authenticates using your existing clpr account. No separate credentials required."
+                                title="Your clpr login"
+                                description="Uses the clpr account you already have. No second password."
                             />
                         </div>
                     </CardBody>

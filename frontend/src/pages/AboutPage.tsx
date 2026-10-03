@@ -23,12 +23,12 @@ const actions = [
   },
   {
     title: 'Save, vote and comment',
-    description: 'Keep favorites for later. Upvotes and comments help timely clips rise in the feed.',
+    description: 'Favorite clips, or line them up in playlists. Upvotes and comments help timely clips rise in the feed.',
     links: [{ label: 'Feed', to: '/' }],
   },
   {
     title: 'Submit',
-    description: 'Send in a Twitch clip that deserves a wider audience.',
+    description: "Got a Twitch clip that isn't here yet? Send it in.",
     links: [{ label: 'Submit a clip', to: '/submit' }],
   },
 ];
@@ -65,24 +65,24 @@ function LiveClips() {
 export function AboutPage() {
   return (
     <>
-      <SEO title='About' description='clpr helps people discover the creators and moments shaping live culture.' canonicalUrl='/about' />
+      <SEO title='About' description='clpr sorts Twitch clips by creator, topic and tag, so the one you mean is easier to find.' canonicalUrl='/about' />
       <Container className='py-8'>
         <div className='mx-auto max-w-4xl space-y-10'>
           <header>
-            <p className='kicker mb-3'>Live culture, clipped</p>
-            <h1 className='display mb-4 text-4xl sm:text-5xl'>Find the creators everyone will be talking about.</h1>
-            <p className='max-w-3xl text-lg text-text-secondary'>clpr brings together memorable Twitch moments so you can discover people worth following, not just whatever category happens to be live.</p>
+            <p className='kicker mb-3'>About clpr</p>
+            <h1 className='display mb-4 text-4xl sm:text-5xl'>Somebody clipped it. It&apos;s probably in here.</h1>
+            <p className='max-w-3xl text-lg text-text-secondary'>clpr sorts Twitch clips by creator, topic and tag. Start from a person or a subject, then save the good ones to a playlist you can send around.</p>
           </header>
 
           <LiveClips />
 
           <section aria-labelledby='about-scope' className='border-t border-line-strong pt-6'>
-            <h2 id='about-scope' className='mb-4 text-2xl'>More than gaming</h2>
-            <p className='max-w-3xl text-text-secondary'>Live creators move freely between IRL, reactions, music, news, politics, sports, art, gaming, and conversations that do not fit neatly into a box. clpr is built around those creators and the moments their communities remember.</p>
+            <h2 id='about-scope' className='mb-4 text-2xl'>Streams wander</h2>
+            <p className='max-w-3xl text-text-secondary'>One channel can do IRL, a reaction segment, music, a news rant and a speedrun in the same week. So clips here are filed under the creator, the topic and the tag, and the Twitch category is only one way in.</p>
           </section>
 
           <section aria-labelledby='about-actions'>
-            <h2 id='about-actions' className='mb-4 text-2xl'>What you can do</h2>
+            <h2 id='about-actions' className='mb-4 text-2xl'>What&apos;s in here</h2>
             <dl className='border-b border-line-strong'>
               {actions.map(action => (
                 <div key={action.title} className='grid gap-1 border-t border-line-strong py-5 sm:grid-cols-[14rem_1fr] sm:gap-8'>
@@ -102,8 +102,8 @@ export function AboutPage() {
           </section>
 
           <section aria-labelledby='about-join'>
-            <h2 id='about-join' className='mb-4 text-2xl'>Be part of it</h2>
-            <p className='mb-5 max-w-3xl text-text-secondary'>Please read our <Link to='/community-rules' className='text-link underline underline-offset-2'>community rules</Link> and help keep clpr welcoming to creators and viewers alike.</p>
+            <h2 id='about-join' className='mb-4 text-2xl'>House rules</h2>
+            <p className='mb-5 max-w-3xl text-text-secondary'>Read the <Link to='/community-rules' className='text-link underline underline-offset-2'>community rules</Link> before you post or comment. They keep clpr decent for creators and viewers both.</p>
             <div className='flex flex-wrap gap-3'>
               <Button asChild><Link to='/contact'>Contact us</Link></Button>
               <Button asChild variant='outline'><a href={SUPPORT_URL} target='_blank' rel='noopener noreferrer'>Support us on Patreon</a></Button>

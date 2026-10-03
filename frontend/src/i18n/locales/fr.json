@@ -82,12 +82,12 @@
   },
   "error": {
     "somethingWentWrong": "Une erreur s'est produite",
-    "unexpectedError": "Nous sommes désolés, mais quelque chose d'inattendu s'est produit. L'erreur a été signalée et nous allons y remédier.",
+    "unexpectedError": "Quelque chose a cassé de notre côté. L'erreur a été signalée. Rechargez la page pour réessayer.",
     "devDetails": "Détails de l'erreur (mode développement) :",
     "persistContact": "Si ce problème persiste, veuillez contacter le support :",
     "authFailed": "Échec de l'authentification : {{error}}",
-    "notFound": "Page Non Trouvée",
-    "notFoundDescription": "La page que vous recherchez n'existe pas ou a été déplacée.",
+    "notFound": "Page introuvable",
+    "notFoundDescription": "Rien à cette adresse. Le lien est peut-être ancien, ou la page a été déplacée.",
     "notFoundCode": "404"
   },
   "login": {

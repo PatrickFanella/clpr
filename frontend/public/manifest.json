@@ -1,7 +1,7 @@
 {
-    "name": "clpr - Discover Creators and Live Moments",
+    "name": "clpr - Twitch clips by creator, topic and tag",
     "short_name": "clpr",
-    "description": "Discover the creators and moments shaping live culture. Browse Twitch clips by creator, topic, tag, or collection.",
+    "description": "Twitch clips by creator, topic and tag. Playlists for the ones you keep sending people.",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
