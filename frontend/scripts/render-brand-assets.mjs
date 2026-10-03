@@ -43,9 +43,10 @@ function logoCard({ width, height, logoHeight }) {
 /**
  * The 1200x630 link-preview card. It follows the clip stack layout of the
  * CLPR brand pack: wordmark, headline, three overlapping clip cards, a violet
- * rule and a mono destination.
+ * rule, a mono tag and a mono destination. The text matches the pack's
+ * banner (brands/clpr/social/banner-x-bluesky) and the site's default title.
  */
-function socialCard({ headline, caption }) {
+function socialCard({ headline, caption, tag }) {
     const clip = (dx, dy, angle, stroke) =>
         `<g transform="rotate(${angle} ${985 + dx} ${284 + dy})"><rect x="${820 + dx}" y="${150 + dy}" width="330" height="268" rx="10" fill="#211B30" stroke="${stroke}" stroke-width="2"/></g>`;
     const lines = headline
@@ -58,6 +59,7 @@ function socialCard({ headline, caption }) {
         .headline { font: 700 84px 'Barlow Condensed'; text-transform: uppercase; fill: #EEEDF7; }
         .caption { font: 400 24px 'Barlow'; fill: #EEEDF7; }
         .site { font: 400 18px 'IBM Plex Mono'; fill: #EEEDF7; }
+        .tag { font: 400 18px 'IBM Plex Mono'; fill: #8C5CFF; letter-spacing: 0.04em; }
     </style></head><body>
         <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
             <rect width="1200" height="630" fill="#0E0C13"/>
@@ -70,7 +72,8 @@ function socialCard({ headline, caption }) {
             ${placed(mark, 925, 218, 120, 120)}
             <path d="M840 394H1130" stroke="#3DDC97" stroke-width="3"/>
             <path d="M48 548H1152" stroke="#8C5CFF" stroke-width="2"/>
-            <text x="48" y="588" class="site">clpr.tv</text>
+            <text x="48" y="588" class="tag">${tag}</text>
+            <text x="1152" y="588" text-anchor="end" class="site">clpr.tv</text>
         </svg>
     </body></html>`;
 }
@@ -101,8 +104,9 @@ for (const size of [16, 32]) {
 
 await shoot(
     socialCard({
-        headline: ['The moments shaping', 'live culture'],
-        caption: 'Twitch clips by creator, topic and tag',
+        headline: ['Somebody', 'clipped it.'],
+        caption: 'It&#39;s probably in here.',
+        tag: 'TWITCH CLIPS / CREATOR, TOPIC, TAG',
     }),
     1200,
     630,

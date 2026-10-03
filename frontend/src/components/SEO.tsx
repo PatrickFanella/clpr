@@ -28,7 +28,8 @@ const DEFAULT_TITLE = 'clpr - Twitch clips by creator, topic and tag';
 const DEFAULT_DESCRIPTION =
     'Twitch clips by creator, topic and tag. Playlists for the ones you keep sending people.';
 const DEFAULT_IMAGE = '/social-card.png';
-const DEFAULT_IMAGE_ALT = 'clpr: Twitch clips by creator, topic and tag';
+const DEFAULT_IMAGE_ALT =
+    "clpr: Somebody clipped it. It's probably in here. Twitch clips by creator, topic and tag.";
 const SITE_NAME = 'clpr';
 const TWITTER_HANDLE = '@clpr_tv';
 

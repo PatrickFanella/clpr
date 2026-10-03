@@ -168,7 +168,7 @@ func defaultClipPreview(baseURL string) clipPreview {
 		Description:  shareDefaultDescription,
 		PageURL:      baseURL + "/",
 		ImageURL:     baseURL + "/social-card.png",
-		ImageAlt:     "clpr: Twitch clips by creator, topic and tag",
+		ImageAlt:     "clpr: Somebody clipped it. It's probably in here. Twitch clips by creator, topic and tag.",
 		IsDefault:    true,
 		DefaultImage: true,
 		LinkText:     "Open clpr",
