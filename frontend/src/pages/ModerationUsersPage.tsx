@@ -63,14 +63,10 @@ export function ModerationUsersPage() {
         queryClient.invalidateQueries({ queryKey: ['moderation-users'] });
     };
 
-    // Check if current user is a broadcaster (has a Twitch account)
-    const isBroadcaster = Boolean((currentUser as User)?.is_broadcaster);
-
-    // For now, we'll assume false for Twitch moderator status
-    // In a real implementation, this would come from the backend
-    const isTwitchModerator = Boolean(
-        (currentUser as User)?.is_twitch_moderator
-    );
+    // This global user list has no channel-scoped Twitch permission evidence.
+    // Keep Twitch actions unavailable until a channel supplies explicit permissions.
+    const isBroadcaster = false;
+    const isTwitchModerator = false;
 
     const users = data?.users || [];
     const totalPages = data?.total ? Math.ceil(data.total / perPage) : 0;
@@ -163,7 +159,7 @@ export function ModerationUsersPage() {
                                                             user.username}
                                                     </h3>
                                                     {user.is_banned_on_twitch && (
-                                                        <span className='inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300 rounded-full'>
+                                                        <span className='inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'>
                                                             <Ban className='h-3 w-3' />
                                                             Banned on Twitch
                                                         </span>

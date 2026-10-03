@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/subculture-collective/clipper/internal/services"
-	"github.com/subculture-collective/clipper/pkg/metrics"
-	"github.com/subculture-collective/clipper/pkg/utils"
+	"git.subcult.tv/subculture-collective/clpr/internal/services"
+	"git.subcult.tv/subculture-collective/clpr/pkg/metrics"
+	"git.subcult.tv/subculture-collective/clpr/pkg/utils"
 )
 
 const (
@@ -18,6 +18,7 @@ const (
 // ClipSyncServiceInterface defines the interface required by the scheduler
 type ClipSyncServiceInterface interface {
 	SyncTrendingClips(ctx context.Context, hours int, opts *services.TrendingSyncOptions) (*services.SyncStats, error)
+	SyncFollowedBroadcasterClips(ctx context.Context, opts *services.FollowedBroadcasterSyncOptions) (*services.SyncStats, error)
 }
 
 // ClipSyncScheduler manages periodic clip synchronization
@@ -98,6 +99,44 @@ func (s *ClipSyncScheduler) runSync(ctx context.Context) {
 		})
 		metrics.JobExecutionTotal.WithLabelValues(clipSyncJobName, "failed").Inc()
 		return
+	}
+
+	// Sync clips from followed broadcasters (broadcasters with ≥3 clpr followers)
+	followerOpts := &services.FollowedBroadcasterSyncOptions{
+		MinFollowers:        3,
+		ClipsPerBroadcaster: 5,
+		MaxTotalClips:       200,
+	}
+	followerStartTime := time.Now()
+	followerStats, followerErr := s.syncService.SyncFollowedBroadcasterClips(ctx, followerOpts)
+	followerDuration := time.Since(followerStartTime)
+	metrics.JobExecutionDuration.WithLabelValues("clip_sync_followed").Observe(followerDuration.Seconds())
+
+	if followerErr != nil {
+		utils.Error("Followed broadcaster sync failed", followerErr, map[string]interface{}{
+			"scheduler": clipSyncSchedulerName,
+			"job":       "clip_sync_followed",
+		})
+		metrics.JobExecutionTotal.WithLabelValues("clip_sync_followed", "failed").Inc()
+	} else {
+		metrics.JobExecutionTotal.WithLabelValues("clip_sync_followed", "success").Inc()
+		metrics.JobLastSuccessTimestamp.WithLabelValues("clip_sync_followed").Set(float64(time.Now().Unix()))
+		metrics.JobItemsProcessed.WithLabelValues("clip_sync_followed", "success").Add(float64(followerStats.ClipsCreated + followerStats.ClipsUpdated))
+		metrics.JobItemsProcessed.WithLabelValues("clip_sync_followed", "skipped").Add(float64(followerStats.ClipsSkipped))
+		if len(followerStats.Errors) > 0 {
+			metrics.JobItemsProcessed.WithLabelValues("clip_sync_followed", "failed").Add(float64(len(followerStats.Errors)))
+		}
+
+		utils.Info("Followed broadcaster sync completed", map[string]interface{}{
+			"scheduler":  clipSyncSchedulerName,
+			"job":        "clip_sync_followed",
+			"fetched":    followerStats.ClipsFetched,
+			"created":    followerStats.ClipsCreated,
+			"updated":    followerStats.ClipsUpdated,
+			"skipped":    followerStats.ClipsSkipped,
+			"errors":     len(followerStats.Errors),
+			"duration":   followerDuration.String(),
+		})
 	}
 
 	metrics.JobExecutionTotal.WithLabelValues(clipSyncJobName, "success").Inc()

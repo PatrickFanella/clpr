@@ -1,9 +1,9 @@
 package main
 
 import (
+	"git.subcult.tv/subculture-collective/clpr/internal/middleware"
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/internal/middleware"
-	"github.com/subculture-collective/clipper/internal/models"
 )
 
 func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra *Infrastructure) {
@@ -13,6 +13,8 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 	admin.Use(middleware.RequireRole("admin", "moderator"))
 	admin.Use(middleware.RequireMFAForAdminMiddleware(svcs.MFA)) // Enforce MFA for admin/moderator actions
 	{
+		admin.GET("/openapi.json", middleware.RequireRole("admin"), h.AdminOpenAPI.Get)
+
 		// Clip sync (if available)
 		if h.ClipSync != nil {
 			sync := admin.Group("/sync")
@@ -24,11 +26,30 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 
 		// Admin tag management
 		adminTags := admin.Group("/tags")
+		adminTags.Use(middleware.RequireRole("admin"))
 		{
+			adminTags.GET("", h.Tag.ListAdminTags)
 			adminTags.POST("", h.Tag.CreateTag)
 			adminTags.PUT("/:id", h.Tag.UpdateTag)
 			adminTags.DELETE("/:id", h.Tag.DeleteTag)
+			adminTags.POST("/suppressions/:id", h.Tag.SuppressTag)
+			adminTags.DELETE("/suppressions/:id", h.Tag.RestoreTag)
+			adminTags.GET("/promotion-queue", h.TagPromotion.List)
+			adminTags.POST("/promotion-queue/:id/approve", h.TagPromotion.Approve)
+			adminTags.POST("/promotion-queue/:id/reject", h.TagPromotion.Reject)
+
+			// Tag blacklist management
+			adminTags.GET("/blacklist", h.Tag.ListBlacklistedTags)
+			adminTags.POST("/blacklist", h.Tag.AddBlacklistedTag)
+			adminTags.DELETE("/blacklist/:id", h.Tag.RemoveBlacklistedTag)
 		}
+
+		adminTopics := admin.Group("/topics")
+		{
+			adminTopics.POST("/:id/merge", h.Topic.MergeTopics)
+			adminTopics.POST("/:id/split", h.Topic.SplitTopic)
+		}
+		admin.PUT("/clips/:id/topics", h.Topic.ReplaceClipTopics)
 
 		// Submission moderation (if available)
 		if h.Submission != nil {
@@ -75,6 +96,15 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 			adminUsers.POST("/:id/toggle-comment-review", middleware.RequirePermission(models.PermissionManageUsers), h.AdminUser.ToggleCommentReview)
 		}
 
+		platformModerators := admin.Group("/moderators")
+		platformModerators.Use(middleware.RequirePermission(models.PermissionManageUsers))
+		{
+			platformModerators.GET("", h.AdminUser.ListPlatformModerators)
+			platformModerators.POST("", h.AdminUser.AddPlatformModerator)
+			platformModerators.PATCH("/:id", h.AdminUser.UpdatePlatformModerator)
+			platformModerators.DELETE("/:id", h.AdminUser.RevokePlatformModerator)
+		}
+
 		// Account type management (admin only)
 		adminAccountTypes := admin.Group("/account-types")
 		{
@@ -85,6 +115,7 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 
 		// Analytics routes (admin only)
 		analytics := admin.Group("/analytics")
+		analytics.Use(middleware.RequireRole("admin"))
 		{
 			analytics.GET("/overview", h.Analytics.GetPlatformOverview)
 			analytics.GET("/content", h.Analytics.GetContentMetrics)
@@ -94,11 +125,7 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 			analytics.GET("/health", h.Engagement.GetPlatformHealthMetrics)
 			analytics.GET("/trending", h.Engagement.GetTrendingMetrics)
 			analytics.GET("/alerts", h.Engagement.CheckAlerts)
-			analytics.GET("/export", h.Engagement.ExportEngagementData)
 		}
-
-		// Revenue metrics (admin only)
-		admin.GET("/revenue", h.Revenue.GetRevenueMetrics)
 
 		// Contact message management (admin only)
 		adminContact := admin.Group("/contact")
@@ -109,6 +136,7 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 
 		// Ad Campaign management (admin only)
 		adminAds := admin.Group("/ads")
+		adminAds.Use(middleware.RequireRole("admin"))
 		{
 			// Campaign CRUD
 			adminAds.GET("/campaigns", h.Ad.ListCampaigns)
@@ -133,6 +161,7 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 
 		// Email monitoring and metrics (admin only)
 		adminEmail := admin.Group("/email")
+		adminEmail.Use(middleware.RequireRole("admin"))
 		{
 			// Dashboard and metrics
 			adminEmail.GET("/metrics/dashboard", h.EmailMetrics.GetDashboardMetrics)
@@ -170,8 +199,8 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 				moderation.GET("/queue/stats", h.Moderation.GetModerationStats)
 
 				// Appeals management (admin)
-				moderation.GET("/appeals", h.Moderation.GetAppeals)
-				moderation.POST("/appeals/:id/resolve", h.Moderation.ResolveAppeal)
+				moderation.GET("/appeals", middleware.RequireRole("admin"), h.Moderation.GetAppeals)
+				moderation.POST("/appeals/:id/resolve", middleware.RequireRole("admin"), h.Moderation.ResolveAppeal)
 
 				// Audit logs and analytics
 				moderation.GET("/audit", h.Moderation.GetModerationAuditLogs)
@@ -184,17 +213,18 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 
 		// NSFW detection routes (admin only)
 		nsfw := admin.Group("/nsfw")
+		nsfw.Use(middleware.RequireRole("admin"))
 		{
 			nsfw.POST("/detect", h.NSFW.DetectImage)
 			nsfw.POST("/batch-detect", h.NSFW.BatchDetect)
 			nsfw.GET("/metrics", h.NSFW.GetMetrics)
 			nsfw.GET("/health", h.NSFW.GetHealthCheck)
 			nsfw.GET("/config", h.NSFW.GetConfig)
-			nsfw.POST("/scan-clips", h.NSFW.ScanClipThumbnails)
 		}
 
 		// Creator verification management (admin only)
 		adminVerification := admin.Group("/verification")
+		adminVerification.Use(middleware.RequireRole("admin"))
 		{
 			adminVerification.GET("/applications", h.Verification.ListApplications)
 			adminVerification.GET("/applications/:id", h.Verification.GetApplicationByID)
@@ -218,8 +248,9 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 			adminDiscoveryLists.PUT("/:id/clips/reorder", h.DiscoveryList.AdminReorderListClips)
 		}
 
-		// Playlist script management (admin/moderator only)
+		// Playlist script management (admin only)
 		adminPlaylistScripts := admin.Group("/playlist-scripts")
+		adminPlaylistScripts.Use(middleware.RequireRole("admin"))
 		{
 			adminPlaylistScripts.GET("", h.PlaylistScript.ListScripts)
 			adminPlaylistScripts.POST("", h.PlaylistScript.CreateScript)
@@ -235,9 +266,14 @@ func registerAdminRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra
 			adminForum.POST("/threads/:id/lock", h.ForumModeration.LockThread)
 			adminForum.POST("/threads/:id/pin", h.ForumModeration.PinThread)
 			adminForum.POST("/threads/:id/delete", h.ForumModeration.DeleteThread)
-			adminForum.POST("/users/:id/ban", h.ForumModeration.BanUser)
 			adminForum.GET("/moderation-log", h.ForumModeration.GetModerationLog)
 			adminForum.GET("/bans", h.ForumModeration.GetUserBans)
+		}
+
+		// Broadcaster ranking management (admin only)
+		adminBroadcasters := admin.Group("/broadcasters")
+		{
+			adminBroadcasters.POST("/refresh-rankings", h.Broadcaster.RefreshBroadcasterRankings)
 		}
 
 		// Webhook dead-letter queue management (admin only)

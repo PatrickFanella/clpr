@@ -112,39 +112,6 @@ export const EngagementEvents = {
 } as const;
 
 /**
- * Premium/Subscription Events
- */
-export const PremiumEvents = {
-  // Pricing Page
-  PRICING_PAGE_VIEWED: 'pricing_page_viewed',
-  PRICING_TIER_CLICKED: 'pricing_tier_clicked',
-
-  // Checkout Flow
-  CHECKOUT_STARTED: 'checkout_started',
-  CHECKOUT_PAYMENT_INFO_ENTERED: 'checkout_payment_info_entered',
-  CHECKOUT_COMPLETED: 'checkout_completed',
-  CHECKOUT_FAILED: 'checkout_failed',
-  CHECKOUT_CANCELLED: 'checkout_cancelled',
-
-  // Subscription Management
-  SUBSCRIPTION_CREATED: 'subscription_created',
-  SUBSCRIPTION_UPDATED: 'subscription_updated',
-  SUBSCRIPTION_CANCELLED: 'subscription_cancelled',
-  SUBSCRIPTION_RESUMED: 'subscription_resumed',
-  SUBSCRIPTION_PAYMENT_FAILED: 'subscription_payment_failed',
-
-  // Upgrade/Downgrade
-  UPGRADE_MODAL_VIEWED: 'upgrade_modal_viewed',
-  UPGRADE_CLICKED: 'upgrade_clicked',
-  DOWNGRADE_CLICKED: 'downgrade_clicked',
-
-  // Feature Paywalls
-  PAYWALL_VIEWED: 'paywall_viewed',
-  PAYWALL_DISMISSED: 'paywall_dismissed',
-  PAYWALL_UPGRADE_CLICKED: 'paywall_upgrade_clicked',
-} as const;
-
-/**
  * Navigation Events
  */
 export const NavigationEvents = {
@@ -178,6 +145,7 @@ export const SettingsEvents = {
   SETTINGS_VIEWED: 'settings_viewed',
   LANGUAGE_CHANGED: 'language_changed',
   NOTIFICATION_PREFERENCES_CHANGED: 'notification_preferences_changed',
+  FEED_AUTOPLAY_CHANGED: 'feed_autoplay_changed',
 
   // Privacy
   PRIVACY_SETTINGS_CHANGED: 'privacy_settings_changed',
@@ -195,6 +163,14 @@ export const SettingsEvents = {
  * Error Events
  */
 export const ErrorEvents = {
+  SEARCH_CIRCUIT_BREAKER_OPENED: 'search_circuit_breaker_opened',
+  SEARCH_CIRCUIT_BREAKER_CLOSED: 'search_circuit_breaker_closed',
+  SEARCH_ERROR: 'search_error',
+  SEARCH_RETRY_BLOCKED_BY_CIRCUIT_BREAKER: 'search_retry_blocked_by_circuit_breaker',
+  SEARCH_RETRY: 'search_retry',
+  SEARCH_RETRY_CANCELLED: 'search_retry_cancelled',
+  SEARCH_ERROR_DISMISSED: 'search_error_dismissed',
+
   // Application Errors
   ERROR_OCCURRED: 'error_occurred',
   API_ERROR: 'api_error',
@@ -230,8 +206,6 @@ export interface BaseEventProperties {
   // User context
   user_id?: string;
   is_authenticated?: boolean;
-  is_premium?: boolean;
-  premium_tier?: string;
   signup_date?: string;
 
   // Session context
@@ -250,7 +224,7 @@ export interface BaseEventProperties {
   referrer?: string;
 
   // Additional metadata
-  [key: string]: string | number | boolean | undefined;
+  [key: string]: string | number | boolean | string[] | undefined;
 }
 
 /**
@@ -356,11 +330,22 @@ export interface PerformanceEventProperties extends BaseEventProperties {
 // Type Exports
 // ============================================================================
 
+export const CreatorEvents = {
+  CLIP_TITLE_UPDATED: 'creator_clip_title_updated',
+  CLIP_VISIBILITY_UPDATED: 'creator_clip_visibility_updated',
+} as const;
+
+export const ModerationEvents = {
+  SUBMISSION_APPROVED: 'moderation_submission_approved',
+  SUBMISSION_REJECTED: 'moderation_submission_rejected',
+} as const;
+
 export type EventName =
+  | typeof CreatorEvents[keyof typeof CreatorEvents]
+  | typeof ModerationEvents[keyof typeof ModerationEvents]
   | typeof AuthEvents[keyof typeof AuthEvents]
   | typeof SubmissionEvents[keyof typeof SubmissionEvents]
   | typeof EngagementEvents[keyof typeof EngagementEvents]
-  | typeof PremiumEvents[keyof typeof PremiumEvents]
   | typeof NavigationEvents[keyof typeof NavigationEvents]
   | typeof SettingsEvents[keyof typeof SettingsEvents]
   | typeof ErrorEvents[keyof typeof ErrorEvents]

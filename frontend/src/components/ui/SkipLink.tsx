@@ -21,8 +21,7 @@ export interface SkipLinkProps {
  * Allows users to skip navigation and go directly to main content
  */
 export const SkipLink: React.FC<SkipLinkProps> = ({ targetId, label, className }) => {
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
+  const focusTarget = () => {
     const target = document.getElementById(targetId);
     if (target) {
       target.focus();
@@ -33,14 +32,26 @@ export const SkipLink: React.FC<SkipLinkProps> = ({ targetId, label, className }
     }
   };
 
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    focusTarget();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLAnchorElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    focusTarget();
+  };
+
   return (
     <a
       href={`#${targetId}`}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       className={cn(
         'sr-only focus:not-sr-only',
         'fixed top-4 left-4 z-[9999]',
-        'bg-primary-500 text-white',
+        'bg-primary-400 text-background',
         'px-4 py-2 rounded-md',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2',
         'transition-all duration-200',

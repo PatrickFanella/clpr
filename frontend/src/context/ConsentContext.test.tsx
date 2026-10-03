@@ -1,18 +1,43 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import apiClient from '../lib/api';
 import { ConsentProvider, useConsent } from './ConsentContext';
+import { disableGoogleAnalytics } from '../lib/google-analytics';
+import { disablePostHog } from '../lib/posthog-analytics';
+import { disableAnalytics } from '../lib/telemetry';
+
+vi.mock('../lib/google-analytics', () => ({
+    disableGoogleAnalytics: vi.fn(),
+    enableGoogleAnalytics: vi.fn(),
+}));
+vi.mock('../lib/posthog-analytics', () => ({
+    disablePostHog: vi.fn(),
+    enablePostHog: vi.fn(),
+}));
+vi.mock('../lib/telemetry', () => ({
+    configureAnalytics: vi.fn(),
+    disableAnalytics: vi.fn(),
+    enableAnalytics: vi.fn(),
+}));
+
+const { authState } = vi.hoisted(() => ({
+    authState: { user: null as null | { id: string } },
+}));
+
+vi.mock('../lib/api', () => ({
+    default: {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({ data: { success: true } }),
+    },
+}));
 
 // Mock useAuth hook from AuthContext
-vi.mock('./AuthContext', async () => {
-    const actual = await vi.importActual('./AuthContext');
-    return {
-        ...actual,
-        useAuth: () => ({
-            user: null,
-            isAuthenticated: false,
-        }),
-    };
-});
+vi.mock('./AuthContext', () => ({
+    useAuth: () => ({
+            user: authState.user,
+            isAuthenticated: !!authState.user,
+    }),
+}));
 
 // Test component that uses the consent context
 function TestConsumer() {
@@ -62,6 +87,8 @@ function TestConsumer() {
 
 describe('ConsentContext', () => {
     beforeEach(() => {
+        vi.clearAllMocks();
+        authState.user = null;
         // Clear localStorage before each test
         localStorage.clear();
         // Reset navigator.doNotTrack
@@ -133,6 +160,34 @@ describe('ConsentContext', () => {
         expect(screen.getByTestId('analytics')).toHaveTextContent('false');
         expect(screen.getByTestId('advertising')).toHaveTextContent('false');
         expect(screen.getByTestId('functional')).toHaveTextContent('false');
+        expect(disableGoogleAnalytics).toHaveBeenCalled();
+        expect(disablePostHog).toHaveBeenCalled();
+        expect(disableAnalytics).toHaveBeenCalled();
+    });
+
+    it('should converge backend consent when a signed-in user withdraws analytics', async () => {
+        authState.user = { id: 'user-1' };
+        vi.mocked(apiClient.get).mockResolvedValue({ data: { success: false } });
+
+        render(
+            <ConsentProvider>
+                <TestConsumer />
+            </ConsentProvider>,
+        );
+
+        fireEvent.click(screen.getByTestId('accept-all'));
+        fireEvent.click(screen.getByTestId('reject-all'));
+
+        await waitFor(() => {
+            expect(apiClient.post).toHaveBeenLastCalledWith(
+                '/users/me/consent',
+                expect.objectContaining({
+                    essential: true,
+                    analytics: false,
+                    advertising: false,
+                }),
+            );
+        });
     });
 
     it('should update individual consent preference', () => {
@@ -162,7 +217,7 @@ describe('ConsentContext', () => {
             fireEvent.click(screen.getByTestId('accept-all'));
         });
 
-        const stored = localStorage.getItem('clipper_consent_preferences');
+        const stored = localStorage.getItem('clpr_consent_preferences');
         expect(stored).toBeTruthy();
 
         const parsed = JSON.parse(stored!);
@@ -177,7 +232,7 @@ describe('ConsentContext', () => {
         expiresAt.setFullYear(expiresAt.getFullYear() + 1); // 1 year from now
 
         localStorage.setItem(
-            'clipper_consent_preferences',
+            'clpr_consent_preferences',
             JSON.stringify({
                 version: '1.0',
                 preferences: {
@@ -207,7 +262,7 @@ describe('ConsentContext', () => {
     it('should reset consent and show banner again', () => {
         // Pre-set consent
         localStorage.setItem(
-            'clipper_consent_preferences',
+            'clpr_consent_preferences',
             JSON.stringify({
                 version: '1.0',
                 preferences: {
@@ -232,7 +287,10 @@ describe('ConsentContext', () => {
 
         expect(screen.getByTestId('has-consented')).toHaveTextContent('false');
         expect(screen.getByTestId('show-banner')).toHaveTextContent('true');
-        expect(localStorage.getItem('clipper_consent_preferences')).toBeNull();
+        expect(localStorage.getItem('clpr_consent_preferences')).toBeNull();
+        expect(disableGoogleAnalytics).toHaveBeenCalled();
+        expect(disablePostHog).toHaveBeenCalled();
+        expect(disableAnalytics).toHaveBeenCalled();
     });
 
     it('should detect Do Not Track signal', () => {
@@ -312,7 +370,7 @@ describe('ConsentContext', () => {
     it('should invalidate old consent versions', () => {
         // Pre-set consent with old version
         localStorage.setItem(
-            'clipper_consent_preferences',
+            'clpr_consent_preferences',
             JSON.stringify({
                 version: '0.9',
                 preferences: {

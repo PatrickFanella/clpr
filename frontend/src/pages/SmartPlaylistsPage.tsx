@@ -12,7 +12,6 @@ import {
 import {
     Container,
     Card,
-    CardHeader,
     CardBody,
     Button,
     Spinner,
@@ -24,9 +23,9 @@ import { playlistScriptApi } from '@/lib/playlist-script-api';
 import { SCHEDULE_LABELS } from '@/lib/playlist-script-utils';
 import {
     PlaylistScriptForm,
-    scriptToFormValues,
     type PlaylistScriptFormValues,
 } from '@/components/admin/PlaylistScriptForm';
+import { scriptToFormValues } from '@/lib/playlist-script-form';
 import type {
     PlaylistScript,
     CreatePlaylistScriptRequest,
@@ -159,7 +158,7 @@ export function SmartPlaylistsPage() {
                 <div className='flex justify-between items-start'>
                     <div>
                         <h1 className='text-3xl font-bold mb-2 flex items-center gap-2'>
-                            <Sparkles className='w-7 h-7 text-primary-500' />
+                            <Sparkles className='w-7 h-7 text-link' />
                             Smart Playlists
                         </h1>
                         <p className='text-muted-foreground'>
@@ -277,7 +276,7 @@ export function SmartPlaylistsPage() {
                                             {script.last_generated_playlist_id && (
                                                 <Link
                                                     to={`/playlists/${script.last_generated_playlist_id}`}
-                                                    className='inline-flex items-center gap-1 text-sm text-primary-500 hover:underline'
+                                                    className='inline-flex items-center gap-1 text-sm text-link hover:underline'
                                                 >
                                                     View playlist{' '}
                                                     <ExternalLink className='w-3 h-3' />

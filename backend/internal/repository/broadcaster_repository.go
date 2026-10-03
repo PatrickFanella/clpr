@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/subculture-collective/clipper/internal/models"
 )
 
 // BroadcasterRepository handles database operations for broadcasters
@@ -90,7 +91,7 @@ func (r *BroadcasterRepository) GetBroadcasterStats(ctx context.Context, broadca
 			COALESCE(SUM(view_count), 0) as total_views,
 			COALESCE(AVG(vote_score), 0) as avg_vote_score
 		FROM clips
-		WHERE broadcaster_id = $1 AND is_removed = false
+		WHERE broadcaster_id = $1 AND is_removed = false AND is_hidden = false
 	`
 	err = r.pool.QueryRow(ctx, query, broadcasterID).Scan(&totalClips, &totalViews, &avgVoteScore)
 	if err != nil && err != pgx.ErrNoRows {
@@ -124,7 +125,7 @@ func (r *BroadcasterRepository) GetBroadcasterByID(ctx context.Context, broadcas
 	query := `
 		SELECT broadcaster_name
 		FROM clips
-		WHERE broadcaster_id = $1
+		WHERE broadcaster_id = $1 AND is_removed = false AND is_hidden = false
 		LIMIT 1
 	`
 	err = r.pool.QueryRow(ctx, query, broadcasterID).Scan(&broadcasterName)
@@ -245,7 +246,7 @@ func (r *BroadcasterRepository) GetLiveStatus(ctx context.Context, broadcasterID
 // ListLiveBroadcasters retrieves all currently live broadcasters
 func (r *BroadcasterRepository) ListLiveBroadcasters(ctx context.Context, limit, offset int) ([]models.BroadcasterLiveStatus, int, error) {
 	// Get total count of live broadcasters
-	countQuery := `SELECT COUNT(*) FROM broadcaster_live_status WHERE is_live = true`
+	countQuery := `SELECT COUNT(*) FROM broadcaster_live_status WHERE is_live = true AND last_checked >= NOW() - INTERVAL '2 minutes'`
 	var total int
 	if err := r.pool.QueryRow(ctx, countQuery).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("failed to count live broadcasters: %w", err)
@@ -256,7 +257,7 @@ func (r *BroadcasterRepository) ListLiveBroadcasters(ctx context.Context, limit,
 		SELECT broadcaster_id, user_login, user_name, is_live, stream_title, game_name, viewer_count,
 		       started_at, last_checked, created_at, updated_at
 		FROM broadcaster_live_status
-		WHERE is_live = true
+		WHERE is_live = true AND last_checked >= NOW() - INTERVAL '2 minutes'
 		ORDER BY viewer_count DESC
 		LIMIT $1 OFFSET $2
 	`
@@ -302,7 +303,7 @@ func (r *BroadcasterRepository) GetFollowedLiveBroadcasters(ctx context.Context,
 		       bls.created_at, bls.updated_at
 		FROM broadcaster_live_status bls
 		INNER JOIN broadcaster_follows bf ON bls.broadcaster_id = bf.broadcaster_id
-		WHERE bf.user_id = $1 AND bls.is_live = true
+		WHERE bf.user_id = $1 AND bls.is_live = true AND bls.last_checked >= NOW() - INTERVAL '2 minutes'
 		ORDER BY bls.viewer_count DESC
 	`
 	rows, err := r.pool.Query(ctx, query, userID)
@@ -394,6 +395,87 @@ func (r *BroadcasterRepository) GetAllFollowedBroadcasterIDs(ctx context.Context
 	}
 
 	return broadcasterIDs, nil
+}
+
+// GetLiveStatusCandidateBroadcasterIDs returns up to limit broadcasters that
+// matter to the public site: those with the most visible clips created within
+// window, most recently clipped first on ties. The live status scheduler checks
+// them in addition to followed broadcasters.
+func (r *BroadcasterRepository) GetLiveStatusCandidateBroadcasterIDs(ctx context.Context, limit int, window time.Duration) ([]string, error) {
+	if limit <= 0 {
+		return []string{}, nil
+	}
+	query := `
+		SELECT broadcaster_id
+		FROM clips
+		WHERE is_removed = false
+		  AND is_hidden = false
+		  AND broadcaster_id IS NOT NULL
+		  AND broadcaster_id <> ''
+		  AND created_at > NOW() - make_interval(secs => $2)
+		GROUP BY broadcaster_id
+		ORDER BY COUNT(*) DESC, MAX(created_at) DESC, broadcaster_id
+		LIMIT $1
+	`
+	rows, err := r.pool.Query(ctx, query, limit, window.Seconds())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get live status candidate broadcasters: %w", err)
+	}
+	defer rows.Close()
+
+	ids := make([]string, 0, limit)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan candidate broadcaster ID: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating candidate broadcaster IDs: %w", err)
+	}
+	return ids, nil
+}
+
+// GetSyncStatuses returns the stored sync status for each of broadcasterIDs
+// that has one, keyed by broadcaster ID, in a single query.
+func (r *BroadcasterRepository) GetSyncStatuses(ctx context.Context, broadcasterIDs []string) (map[string]*models.BroadcasterSyncStatus, error) {
+	statuses := make(map[string]*models.BroadcasterSyncStatus, len(broadcasterIDs))
+	if len(broadcasterIDs) == 0 {
+		return statuses, nil
+	}
+	query := `
+		SELECT broadcaster_id, is_live, stream_started_at, last_synced, game_name, viewer_count,
+		       stream_title, created_at, updated_at
+		FROM broadcaster_sync_status
+		WHERE broadcaster_id = ANY($1)
+	`
+	rows, err := r.pool.Query(ctx, query, broadcasterIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sync statuses: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var status models.BroadcasterSyncStatus
+		if err := rows.Scan(
+			&status.BroadcasterID,
+			&status.IsLive,
+			&status.StreamStartedAt,
+			&status.LastSynced,
+			&status.GameName,
+			&status.ViewerCount,
+			&status.StreamTitle,
+			&status.CreatedAt,
+			&status.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan sync status: %w", err)
+		}
+		statuses[status.BroadcasterID] = &status
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating sync statuses: %w", err)
+	}
+	return statuses, nil
 }
 
 // UpsertSyncStatus updates or inserts broadcaster sync status
@@ -535,6 +617,78 @@ func (r *BroadcasterRepository) ListBroadcasterGames(ctx context.Context, broadc
 		return nil, fmt.Errorf("error iterating games: %w", err)
 	}
 	return games, nil
+}
+
+// GetRankedBroadcasters returns broadcasters ordered by engagement score
+func (r *BroadcasterRepository) GetRankedBroadcasters(ctx context.Context, limit, offset int) ([]models.BroadcasterRanking, int, error) {
+	countQuery := `SELECT COUNT(*) FROM broadcaster_rankings`
+	var total int
+	if err := r.pool.QueryRow(ctx, countQuery).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count broadcaster rankings: %w", err)
+	}
+
+	query := `
+		SELECT broadcaster_id, broadcaster_name, total_clips, human_submitted_clips,
+		       total_vote_score, total_views, total_comments, unique_commenters,
+		       engagement_score, follower_count, last_calculated
+		FROM broadcaster_rankings
+		ORDER BY engagement_score DESC
+		LIMIT $1 OFFSET $2
+	`
+	rows, err := r.pool.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get ranked broadcasters: %w", err)
+	}
+	defer rows.Close()
+
+	var rankings []models.BroadcasterRanking
+	for rows.Next() {
+		var br models.BroadcasterRanking
+		if err := rows.Scan(
+			&br.BroadcasterID, &br.BroadcasterName, &br.TotalClips, &br.HumanSubmittedClips,
+			&br.TotalVoteScore, &br.TotalViews, &br.TotalComments, &br.UniqueCommenters,
+			&br.EngagementScore, &br.FollowerCount, &br.LastCalculated,
+		); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan broadcaster ranking: %w", err)
+		}
+		rankings = append(rankings, br)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating broadcaster rankings: %w", err)
+	}
+
+	return rankings, total, nil
+}
+
+// GetBroadcasterRank returns the ranking for a specific broadcaster
+func (r *BroadcasterRepository) GetBroadcasterRank(ctx context.Context, broadcasterID string) (*models.BroadcasterRanking, error) {
+	query := `
+		SELECT broadcaster_id, broadcaster_name, total_clips, human_submitted_clips,
+		       total_vote_score, total_views, total_comments, unique_commenters,
+		       engagement_score, follower_count, last_calculated
+		FROM broadcaster_rankings
+		WHERE broadcaster_id = $1
+	`
+	var rank models.BroadcasterRanking
+	err := r.pool.QueryRow(ctx, query, broadcasterID).Scan(
+		&rank.BroadcasterID, &rank.BroadcasterName, &rank.TotalClips, &rank.HumanSubmittedClips,
+		&rank.TotalVoteScore, &rank.TotalViews, &rank.TotalComments, &rank.UniqueCommenters,
+		&rank.EngagementScore, &rank.FollowerCount, &rank.LastCalculated,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get broadcaster rank: %w", err)
+	}
+	return &rank, nil
+}
+
+// RefreshRankings refreshes the broadcaster_rankings materialized view
+func (r *BroadcasterRepository) RefreshRankings(ctx context.Context) error {
+	_, err := r.pool.Exec(ctx, "SELECT refresh_broadcaster_rankings()")
+	if err != nil {
+		return fmt.Errorf("failed to refresh broadcaster rankings: %w", err)
+	}
+	return nil
 }
 
 // ListPopularBroadcasters returns broadcasters ordered by clip count

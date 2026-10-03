@@ -1,0 +1,44 @@
+# Multi-stage Dockerfile for clip discovery crawler
+
+# Build stage
+FROM golang:1.26.6-alpine@sha256:af8d6740070b8906d12eae1c3e3ea0957fb63f492051ea05e354c38ef9fe88df AS builder
+
+RUN apk add --no-cache git
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o /app/bin/scraper ./scripts/scrape_clips.go
+
+# Final stage
+FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+
+ARG OCI_REVISION=unknown
+ARG OCI_SOURCE=https://git.subcult.tv/subculture-collective/clpr
+LABEL org.opencontainers.image.revision="${OCI_REVISION}" \
+      org.opencontainers.image.source="${OCI_SOURCE}"
+
+RUN apk --no-cache add --upgrade ca-certificates 'libcrypto3>=3.5.8-r0' 'libssl3>=3.5.8-r0'
+
+RUN addgroup -S -g 10001 clpr && adduser -S -D -H -u 10001 -G clpr clpr \
+    && mkdir -p /app && chown -R clpr:clpr /app
+
+WORKDIR /app
+
+COPY --from=builder --chown=clpr:clpr /app/bin/scraper .
+COPY --chown=clpr:clpr --chmod=0555 scripts/crawler-entrypoint.sh .
+
+USER 10001:10001
+
+# Default: run every 30 minutes
+ENV SCRAPE_INTERVAL=1800
+ENV SCRAPE_MIN_VIEWS=50
+ENV SCRAPE_MAX_AGE_DAYS=7
+ENV SCRAPE_BATCH_SIZE=50
+ENV SCRAPE_BROADCASTERS=""
+
+CMD ["./crawler-entrypoint.sh"]

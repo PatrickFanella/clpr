@@ -19,11 +19,11 @@ All moderation endpoints require JWT Bearer authentication:
 
 ```bash
 # Obtain token via Twitch OAuth
-curl -X GET https://api.clpr.tv/api/v1/auth/twitch
+curl -X GET https://clpr.tv/api/v1/auth/twitch
 
 # Use token in requests
 curl -H "Authorization: Bearer YOUR_TOKEN" \
-  https://api.clpr.tv/api/v1/moderation/bans?channelId=CHANNEL_UUID
+  https://clpr.tv/api/v1/moderation/bans?channelId=CHANNEL_UUID
 ```
 
 ### 2. Common Operations
@@ -31,7 +31,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 #### Ban a User
 
 ```bash
-curl -X POST https://api.clpr.tv/api/v1/moderation/ban \
+curl -X POST https://clpr.tv/api/v1/moderation/ban \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -44,14 +44,14 @@ curl -X POST https://api.clpr.tv/api/v1/moderation/ban \
 #### List Moderators
 
 ```bash
-curl -X GET "https://api.clpr.tv/api/v1/moderation/moderators?channelId=123e4567-e89b-12d3-a456-426614174000" \
+curl -X GET "https://clpr.tv/api/v1/moderation/moderators?channelId=123e4567-e89b-12d3-a456-426614174000" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 #### View Audit Logs
 
 ```bash
-curl -X GET "https://api.clpr.tv/api/v1/moderation/audit-logs?action=ban_user&limit=50" \
+curl -X GET "https://clpr.tv/api/v1/moderation/audit-logs?action=ban_user&limit=50" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -110,7 +110,7 @@ See [Complete Permission Matrix](./moderation-api.md#permission-matrix) for deta
 ### JavaScript (Fetch)
 
 ```javascript
-const API_BASE = 'https://api.clpr.tv/api/v1/moderation';
+const API_BASE = 'https://clpr.tv/api/v1/moderation';
 const AUTH_TOKEN = 'YOUR_TOKEN';
 
 // List bans
@@ -149,7 +149,7 @@ import (
 )
 
 const (
-    APIBase = "https://api.clpr.tv/api/v1/moderation"
+    APIBase = "https://clpr.tv/api/v1/moderation"
 )
 
 type Client struct {
@@ -233,13 +233,13 @@ export TOKEN="your_jwt_token"
 
 # List bans
 curl -H "Authorization: Bearer $TOKEN" \
-  "https://api.clpr.tv/api/v1/moderation/bans?channelId=CHANNEL_UUID"
+  "https://clpr.tv/api/v1/moderation/bans?channelId=CHANNEL_UUID"
 
 # Create ban
 curl -X POST -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"channelId":"CHANNEL_UUID","userId":"USER_UUID","reason":"Test"}' \
-  https://api.clpr.tv/api/v1/moderation/ban
+  https://clpr.tv/api/v1/moderation/ban
 ```
 
 ### Using Postman
@@ -264,7 +264,7 @@ open http://localhost:8081
 
 ```env
 # Database
-DATABASE_URL=postgresql://user:password@localhost:5432/clipper
+DATABASE_URL=postgresql://user:password@localhost:5432/clpr
 
 # Redis (for rate limiting)
 REDIS_URL=redis://localhost:6379
@@ -291,15 +291,15 @@ See [Deployment Guide](./moderation-api.md#deployment-guide) for complete setup.
 
 - [Complete API Reference](./moderation-api.md)
 - [OpenAPI Specification](../openapi/openapi.yaml)
-- [Authentication Guide](./authentication.md)
+- Authentication Guide
 - [Authorization Framework](./authorization-framework.md)
 - [Audit Log Service](./AUDIT_LOG_SERVICE.md)
-- [GitHub Issues](https://github.com/subculture-collective/clipper/issues)
+- [GitHub Issues](https://git.subcult.tv/subculture-collective/clpr/issues)
 
 ## 💬 Support
 
-- **Documentation Issues**: [Open an issue](https://github.com/subculture-collective/clipper/issues/new)
-- **API Questions**: [GitHub Discussions](https://github.com/subculture-collective/clipper/discussions)
+- **Documentation Issues**: [Open an issue](https://git.subcult.tv/subculture-collective/clpr/issues/new)
+- **API Questions**: [GitHub Discussions](https://git.subcult.tv/subculture-collective/clpr/discussions)
 - **Email**: support@clpr.tv
 
 ---

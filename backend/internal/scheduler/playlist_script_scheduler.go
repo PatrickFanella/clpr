@@ -2,13 +2,15 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/services"
+	"git.subcult.tv/subculture-collective/clpr/pkg/metrics"
+	"git.subcult.tv/subculture-collective/clpr/pkg/utils"
 	"github.com/google/uuid"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/pkg/metrics"
-	"github.com/subculture-collective/clipper/pkg/utils"
 )
 
 const (
@@ -21,7 +23,12 @@ const (
 type PlaylistScriptServiceInterface interface {
 	ListDueForExecution(ctx context.Context) ([]*models.PlaylistScript, error)
 	GeneratePlaylist(ctx context.Context, scriptID uuid.UUID) (*models.Playlist, error)
+	AcknowledgeEmptyGeneration(ctx context.Context, scriptID uuid.UUID) error
 	DeleteStaleGeneratedPlaylists(ctx context.Context) (int64, error)
+}
+
+type playlistGenerationLocker interface {
+	TryGenerationLock(context.Context) (release func(), locked bool, err error)
 }
 
 // PlaylistScriptScheduler manages periodic automated playlist generation.
@@ -34,6 +41,9 @@ type PlaylistScriptScheduler struct {
 
 // NewPlaylistScriptScheduler creates a new scheduler that checks every intervalMinutes for due scripts.
 func NewPlaylistScriptScheduler(service PlaylistScriptServiceInterface, intervalMinutes int) *PlaylistScriptScheduler {
+	if intervalMinutes <= 0 {
+		intervalMinutes = 5
+	}
 	return &PlaylistScriptScheduler{
 		service:  service,
 		interval: time.Duration(intervalMinutes) * time.Minute,
@@ -84,6 +94,19 @@ func (s *PlaylistScriptScheduler) Stop() {
 // runDueScripts fetches and executes all scripts that are due for their scheduled run.
 func (s *PlaylistScriptScheduler) runDueScripts(ctx context.Context) {
 	startTime := time.Now()
+	if locker, ok := s.service.(playlistGenerationLocker); ok {
+		release, locked, err := locker.TryGenerationLock(ctx)
+		if err != nil {
+			metrics.JobExecutionTotal.WithLabelValues(playlistScriptJobGenerate, "failed").Inc()
+			utils.Error("Failed to acquire playlist generation lock", err, map[string]interface{}{"scheduler": playlistScriptSchedulerName})
+			return
+		}
+		if !locked {
+			metrics.JobExecutionTotal.WithLabelValues(playlistScriptJobGenerate, "skipped").Inc()
+			return
+		}
+		defer release()
+	}
 
 	scripts, err := s.service.ListDueForExecution(ctx)
 	if err != nil {
@@ -106,11 +129,34 @@ func (s *PlaylistScriptScheduler) runDueScripts(ctx context.Context) {
 
 	successCount := 0
 	failCount := 0
+	skippedCount := 0
 
 	for _, script := range scripts {
 		// Run each script sequentially to avoid overwhelming the database
 		playlist, genErr := s.service.GeneratePlaylist(ctx, script.ID)
 		if genErr != nil {
+			if errors.Is(genErr, services.ErrPlaylistGenerationEmpty) {
+				if acknowledgeErr := s.service.AcknowledgeEmptyGeneration(ctx, script.ID); acknowledgeErr != nil {
+					utils.Error("Failed to acknowledge empty playlist generation", acknowledgeErr, map[string]interface{}{
+						"scheduler": playlistScriptSchedulerName,
+						"script_id": script.ID.String(),
+						"script":    script.Name,
+						"strategy":  script.Strategy,
+					})
+					failCount++
+					continue
+				}
+
+				utils.Info("Playlist script had no eligible clips", map[string]interface{}{
+					"scheduler": playlistScriptSchedulerName,
+					"script_id": script.ID.String(),
+					"script":    script.Name,
+					"strategy":  script.Strategy,
+				})
+				skippedCount++
+				continue
+			}
+
 			utils.Error("Failed to generate playlist from script", genErr, map[string]interface{}{
 				"scheduler": playlistScriptSchedulerName,
 				"script_id": script.ID.String(),
@@ -144,6 +190,7 @@ func (s *PlaylistScriptScheduler) runDueScripts(ctx context.Context) {
 	utils.Info("Playlist script generation cycle completed", map[string]interface{}{
 		"scheduler": playlistScriptSchedulerName,
 		"success":   successCount,
+		"skipped":   skippedCount,
 		"failed":    failCount,
 		"duration":  duration.String(),
 	})

@@ -25,6 +25,7 @@ export async function clearAuthStorage(): Promise<void> {
       'expiresAt',
       'expires_at',
       'auth_state',
+      'auth_session_hint',
       'oauth_state',
       'session_id',
     ]);
@@ -70,5 +71,30 @@ export async function clearAuthStorage(): Promise<void> {
   } catch (err) {
     // Log and continue; logout should not be blocked by storage cleanup
     console.warn('[auth-storage] Failed to clear auth storage:', err);
+  }
+}
+
+const AUTH_SESSION_HINT_KEY = 'auth_session_hint';
+
+/** Records only that this browser previously established a CLPR session. */
+export function markAuthSession(): void {
+  try {
+    localStorage.setItem(AUTH_SESSION_HINT_KEY, '1');
+  } catch {
+    // Cookies remain authoritative; unavailable storage must not block login.
+  }
+}
+
+/**
+ * Reads the session hint, distinguishing "no session recorded" (false) from
+ * "storage unavailable" (null), where the hint cannot be trusted either way.
+ * Startup skips the session probe for `false` and only attempts a token
+ * refresh for `true`.
+ */
+export function readAuthSessionHint(): boolean | null {
+  try {
+    return localStorage.getItem(AUTH_SESSION_HINT_KEY) === '1';
+  } catch {
+    return null;
   }
 }

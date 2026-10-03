@@ -13,13 +13,13 @@ import (
 	"sync"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/repository"
+	"git.subcult.tv/subculture-collective/clpr/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/sendgrid/sendgrid-go"
 	sendgridmail "github.com/sendgrid/sendgrid-go/helpers/mail"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/internal/repository"
-	"github.com/subculture-collective/clipper/pkg/utils"
 )
 
 // EmailService handles email sending and management
@@ -364,18 +364,18 @@ func (s *EmailService) prepareEmailContent(
 		subject = fmt.Sprintf("%s mentioned you in a comment", data["AuthorName"])
 		htmlBody, textBody = s.prepareMentionEmail(data)
 	case models.NotificationTypeSubmissionApproved:
-		subject = "Your Clip Submission Has Been Approved! 🎉"
+		subject = "Your clip is live on clpr"
 		htmlBody, textBody = s.prepareSubmissionApprovedEmail(data)
 	case models.NotificationTypeSubmissionRejected:
 		subject = "Clip Submission Status Update"
 		htmlBody, textBody = s.prepareSubmissionRejectedEmail(data)
 	case models.NotificationTypeContentTrending:
-		subject = "🔥 Your Clip is Trending!"
+		subject = "Your clip is trending on clpr"
 		htmlBody, textBody = s.prepareClipTrendingEmail(data)
 
 	// Account & Auth notifications
 	case "welcome":
-		subject = "Welcome to clpr! 🎬"
+		subject = "Welcome to clpr"
 		htmlBody, textBody = s.prepareWelcomeEmail(data)
 	case "password_reset":
 		subject = "Reset Your clpr Password"
@@ -394,7 +394,7 @@ func (s *EmailService) prepareEmailContent(
 
 	// System alerts
 	case models.NotificationTypeLoginNewDevice:
-		subject = "⚠️ New Login Detected"
+		subject = "New Login Detected"
 		htmlBody, textBody = s.prepareSecurityAlertEmail(data)
 	case "policy_update":
 		subject = "Important Update to Our Policies"
@@ -410,23 +410,6 @@ func (s *EmailService) prepareEmailContent(
 	case "mfa_backup_codes_regenerated":
 		subject = "MFA Backup Codes Regenerated"
 		htmlBody, textBody = s.prepareMFABackupCodesRegeneratedEmail(data)
-
-	// Payment notifications
-	case models.NotificationTypePaymentFailed:
-		subject = "Payment Failed - Action Required"
-		htmlBody, textBody = s.preparePaymentFailedEmail(data)
-	case models.NotificationTypePaymentRetry:
-		subject = "Payment Retry Scheduled"
-		htmlBody, textBody = s.preparePaymentRetryEmail(data)
-	case models.NotificationTypeGracePeriodWarning:
-		subject = "Your Premium Access Will End Soon"
-		htmlBody, textBody = s.prepareGracePeriodWarningEmail(data)
-	case models.NotificationTypeSubscriptionDowngraded:
-		subject = "Your Subscription Has Been Downgraded"
-		htmlBody, textBody = s.prepareSubscriptionDowngradedEmail(data)
-	case models.NotificationTypeInvoiceFinalized:
-		subject = "Your Invoice is Ready"
-		htmlBody, textBody = s.prepareInvoiceFinalizedEmail(data)
 
 	// Export notifications
 	case models.NotificationTypeExportCompleted:
@@ -461,7 +444,7 @@ func (s *EmailService) prepareReplyEmail(data map[string]interface{}) (html, tex
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">💬 New Reply on clpr</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">New reply on clpr</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -489,7 +472,7 @@ func (s *EmailService) prepareReplyEmail(data map[string]interface{}) (html, tex
 </html>
 `, authorName, clipTitle, commentPreview, clipURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`New Reply on clpr
+	text = fmt.Sprintf(`New reply on clpr
 
 %s replied to your comment on "%s"
 
@@ -519,11 +502,11 @@ func (s *EmailService) prepareMentionEmail(data map[string]interface{}) (html, t
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>You Were Mentioned</title>
+    <title>You were mentioned</title>
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #f093fb 0%%, #f5576c 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">📢 You Were Mentioned!</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">You were mentioned</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -551,7 +534,7 @@ func (s *EmailService) prepareMentionEmail(data map[string]interface{}) (html, t
 </html>
 `, authorName, clipTitle, commentPreview, clipURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`You Were Mentioned on clpr!
+	text = fmt.Sprintf(`You were mentioned on clpr
 
 %s mentioned you in a comment on "%s"
 
@@ -617,6 +600,10 @@ func (s *EmailService) ValidateUnsubscribeToken(ctx context.Context, token strin
 // UseUnsubscribeToken marks a token as used
 func (s *EmailService) UseUnsubscribeToken(ctx context.Context, token string) error {
 	return s.repo.MarkTokenUsed(ctx, token)
+}
+
+func (s *EmailService) Unsubscribe(ctx context.Context, token string) error {
+	return s.repo.ConsumeUnsubscribeToken(ctx, token)
 }
 
 // checkRateLimit checks if a user has exceeded the email rate limit
@@ -789,6 +776,7 @@ func (s *EmailService) SendNotificationEmailAsync(
 	emailData map[string]interface{},
 ) {
 	s.wg.Add(1)
+	detachedCtx := context.WithoutCancel(ctx)
 	go func() {
 		defer s.wg.Done()
 
@@ -803,9 +791,7 @@ func (s *EmailService) SendNotificationEmailAsync(
 		default:
 		}
 
-		// Use a background context to avoid cancellation from parent
-		bgCtx := context.Background()
-		if err := s.SendNotificationEmail(bgCtx, user, notificationType, notificationID, emailData); err != nil {
+		if err := s.SendNotificationEmail(detachedCtx, user, notificationType, notificationID, emailData); err != nil {
 			s.logger.Error("Failed to send notification email", err, map[string]interface{}{
 				"user_id":           user.ID.String(),
 				"notification_id":   notificationID.String(),
@@ -813,371 +799,6 @@ func (s *EmailService) SendNotificationEmailAsync(
 			})
 		}
 	}()
-}
-
-// preparePaymentFailedEmail prepares payment failed notification email
-func (s *EmailService) preparePaymentFailedEmail(data map[string]interface{}) (html, text string) {
-	amountDue := data["AmountDue"]
-	invoiceID := data["InvoiceID"]
-	gracePeriodEnd := data["GracePeriodEnd"]
-
-	html = fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment Failed</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #f5576c 0%%, #f093fb 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">⚠️ Payment Failed</h1>
-    </div>
-    
-    <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-        <p style="font-size: 16px; margin-bottom: 20px;">
-            We were unable to process your subscription payment of <strong>%s</strong>.
-        </p>
-        
-        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 5px;">
-            <p style="margin: 0; color: #856404;">
-                <strong>Don't worry!</strong> Your premium access will continue until <strong>%s</strong> while we attempt to retry the payment.
-            </p>
-        </div>
-        
-        <p style="font-size: 16px;">
-            Please update your payment method to ensure uninterrupted access to your Pro features.
-        </p>
-        
-        <p style="text-align: center; margin-top: 30px;">
-            <a href="%s/settings/billing" style="display: inline-block; background: #f5576c; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Update Payment Method</a>
-        </p>
-        
-        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-        
-        <p style="font-size: 12px; color: #999;">
-            Invoice ID: %s<br>
-            If you have questions, please contact our support team.
-        </p>
-    </div>
-</body>
-</html>
-`, amountDue, gracePeriodEnd, s.baseURL, invoiceID)
-
-	text = fmt.Sprintf(`Payment Failed - Action Required
-
-We were unable to process your subscription payment of %s.
-
-Don't worry! Your premium access will continue until %s while we attempt to retry the payment.
-
-Please update your payment method to ensure uninterrupted access to your Pro features.
-
-Update your payment method: %s/settings/billing
-
-Invoice ID: %s
-
-If you have questions, please contact our support team.
-`, amountDue, gracePeriodEnd, s.baseURL, invoiceID)
-
-	return html, text
-}
-
-// preparePaymentRetryEmail prepares payment retry notification email
-func (s *EmailService) preparePaymentRetryEmail(data map[string]interface{}) (html, text string) {
-	amountDue := data["AmountDue"]
-	nextRetryAt := data["NextRetryAt"]
-	attemptCount := data["AttemptCount"]
-
-	html = fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment Retry Scheduled</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">🔄 Payment Retry Scheduled</h1>
-    </div>
-    
-    <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-        <p style="font-size: 16px; margin-bottom: 20px;">
-            We're attempting to retry your subscription payment of <strong>%s</strong>.
-        </p>
-        
-        <p style="font-size: 16px;">
-            Next retry attempt: <strong>%s</strong><br>
-            Attempt #<strong>%v</strong>
-        </p>
-        
-        <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0; border-radius: 5px;">
-            <p style="margin: 0; color: #0c5460;">
-                To avoid service interruption, please ensure your payment method is up to date.
-            </p>
-        </div>
-        
-        <p style="text-align: center; margin-top: 30px;">
-            <a href="%s/settings/billing" style="display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Update Payment Method</a>
-        </p>
-    </div>
-</body>
-</html>
-`, amountDue, nextRetryAt, attemptCount, s.baseURL)
-
-	text = fmt.Sprintf(`Payment Retry Scheduled
-
-We're attempting to retry your subscription payment of %s.
-
-Next retry attempt: %s
-Attempt #%v
-
-To avoid service interruption, please ensure your payment method is up to date.
-
-Update your payment method: %s/settings/billing
-`, amountDue, nextRetryAt, attemptCount, s.baseURL)
-
-	return html, text
-}
-
-// prepareGracePeriodWarningEmail prepares grace period warning email
-func (s *EmailService) prepareGracePeriodWarningEmail(data map[string]interface{}) (html, text string) {
-	amountDue := data["AmountDue"]
-	gracePeriodEnd := data["GracePeriodEnd"]
-	daysRemaining := data["DaysRemaining"]
-
-	html = fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grace Period Ending Soon</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #fc4a1a 0%%, #f7b733 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">⏰ Your Premium Access Ends Soon</h1>
-    </div>
-    
-    <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-        <p style="font-size: 16px; margin-bottom: 20px;">
-            Your premium access will end in <strong>%v days</strong> on <strong>%s</strong> due to an outstanding payment.
-        </p>
-        
-        <div style="background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0; border-radius: 5px;">
-            <p style="margin: 0; color: #721c24;">
-                <strong>Action Required:</strong> Update your payment method to keep your premium features.
-            </p>
-        </div>
-        
-        <p style="font-size: 16px;">
-            Outstanding amount: <strong>%s</strong>
-        </p>
-        
-        <p style="font-size: 16px;">
-            After %s, your subscription will be downgraded to the free tier and you'll lose access to:
-        </p>
-        
-        <ul style="font-size: 16px;">
-            <li>Unlimited favorites and collections</li>
-            <li>Advanced search filters</li>
-            <li>Priority support</li>
-            <li>Ad-free experience</li>
-        </ul>
-        
-        <p style="text-align: center; margin-top: 30px;">
-            <a href="%s/settings/billing" style="display: inline-block; background: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Update Payment Method Now</a>
-        </p>
-    </div>
-</body>
-</html>
-`, daysRemaining, gracePeriodEnd, amountDue, gracePeriodEnd, s.baseURL)
-
-	text = fmt.Sprintf(`Your Premium Access Ends Soon
-
-Your premium access will end in %v days on %s due to an outstanding payment.
-
-Action Required: Update your payment method to keep your premium features.
-
-Outstanding amount: %s
-
-After %s, your subscription will be downgraded to the free tier and you'll lose access to:
-- Unlimited favorites and collections
-- Advanced search filters
-- Priority support
-- Ad-free experience
-
-Update your payment method now: %s/settings/billing
-`, daysRemaining, gracePeriodEnd, amountDue, gracePeriodEnd, s.baseURL)
-
-	return html, text
-}
-
-// prepareSubscriptionDowngradedEmail prepares subscription downgraded email
-func (s *EmailService) prepareSubscriptionDowngradedEmail(data map[string]interface{}) (html, text string) {
-	html = fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subscription Downgraded</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #434343 0%%, #000000 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">Subscription Downgraded</h1>
-    </div>
-    
-    <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-        <p style="font-size: 16px; margin-bottom: 20px;">
-            Your premium subscription has been downgraded to the free tier due to an unsuccessful payment.
-        </p>
-        
-        <p style="font-size: 16px;">
-            You now have access to our free tier features, but premium features are no longer available.
-        </p>
-        
-        <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0; border-radius: 5px;">
-            <p style="margin: 0; color: #0c5460;">
-                <strong>Want to restore your premium access?</strong> Update your payment method and resubscribe anytime.
-            </p>
-        </div>
-        
-        <p style="text-align: center; margin-top: 30px;">
-            <a href="%s/premium" style="display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Resubscribe to Pro</a>
-        </p>
-        
-        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-        
-        <p style="font-size: 12px; color: #999; text-align: center;">
-            We're sorry to see you go! If you have any questions or feedback, please contact our support team.
-        </p>
-    </div>
-</body>
-</html>
-`, s.baseURL)
-
-	text = fmt.Sprintf(`Subscription Downgraded
-
-Your premium subscription has been downgraded to the free tier due to an unsuccessful payment.
-
-You now have access to our free tier features, but premium features are no longer available.
-
-Want to restore your premium access? Update your payment method and resubscribe anytime.
-
-Resubscribe to Pro: %s/premium
-
-We're sorry to see you go! If you have any questions or feedback, please contact our support team.
-`, s.baseURL)
-
-	return html, text
-}
-
-// prepareInvoiceFinalizedEmail prepares invoice finalized notification email with PDF link
-func (s *EmailService) prepareInvoiceFinalizedEmail(data map[string]interface{}) (html, text string) {
-	invoiceNumber := data["InvoiceNumber"]
-	// Fallback to InvoiceID if InvoiceNumber is nil or empty
-	if invoiceNumber == nil || fmt.Sprintf("%v", invoiceNumber) == "" {
-		invoiceNumber = data["InvoiceID"]
-	}
-	total := data["Total"]
-	pdfURL := data["InvoicePDFURL"]
-	hostedURL := data["HostedInvoiceURL"]
-
-	// Get optional tax details
-	subtotal := data["Subtotal"]
-	taxAmount := data["TaxAmount"]
-
-	// Build tax section if tax was applied (check for non-zero string value)
-	taxSection := ""
-	taxSectionText := ""
-	showTax := false
-	if taxAmountStr, ok := taxAmount.(string); ok && taxAmountStr != "" {
-		// Check that the formatted amount is not zero
-		if taxAmountStr != "0.00" && taxAmountStr != "0" {
-			showTax = true
-		}
-	}
-	if showTax {
-		taxSection = fmt.Sprintf(`
-		<tr>
-			<td style="padding: 10px; border-bottom: 1px solid #eee;">Subtotal:</td>
-			<td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;"><strong>%v</strong></td>
-		</tr>
-		<tr>
-			<td style="padding: 10px; border-bottom: 1px solid #eee;">Tax:</td>
-			<td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;"><strong>%v</strong></td>
-		</tr>`, subtotal, taxAmount)
-		taxSectionText = fmt.Sprintf(`
-Subtotal: %v
-Tax: %v`, subtotal, taxAmount)
-	}
-
-	html = fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Invoice is Ready</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">📄 Your Invoice is Ready</h1>
-    </div>
-    
-    <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-        <p style="font-size: 16px; margin-bottom: 20px;">
-            Your invoice <strong>#%s</strong> has been finalized and is ready for your records.
-        </p>
-        
-        <table style="width: 100%%; background: white; border-radius: 5px; margin: 20px 0;">
-            %s
-            <tr>
-                <td style="padding: 15px; font-size: 18px;"><strong>Total:</strong></td>
-                <td style="padding: 15px; font-size: 18px; text-align: right;"><strong>%v</strong></td>
-            </tr>
-        </table>
-        
-        <div style="text-align: center; margin: 30px 0;">
-            <a href="%s" style="display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 5px;">📥 Download PDF</a>
-            <a href="%s" style="display: inline-block; background: #764ba2; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 5px;">🌐 View Online</a>
-        </div>
-        
-        <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 5px;">
-            <p style="margin: 0; color: #155724;">
-                <strong>Note:</strong> This invoice includes all applicable taxes based on your location.
-            </p>
-        </div>
-        
-        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-        
-        <p style="font-size: 12px; color: #999; text-align: center;">
-            This invoice is for your subscription to clpr Pro.<br>
-            If you have any questions about this invoice, please contact our support team.
-        </p>
-    </div>
-</body>
-</html>
-`, invoiceNumber, taxSection, total, pdfURL, hostedURL)
-
-	text = fmt.Sprintf(`Your Invoice is Ready
-
-Your invoice #%s has been finalized and is ready for your records.
-%s
-Total: %v
-
-Download PDF: %s
-View Online: %s
-
-Note: This invoice includes all applicable taxes based on your location.
-
----
-This invoice is for your subscription to clpr Pro.
-If you have any questions about this invoice, please contact our support team.
-`, invoiceNumber, taxSectionText, total, pdfURL, hostedURL)
-
-	return html, text
 }
 
 // prepareWelcomeEmail prepares welcome email for new users
@@ -1195,7 +816,7 @@ func (s *EmailService) prepareWelcomeEmail(data map[string]interface{}) (html, t
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 28px;">🎬 Welcome to clpr!</h1>
+        <h1 style="color: white; margin: 0; font-size: 28px;">Welcome to clpr</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -1204,16 +825,16 @@ func (s *EmailService) prepareWelcomeEmail(data map[string]interface{}) (html, t
         </p>
         
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Welcome to clpr.tv - the community-driven platform for discovering and sharing the best Twitch clips!
+            You're in. clpr sorts Twitch clips by creator, topic and tag, so the one you're thinking of is easier to find.
         </p>
         
         <div style="background: white; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #667eea;">
-            <h3 style="margin-top: 0; color: #667eea;">Getting Started</h3>
+            <h3 style="margin-top: 0; color: #667eea;">Getting started</h3>
             <ul style="margin: 0; padding-left: 20px;">
-                <li style="margin-bottom: 10px;">Browse trending clips on the homepage</li>
-                <li style="margin-bottom: 10px;">Vote on your favorite clips to help them rise</li>
-                <li style="margin-bottom: 10px;">Submit your own clips for the community</li>
-                <li style="margin-bottom: 10px;">Earn karma by contributing quality content</li>
+                <li style="margin-bottom: 10px;">See what's trending on the homepage</li>
+                <li style="margin-bottom: 10px;">Upvote the clips that deserve it</li>
+                <li style="margin-bottom: 10px;">Submit a Twitch clip that isn't here yet</li>
+                <li style="margin-bottom: 10px;">Earn uppies for what you contribute</li>
             </ul>
         </div>
         
@@ -1222,7 +843,7 @@ func (s *EmailService) prepareWelcomeEmail(data map[string]interface{}) (html, t
         </p>
         
         <p style="font-size: 14px; color: #666; margin-top: 30px;">
-            Need help? Check out our <a href="%s/docs" style="color: #667eea;">documentation</a> or visit our <a href="%s/support" style="color: #667eea;">support center</a>.
+            Questions? Read the <a href="%s/community-rules" style="color: #667eea;">community rules</a> or <a href="%s/contact" style="color: #667eea;">contact us</a>.
         </p>
         
         <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
@@ -1236,21 +857,21 @@ func (s *EmailService) prepareWelcomeEmail(data map[string]interface{}) (html, t
 </html>
 `, username, s.baseURL, s.baseURL, s.baseURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`Welcome to clpr!
+	text = fmt.Sprintf(`Welcome to clpr
 
 Hi %s,
 
-Welcome to clpr.tv - the community-driven platform for discovering and sharing the best Twitch clips!
+You're in. clpr sorts Twitch clips by creator, topic and tag, so the one you're thinking of is easier to find.
 
-Getting Started:
-- Browse trending clips on the homepage
-- Vote on your favorite clips to help them rise
-- Submit your own clips for the community
-- Earn karma by contributing quality content
+Getting started:
+- See what's trending on the homepage
+- Upvote the clips that deserve it
+- Submit a Twitch clip that isn't here yet
+- Earn uppies for what you contribute
 
 Explore Clips: %s
 
-Need help? Check out our documentation at %s/docs or visit our support center at %s/support.
+Questions? The community rules are at %s/community-rules, and you can reach us at %s/contact.
 
 ---
 Unsubscribe: %s
@@ -1353,7 +974,7 @@ func (s *EmailService) prepareEmailVerificationEmail(data map[string]interface{}
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Thanks for signing up! Please verify your email address to get started with clpr.
+            Thanks for signing up. Verify your email address to finish setting up clpr.
         </p>
         
         <p style="text-align: center; margin: 30px 0;">
@@ -1362,7 +983,7 @@ func (s *EmailService) prepareEmailVerificationEmail(data map[string]interface{}
         
         <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0; border-radius: 5px;">
             <p style="margin: 0; color: #0c5460;">
-                <strong>Security Info:</strong> This verification link is unique to your account and can only be used once. Keep it secure!
+                <strong>Security Info:</strong> This verification link is unique to your account and can only be used once. Keep it to yourself.
             </p>
         </div>
         
@@ -1388,11 +1009,11 @@ func (s *EmailService) prepareEmailVerificationEmail(data map[string]interface{}
 
 	text = fmt.Sprintf(`Verify Your Email
 
-Thanks for signing up! Please verify your email address to get started with clpr.
+Thanks for signing up. Verify your email address to finish setting up clpr.
 
 Verify Email Address: %s
 
-Security Info: This verification link is unique to your account and can only be used once. Keep it secure!
+Security Info: This verification link is unique to your account and can only be used once. Keep it to yourself.
 
 Didn't receive the email? Resend verification link: %s
 
@@ -1422,16 +1043,16 @@ func (s *EmailService) prepareSubmissionApprovedEmail(data map[string]interface{
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #4ade80 0%%, #22c55e 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">🎉 Your Clip Has Been Approved!</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">Your clip is live</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Great news! Your submission <strong>"%s"</strong> has been approved and is now live on clpr!
+            Your submission <strong>"%s"</strong> was approved and is live on clpr.
         </p>
         
         <div style="background: white; padding: 20px; margin: 20px 0; border-radius: 5px; border: 2px solid #4ade80;">
-            <h3 style="margin-top: 0; color: #22c55e;">📊 Stats Snapshot</h3>
+            <h3 style="margin-top: 0; color: #22c55e;">Stats so far</h3>
             <p style="margin: 10px 0;"><strong>Views:</strong> %v</p>
             <p style="margin: 10px 0;"><strong>Vote Score:</strong> %v</p>
         </div>
@@ -1442,7 +1063,7 @@ func (s *EmailService) prepareSubmissionApprovedEmail(data map[string]interface{
         
         <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0; border-radius: 5px;">
             <p style="margin: 0; color: #0c5460;">
-                <strong>Share it!</strong> Help your clip rise to the top by sharing it with the community. The more engagement, the higher it ranks!
+                <strong>Send it to someone.</strong> Views, votes and comments are what move a clip up the feed.
             </p>
         </div>
         
@@ -1457,17 +1078,17 @@ func (s *EmailService) prepareSubmissionApprovedEmail(data map[string]interface{
 </html>
 `, clipTitle, viewCount, voteScore, clipURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`Your Clip Has Been Approved!
+	text = fmt.Sprintf(`Your clip is live
 
-Great news! Your submission "%s" has been approved and is now live on clpr!
+Your submission "%s" was approved and is live on clpr.
 
-Stats Snapshot:
+Stats so far:
 - Views: %v
 - Vote Score: %v
 
 View Your Clip: %s
 
-Share it! Help your clip rise to the top by sharing it with the community. The more engagement, the higher it ranks!
+Send it to someone. Views, votes and comments are what move a clip up the feed.
 
 ---
 Unsubscribe: %s
@@ -1500,7 +1121,7 @@ func (s *EmailService) prepareSubmissionRejectedEmail(data map[string]interface{
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Thank you for submitting <strong>"%s"</strong> to clpr. After review, we're unable to approve this submission at this time.
+            Thanks for submitting <strong>"%s"</strong> to clpr. After review, it was not approved.
         </p>
         
         <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 5px;">
@@ -1510,7 +1131,7 @@ func (s *EmailService) prepareSubmissionRejectedEmail(data map[string]interface{
         </div>
         
         <div style="background: white; padding: 20px; margin: 20px 0; border-radius: 5px;">
-            <h3 style="margin-top: 0; color: #d97706;">💡 Resubmission Tips</h3>
+            <h3 style="margin-top: 0; color: #d97706;">Before you resubmit</h3>
             <ul style="margin: 0; padding-left: 20px;">
                 <li style="margin-bottom: 10px;">Review our <a href="%s" style="color: #d97706;">community guidelines</a></li>
                 <li style="margin-bottom: 10px;">Ensure your clip meets quality standards</li>
@@ -1537,11 +1158,11 @@ func (s *EmailService) prepareSubmissionRejectedEmail(data map[string]interface{
 
 	text = fmt.Sprintf(`Submission Status Update
 
-Thank you for submitting "%s" to clpr. After review, we're unable to approve this submission at this time.
+Thanks for submitting "%s" to clpr. After review, it was not approved.
 
 Reason: %s
 
-Resubmission Tips:
+Before you resubmit:
 - Review our community guidelines: %s
 - Ensure your clip meets quality standards
 - Check that it hasn't been submitted recently
@@ -1577,27 +1198,27 @@ func (s *EmailService) prepareClipTrendingEmail(data map[string]interface{}) (ht
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #fc4a1a 0%%, #f7b733 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">🔥 Your Clip is Trending!</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">Your clip is trending</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Congratulations! Your clip <strong>"%s"</strong> is gaining traction and trending on clpr!
+            Your clip <strong>"%s"</strong> is trending on clpr. Good eye.
         </p>
         
         <div style="background: white; padding: 20px; margin: 20px 0; border-radius: 5px; border: 2px solid #fc4a1a;">
-            <h3 style="margin-top: 0; color: #fc4a1a;">📈 Current Stats</h3>
+            <h3 style="margin-top: 0; color: #fc4a1a;">Current stats</h3>
             <table style="width: 100%%;">
                 <tr>
-                    <td style="padding: 5px;"><strong>👁️ Views:</strong></td>
+                    <td style="padding: 5px;"><strong>Views:</strong></td>
                     <td style="padding: 5px; text-align: right;">%v</td>
                 </tr>
                 <tr>
-                    <td style="padding: 5px;"><strong>⬆️ Vote Score:</strong></td>
+                    <td style="padding: 5px;"><strong>Vote score:</strong></td>
                     <td style="padding: 5px; text-align: right;">%v</td>
                 </tr>
                 <tr>
-                    <td style="padding: 5px;"><strong>💬 Comments:</strong></td>
+                    <td style="padding: 5px;"><strong>Comments:</strong></td>
                     <td style="padding: 5px; text-align: right;">%v</td>
                 </tr>
             </table>
@@ -1609,7 +1230,7 @@ func (s *EmailService) prepareClipTrendingEmail(data map[string]interface{}) (ht
         
         <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 5px;">
             <p style="margin: 0; color: #155724;">
-                <strong>Keep the momentum going!</strong> Engage with comments and share your clip to help it reach even more viewers.
+                <strong>Want it to keep going?</strong> Answer the comments and pass the link around.
             </p>
         </div>
         
@@ -1624,18 +1245,18 @@ func (s *EmailService) prepareClipTrendingEmail(data map[string]interface{}) (ht
 </html>
 `, clipTitle, viewCount, voteScore, commentCount, clipURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`Your Clip is Trending!
+	text = fmt.Sprintf(`Your clip is trending
 
-Congratulations! Your clip "%s" is gaining traction and trending on clpr!
+Your clip "%s" is trending on clpr. Good eye.
 
-Current Stats:
+Current stats:
 - Views: %v
 - Vote Score: %v
 - Comments: %v
 
 View Your Trending Clip: %s
 
-Keep the momentum going! Engage with comments and share your clip to help it reach even more viewers.
+Want it to keep going? Answer the comments and pass the link around.
 
 ---
 Unsubscribe: %s
@@ -2023,7 +1644,7 @@ func (s *EmailService) SendDisputeNotification(ctx context.Context, user *models
         </p>
         
         <p style="text-align: center; margin-top: 30px;">
-            <a href="%s/settings/billing" style="display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Billing Details</a>
+            <a href="%s/settings" style="display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Billing Details</a>
         </p>
         
         <p style="font-size: 14px; color: #666; margin-top: 30px;">
@@ -2048,7 +1669,7 @@ What should you do?
 • If you didn't initiate this dispute, please contact your bank.
 • If you have questions, please reach out to our support team.
 
-View your billing details: %s/settings/billing
+View your billing details: %s/settings
 
 If you have any questions or concerns, please contact our support team. We're here to help!
 `, html.EscapeString(user.DisplayName), s.baseURL)

@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Clipper"
+    "name": "clpr"
   },
   "nav": {
     "hot": "Populaires",
@@ -82,16 +82,16 @@
   },
   "error": {
     "somethingWentWrong": "Une erreur s'est produite",
-    "unexpectedError": "Nous sommes désolés, mais quelque chose d'inattendu s'est produit. L'erreur a été signalée et nous allons y remédier.",
+    "unexpectedError": "Quelque chose a cassé de notre côté. L'erreur a été signalée. Rechargez la page pour réessayer.",
     "devDetails": "Détails de l'erreur (mode développement) :",
     "persistContact": "Si ce problème persiste, veuillez contacter le support :",
     "authFailed": "Échec de l'authentification : {{error}}",
-    "notFound": "Page Non Trouvée",
-    "notFoundDescription": "La page que vous recherchez n'existe pas ou a été déplacée.",
+    "notFound": "Page introuvable",
+    "notFoundDescription": "Rien à cette adresse. Le lien est peut-être ancien, ou la page a été déplacée.",
     "notFoundCode": "404"
   },
   "login": {
-    "welcome": "Bienvenue sur Clipper",
+    "welcome": "Bienvenue sur clpr",
     "subtitle": "Connectez-vous pour voter, commenter et sauvegarder vos clips préférés",
     "continueWithTwitch": "Continuer avec Twitch",
     "termsAgreement": "En continuant, vous acceptez nos Conditions d'Utilisation et notre Politique de Confidentialité"
@@ -111,7 +111,6 @@
   "footer": {
     "about": "À propos",
     "aboutClpr": "À propos de clpr",
-    "githubRepo": "Dépôt GitHub",
     "legal": "Mentions Légales",
     "privacyPolicy": "Politique de Confidentialité",
     "termsOfService": "Conditions d'Utilisation",
@@ -127,7 +126,7 @@
   },
   "submit": {
     "title": "Soumettre un Clip",
-    "subtitle": "Partagez vos meilleurs moments de jeu avec la communauté",
+    "subtitle": "Partagez des moments mémorables de créateurs Twitch",
     "clipUrl": "URL du Clip Twitch",
     "clipUrlPlaceholder": "https://clips.twitch.tv/...",
     "customTitle": "Titre Personnalisé (Optionnel)",
@@ -156,7 +155,7 @@
     "accountRestricted": "Compte Restreint",
     "accountRestrictedDesc": "Votre compte a été restreint. Certaines fonctionnalités peuvent être indisponibles.",
     "reauthorize": "Réautoriser avec Twitch",
-    "karma": "Karma",
+    "karma": "Uppies",
     "role": "Rôle",
     "joined": "Inscrit",
     "overview": "Aperçu",
@@ -182,7 +181,7 @@
     "public": "Public",
     "private": "Privé",
     "followers": "Abonnés",
-    "showKarma": "Afficher le Karma Publiquement",
+    "showKarma": "Afficher les Uppies Publiquement",
     "advertising": "Publicité et Confidentialité",
     "functionalCookies": "Cookies Fonctionnels",
     "analyticsTracking": "Suivi Analytique",

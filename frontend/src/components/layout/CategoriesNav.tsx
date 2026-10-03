@@ -1,52 +1,39 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { categoryApi } from '../../lib/category-api';
-import { tagApi } from '../../lib/tag-api';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { isChipLane, tagLane } from '../../lib/tag-lanes';
 import {
-    fetchPopularBroadcasters,
-    type PopularBroadcaster,
-} from '../../lib/broadcaster-api';
-import type { Category } from '../../types/category';
-import type { Tag } from '../../types/tag';
+    usePopularBroadcasters,
+    usePopularTags,
+    useTopicCategories,
+} from '../../hooks/useDiscoveryQueries';
+import { CategoryIcon } from '../ui/CategoryIcon';
+import { TagChip } from '../tag/TagChip';
 
-type NavTab = 'categories' | 'tags' | 'streamers';
+type NavTab = 'creators' | 'topics' | 'tags';
 
 export function CategoriesNav() {
-    const [activeTab, setActiveTab] = useState<NavTab>('categories');
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [tags, setTags] = useState<Tag[]>([]);
-    const [streamers, setStreamers] = useState<PopularBroadcaster[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<NavTab>('creators');
+    // Shared with the feed sidebar and topics page, so the nav adds no
+    // requests of its own once any of them has loaded.
+    const topicsQuery = useTopicCategories();
+    const tagsQuery = usePopularTags();
+    const creatorsQuery = usePopularBroadcasters(20);
+    const loading = topicsQuery.isLoading || tagsQuery.isLoading || creatorsQuery.isLoading;
+
+    const topics = useMemo(() => {
+        const all = topicsQuery.data?.categories ?? [];
+        const featured = all.filter(topic => topic.is_featured);
+        return featured.length > 0 ? featured : all;
+    }, [topicsQuery.data]);
+    const tags = useMemo(
+        () => (tagsQuery.data?.tags ?? []).filter(tag => isChipLane(tagLane(tag))),
+        [tagsQuery.data],
+    );
+    const creators = creatorsQuery.data ?? [];
     const scrollRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
-
-    useEffect(() => {
-        const fetchAll = async () => {
-            try {
-                const [featuredRes, tagsRes, streamersRes] = await Promise.all([
-                    categoryApi.listCategories({ featured: true }),
-                    tagApi.listTags({ sort: 'popularity', limit: 20 }),
-                    fetchPopularBroadcasters(20),
-                ]);
-
-                let cats = featuredRes.categories || [];
-                if (cats.length === 0) {
-                    const all = await categoryApi.listCategories();
-                    cats = all.categories || [];
-                }
-                setCategories(cats);
-                setTags(tagsRes.tags || []);
-                setStreamers(streamersRes);
-            } catch (err) {
-                console.error('Failed to fetch nav data:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchAll();
-    }, []);
 
     useEffect(() => {
         const el = scrollRef.current;
@@ -67,7 +54,7 @@ export function CategoriesNav() {
             el.removeEventListener('scroll', updateScrollState);
             window.removeEventListener('resize', updateScrollState);
         };
-    }, [activeTab, categories.length, tags.length, streamers.length]);
+    }, [activeTab, topics.length, tags.length, creators.length]);
 
     const scrollByAmount = (direction: 'left' | 'right') => {
         const el = scrollRef.current;
@@ -76,32 +63,24 @@ export function CategoriesNav() {
         el.scrollBy({ left: delta, behavior: 'smooth' });
     };
 
-    if (loading) {
-        return null;
-    }
-
-    // Hide if no data at all
-    if (
-        categories.length === 0 &&
-        tags.length === 0 &&
-        streamers.length === 0
-    ) {
-        return null;
-    }
-
     const tabs: { key: NavTab; label: string; count: number }[] = [
-        { key: 'categories', label: 'Categories', count: categories.length },
+        { key: 'creators', label: 'Creators', count: creators.length },
+        { key: 'topics', label: 'Topics', count: topics.length },
         { key: 'tags', label: 'Tags', count: tags.length },
-        { key: 'streamers', label: 'Streamers', count: streamers.length },
     ];
 
     // Only show tabs that have data
     const visibleTabs = tabs.filter(t => t.count > 0);
 
     return (
-        <div className='border-b border-border bg-background'>
-            <div className='container mx-auto px-4'>
-                <div className='relative flex items-center'>
+        <div className='border-b border-border bg-background' aria-busy={loading}>
+            <nav className='flex min-h-12 items-center gap-2 overflow-x-auto px-4 md:hidden scrollbar-hide' aria-label='Discover creators, topics, and tags'>
+                <Link to='/creators' className='inline-flex min-h-9 shrink-0 items-center border border-line-strong bg-transparent px-4 text-foreground font-heading text-[14px] font-bold uppercase tracking-[0.04em]'>Creators</Link>
+                <Link to='/topics' className='inline-flex min-h-9 shrink-0 items-center border border-line-strong bg-transparent px-4 text-foreground font-heading text-[14px] font-bold uppercase tracking-[0.04em]'>Topics</Link>
+                <Link to='/tags' className='inline-flex min-h-9 shrink-0 items-center border border-line-strong bg-transparent px-4 text-foreground font-heading text-[14px] font-bold uppercase tracking-[0.04em]'>Tags</Link>
+            </nav>
+            <div className='page-container hidden min-h-12 md:block'>
+                <div className='relative flex min-h-12 items-center'>
                     {/* Tab selector */}
                     {visibleTabs.length > 1 && (
                         <div className='flex items-center gap-1 pr-3 mr-3 border-r border-border shrink-0'>
@@ -110,9 +89,9 @@ export function CategoriesNav() {
                                     key={tab.key}
                                     type='button'
                                     onClick={() => setActiveTab(tab.key)}
-                                    className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                                    className={`px-2.5 py-1.5 font-mono text-[11px] font-medium uppercase tracking-[0.08em] transition-colors whitespace-nowrap cursor-pointer ${
                                         activeTab === tab.key ?
-                                            'bg-primary text-primary-foreground'
+                                            'bg-brand text-background'
                                         :   'text-muted-foreground hover:text-foreground hover:bg-muted'
                                     }`}
                                 >
@@ -128,23 +107,10 @@ export function CategoriesNav() {
                             <button
                                 type='button'
                                 onClick={() => scrollByAmount('left')}
-                                className='absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full bg-background/90 shadow hover:bg-background'
+                                className='absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1.5 bg-background border border-line-strong hover:bg-surface-hover cursor-pointer'
                                 aria-label='Scroll left'
                             >
-                                <svg
-                                    className='w-4 h-4'
-                                    fill='none'
-                                    stroke='currentColor'
-                                    strokeWidth='2'
-                                    viewBox='0 0 24 24'
-                                    aria-hidden='true'
-                                >
-                                    <path
-                                        strokeLinecap='round'
-                                        strokeLinejoin='round'
-                                        d='M15 19l-7-7 7-7'
-                                    />
-                                </svg>
+                                <ChevronLeft size={16} strokeWidth={2} aria-hidden='true' />
                             </button>
                         )}
 
@@ -152,88 +118,62 @@ export function CategoriesNav() {
                             <button
                                 type='button'
                                 onClick={() => scrollByAmount('right')}
-                                className='absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full bg-background/90 shadow hover:bg-background'
+                                className='absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1.5 bg-background border border-line-strong hover:bg-surface-hover cursor-pointer'
                                 aria-label='Scroll right'
                             >
-                                <svg
-                                    className='w-4 h-4'
-                                    fill='none'
-                                    stroke='currentColor'
-                                    strokeWidth='2'
-                                    viewBox='0 0 24 24'
-                                    aria-hidden='true'
-                                >
-                                    <path
-                                        strokeLinecap='round'
-                                        strokeLinejoin='round'
-                                        d='M9 5l7 7-7 7'
-                                    />
-                                </svg>
+                                <ChevronRight size={16} strokeWidth={2} aria-hidden='true' />
                             </button>
                         )}
 
                         <div
                             ref={scrollRef}
                             className='flex items-center gap-2 overflow-x-auto py-2 scrollbar-hide px-6'
-                            role='list'
+                            role='navigation'
                             aria-label={`Browse ${activeTab}`}
                         >
-                            {activeTab === 'categories' &&
-                                categories.map(category => (
+                            {activeTab === 'creators' &&
+                                <>
                                     <Link
-                                        key={category.id}
-                                        to={`/category/${category.slug}`}
-                                        className='flex items-center gap-1 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 whitespace-nowrap text-sm transition-colors'
-                                        role='listitem'
+                                        to='/creators'
+                                        className='flex items-center gap-1.5 bg-primary-400 px-3 py-1.5 font-heading text-[14px] font-bold uppercase tracking-[0.04em] text-background whitespace-nowrap hover:bg-primary-300 hover:text-background'
                                     >
-                                        {category.icon && (
-                                            <span>{category.icon}</span>
-                                        )}
-                                        <span>{category.name}</span>
+                                        Explore creators
+                                    </Link>
+                                    {creators.map(creator => (
+                                        <Link
+                                            key={creator.broadcaster_id}
+                                            to={`/broadcaster/${creator.broadcaster_id}`}
+                                            className='flex items-center gap-1.5 px-3 py-1.5 border border-transparent hover:border-line-strong whitespace-nowrap text-sm text-foreground transition-colors'
+                                        >
+                                            <span className='w-1.5 h-1.5 rounded-full bg-tally shrink-0' />
+                                            <span>{creator.broadcaster_name}</span>
+                                            <span className='font-mono text-[11px] text-muted-foreground'>
+                                                {creator.clip_count} clips
+                                            </span>
+                                        </Link>
+                                    ))}
+                                </>
+                            }
+
+                            {activeTab === 'topics' &&
+                                topics.map(topic => (
+                                    <Link
+                                        key={topic.id}
+                                        to={`/topics/${topic.slug}`}
+                                        className='flex items-center gap-2 px-3 py-1.5 border border-transparent hover:border-line-strong whitespace-nowrap text-sm text-foreground transition-colors'
+                                    >
+                                        <CategoryIcon icon={topic.icon} size='sm' />
+                                        <span>{topic.name}</span>
                                     </Link>
                                 ))}
 
                             {activeTab === 'tags' &&
                                 tags.map(tag => (
-                                    <Link
-                                        key={tag.id}
-                                        to={`/tag/${tag.slug}`}
-                                        className='flex items-center gap-1 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 whitespace-nowrap text-sm transition-colors'
-                                        role='listitem'
-                                    >
-                                        <span
-                                            className='w-2 h-2 rounded-full shrink-0'
-                                            style={{
-                                                backgroundColor:
-                                                    tag.color || '#6366f1',
-                                            }}
-                                        />
-                                        <span>#{tag.name}</span>
-                                        {tag.usage_count > 0 && (
-                                            <span className='text-xs text-muted-foreground'>
-                                                {tag.usage_count}
-                                            </span>
-                                        )}
-                                    </Link>
+                                    <span key={tag.id} className='shrink-0'>
+                                        <TagChip tag={tag} showCount />
+                                    </span>
                                 ))}
 
-                            {activeTab === 'streamers' &&
-                                streamers.map(streamer => (
-                                    <Link
-                                        key={streamer.broadcaster_id}
-                                        to={`/broadcaster/${streamer.broadcaster_id}`}
-                                        className='flex items-center gap-1 px-3 py-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 whitespace-nowrap text-sm transition-colors'
-                                        role='listitem'
-                                    >
-                                        <span className='text-purple-500'>
-                                            ●
-                                        </span>
-                                        <span>{streamer.broadcaster_name}</span>
-                                        <span className='text-xs text-muted-foreground'>
-                                            {streamer.clip_count} clips
-                                        </span>
-                                    </Link>
-                                ))}
                         </div>
                     </div>
                 </div>

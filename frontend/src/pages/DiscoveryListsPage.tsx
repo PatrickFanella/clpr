@@ -1,50 +1,49 @@
-import { Container, SEO } from '../components';
+/**
+ * DiscoveryListsPage — Discovery lists have been merged into curated playlists.
+ *
+ * This page now queries playlists via `useInfiniteFeaturedPlaylists`, which
+ * fetches from GET /playlists/featured. The "Discovery Lists" branding is
+ * retained for backward compatibility. In a future release this page will be
+ * renamed to reflect the unified playlist model.
+ */
+import { SEO } from '../components';
 import { PlaylistCard } from '../components/playlist/PlaylistCard';
-import { useQuery } from '@tanstack/react-query';
-import apiClient from '../lib/api';
 import { Button } from '../components/ui';
-import { useState } from 'react';
-import type { PlaylistWithClips } from '../types/playlist';
+import { FeedLayout } from '../components/layout/FeedLayout';
+import { FeedSidebar } from '../components/layout/FeedSidebar';
+import { useMemo } from 'react';
+import { useInfiniteFeaturedPlaylists } from '../hooks/usePlaylist';
 
 export function DiscoveryListsPage() {
-  const [offset, setOffset] = useState(0);
   const pageSize = 12;
 
-  // Fetch featured/curated playlists (formerly discovery lists)
-  const { data: response, isLoading } = useQuery({
-    queryKey: ['playlists', 'curated', offset],
-    queryFn: async () => {
-      const res = await apiClient.get<{
-        success: boolean;
-        data: PlaylistWithClips[];
-        meta: {
-          total: number;
-          page: number;
-          limit: number;
-        };
-      }>(`/playlists?curated=true&featured=true&limit=${pageSize}&offset=${offset}`);
-      return res.data;
-    },
-  });
-
-  const lists = response?.data || [];
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteFeaturedPlaylists(pageSize);
+  const lists = useMemo(() => {
+    const uniqueLists = new Map(
+      data?.pages.flatMap((page) => page.data ?? []).map((list) => [list.id, list]),
+    );
+    return [...(uniqueLists?.values() ?? [])].filter(list => (list.clip_count ?? 0) > 0);
+  }, [data?.pages]);
 
   return (
     <>
       <SEO
-        title="Discovery Lists"
-        description="Browse curated collections of amazing Twitch clips. Find new content organized by theme, game, and community favorites."
+        title="Collections"
+        description="Twitch clip collections built around creators, topics and moments, refreshed daily and weekly."
         canonicalUrl="/discover/lists"
       />
-      <Container className="py-8">
-        <div className="max-w-6xl mx-auto">
+      <FeedLayout sidebar={<FeedSidebar showTrendingPlaylists={false} />}>
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">
-              Discovery Lists
-            </h1>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Collections</h1>
             <p className="text-muted-foreground">
-              Explore curated collections of the best Twitch clips
+              Clip collections built around creators, topics and moments, refreshed daily and weekly.
             </p>
           </div>
 
@@ -67,30 +66,26 @@ export function DiscoveryListsPage() {
               </div>
 
               {/* Load More Button */}
-              {lists.length === pageSize && (
+              {hasNextPage && (
                 <div className="text-center pt-8">
                   <Button
-                    onClick={() => setOffset((o) => o + pageSize)}
+                    onClick={() => void fetchNextPage()}
                     variant="outline"
                     size="lg"
+                    disabled={isFetchingNextPage}
                   >
-                    Load More Lists
+                    {isFetchingNextPage ? 'Loading…' : 'Load more'}
                   </Button>
                 </div>
               )}
             </>
           ) : (
             <div className="text-center py-12 bg-card border border-border rounded-xl">
-              <h2 className="text-xl font-semibold mb-2">
-                No Discovery Lists Yet
-              </h2>
-              <p className="text-muted-foreground">
-                Check back soon for curated collections of clips
-              </p>
+              <h2 className="text-xl font-semibold mb-2">No collections yet</h2>
+              <p className="text-muted-foreground">Nothing has been put together yet. Check back later.</p>
             </div>
           )}
-        </div>
-      </Container>
+      </FeedLayout>
     </>
   );
 }

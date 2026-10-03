@@ -17,7 +17,7 @@ export interface UseSearchErrorStateReturn {
   errorState: SearchErrorState;
   handleSearchError: (error: unknown, options?: { autoRetry?: boolean }) => void;
   handleSearchSuccess: () => void;
-  retry: (searchFn: () => Promise<void>) => Promise<void>;
+  retry: (searchFn: () => Promise<unknown>) => Promise<void>;
   cancelRetry: () => void;
   dismissError: () => void;
 }
@@ -63,10 +63,10 @@ export function useSearchErrorState(): UseSearchErrorStateReturn {
     isCircuitOpen: false,
   });
 
-  const retryTimeoutRef = useRef<NodeJS.Timeout>();
-  const circuitBreakerTimeoutRef = useRef<NodeJS.Timeout>();
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const circuitBreakerTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const consecutiveFailuresRef = useRef(0);
-  const pendingRetryRef = useRef<(() => Promise<void>) | null>(null);
+  const pendingRetryRef = useRef<(() => Promise<unknown>) | null>(null);
   const isCancelledRef = useRef(false);
 
   // Cleanup timeouts on unmount
@@ -242,7 +242,7 @@ export function useSearchErrorState(): UseSearchErrorStateReturn {
    * Retry search with exponential backoff
    * Supports both manual and automatic retries
    */
-  const retry = useCallback(async (searchFn: () => Promise<void>) => {
+  const retry = useCallback(async (searchFn: () => Promise<unknown>) => {
     // Check if circuit breaker is open by reading from current state
     if (errorState.isCircuitOpen) {
       trackEvent('search_retry_blocked_by_circuit_breaker', {});
@@ -255,12 +255,11 @@ export function useSearchErrorState(): UseSearchErrorStateReturn {
     // Store the search function for potential cancellation
     pendingRetryRef.current = searchFn;
 
-    // Use functional update to get current retry count
-    let currentRetryCount = 0;
+    // Read the count from the current render. A value assigned inside a state
+    // updater is not available synchronously under concurrent React rendering.
+    const currentRetryCount = errorState.retryCount;
 
     setErrorState(prev => {
-      currentRetryCount = prev.retryCount;
-
       // Check if max retries exceeded
       if (currentRetryCount >= MAX_RETRY_ATTEMPTS) {
         return {
@@ -320,7 +319,7 @@ export function useSearchErrorState(): UseSearchErrorStateReturn {
       // Clear pending retry
       pendingRetryRef.current = null;
     }
-  }, [errorState.isCircuitOpen, handleSearchError, handleSearchSuccess]);
+  }, [errorState.isCircuitOpen, errorState.retryCount, handleSearchError, handleSearchSuccess]);
 
   /**
    * Cancel ongoing retry

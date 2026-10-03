@@ -117,7 +117,7 @@ Before enabling NSFW detection, run the database migration:
 
 ```bash
 # Apply the NSFW detection migration
-migrate -path ./migrations -database "postgresql://user:pass@localhost:5432/clipper_db?sslmode=disable" up
+migrate -path ./migrations -database "postgresql://user:pass@localhost:5432/clpr_db?sslmode=disable" up
 
 # Or using make
 make migrate-up
@@ -208,5 +208,5 @@ To test the NSFW detection system:
 ## Related Documentation
 
 - [NSFW Detection API](./NSFW_DETECTION.md)
-- [Moderation Queue](./MODERATION_QUEUE.md)
-- [Environment Variables](./ENVIRONMENT_VARIABLES.md)
+- Moderation Queue
+- Environment Variables

@@ -5,8 +5,8 @@ tags: ["operations"]
 area: "operations"
 status: "stable"
 owner: "team-core"
-version: "1.0"
-last_reviewed: 2026-01-29
+version: "1.1"
+last_reviewed: 2026-09-19
 ---
 
 # Background Jobs Runbook
@@ -15,14 +15,33 @@ This runbook provides troubleshooting guidance for background job monitoring and
 
 ## Overview
 
-Clipper uses several background jobs (schedulers) to perform periodic maintenance tasks:
+The API starts this scheduler inventory:
 
-- **hot_score_refresh**: Updates hot scores for trending clips (every 5 minutes)
-- **trending_score_refresh**: Recalculates trending scores (every 60 minutes)
-- **clip_sync**: Syncs clips from Twitch API (every 15 minutes)
-- **reputation_tasks**: Awards badges and updates user stats (every 6 hours)
-- **webhook_retry**: Retries failed webhook deliveries (every 1 minute)
-- **embedding_generation**: Generates embeddings for new clips (configurable interval)
+| Job | Recurrence | Initial delay |
+| --- | --- | --- |
+| engagement refresh | service-defined | immediate |
+| clip sync | 15 minutes | immediate |
+| reputation | 6 hours | immediate |
+| `hot_score_refresh` | 5 minutes by default | 2 minutes |
+| `trending_score_refresh` | 60 minutes by default | 7 minutes |
+| outbound webhook delivery | 30 seconds | immediate |
+| embedding generation | configurable | 12 minutes |
+| export processing | 2 minutes | immediate |
+| email metrics/alerts/cleanup | 24 hours / 30 minutes / 7 days | immediate |
+| live status | 30 seconds when Twitch is configured | immediate |
+| `playlist_script_generate` | checks every 5 minutes | 4 minutes |
+| `auto_tag_processing` | 30 seconds by default | 15 seconds |
+| `tag_promotion_detection` | 15 minutes by default | 90 seconds |
+
+Global jobs use PostgreSQL advisory locks so only one API replica performs a
+refresh. Startup delays intentionally stagger hot score, playlist, trending,
+embedding, tagging, and promotion work. A `skipped` execution means another
+replica owns the lock; it is not a failure.
+
+The configurable values are `AUTO_TAG_INTERVAL_SECONDS`,
+`TAG_PROMOTION_INTERVAL_MINUTES`, `TRENDING_SCORE_INTERVAL_MINUTES`,
+`TRENDING_SCORE_BATCH_SIZE`, and the corresponding `*_START_DELAY_SECONDS`
+values documented in `backend/.env.example`.
 
 ## Metrics
 
@@ -33,6 +52,46 @@ All background jobs expose the following Prometheus metrics:
 - `job_last_success_timestamp_seconds{job_name}`: Unix timestamp of last successful run
 - `job_items_processed_total{job_name, status}`: Items processed (status: success, failed, skipped)
 - `job_queue_size{job_name}`: Current queue size (for jobs with queues)
+
+Trending-score refresh calculates one global snapshot and applies it in
+bounded batches. If a batch fails, the job is failed and the next locked run
+rebuilds staging from scratch. Do not manually truncate staging while a refresh
+is active.
+
+## Taxonomy Backfill
+
+Capture the pre-migration baseline before changing production:
+
+```sql
+SELECT COUNT(*) AS tags FROM tags;
+SELECT COUNT(*) AS associations FROM clip_tags;
+SELECT id, last_generated_playlist_id FROM playlist_scripts WHERE is_active;
+```
+
+Preview and run the resumable UUID-cursor backfill from an API image containing
+the command:
+
+```bash
+backfill-canonical-tags --dry-run --batch-size=500
+backfill-canonical-tags --batch-size=500 --after=<last-uuid-from-output>
+```
+
+The command reports examined, migrated, ambiguous, skipped, and failed counts.
+Review ambiguous flat community tags before the live run. A failed clip is not
+marked structurally tagged and remains retryable. Keep the additive canonical
+tags, aliases, and score staging table during verification; if rollback is
+needed, roll back the application before considering the migration down step.
+
+## Release Acceptance
+
+1. Deploy scoring batching, locks, staggering, shutdown handling, and metrics.
+2. Require three consecutive successful hourly trending refreshes, then observe
+   24 hours with no scoring statement or lock timeouts.
+3. Enable canonical tagging and run the backfill dry-run, review, then live run.
+4. Enable promotion detection and suppression-aware playlist behavior.
+5. Confirm new clips have only canonical automated tags, candidates arrive
+   within 15 minutes, `spam*` blocks matching slugs, and suppressed tags do not
+   influence generated playlists.
 
 ## Alert Responses
 
@@ -46,22 +105,22 @@ All background jobs expose the following Prometheus metrics:
 
 1. Check job logs for error messages:
    ```bash
-   kubectl logs -f deployment/backend -n clipper | grep "job_name"
+   kubectl logs -f deployment/backend -n clpr | grep "job_name"
    ```
 
 2. Identify error patterns in recent logs:
    ```bash
-   kubectl logs deployment/backend -n clipper --tail=1000 | grep -i "error\|failed"
+   kubectl logs deployment/backend -n clpr --tail=1000 | grep -i "error\|failed"
    ```
 
 3. Check dependent services:
-   - Database connectivity: `kubectl get pods -n clipper | grep postgres`
-   - Redis connectivity: `kubectl get pods -n clipper | grep redis`
+   - Database connectivity: `kubectl get pods -n clpr | grep postgres`
+   - Redis connectivity: `kubectl get pods -n clpr | grep redis`
    - External APIs (Twitch, OpenSearch): Check network and API status
 
 4. Review recent changes:
    ```bash
-   kubectl rollout history deployment/backend -n clipper
+   kubectl rollout history deployment/backend -n clpr
    ```
 
 #### Resolution
@@ -81,32 +140,32 @@ All background jobs expose the following Prometheus metrics:
 
 1. Immediate: Check if service is healthy:
    ```bash
-   kubectl get pods -n clipper -l app=backend
-   kubectl describe pod <pod-name> -n clipper
+   kubectl get pods -n clpr -l app=backend
+   kubectl describe pod <pod-name> -n clpr
    ```
 
 2. Check for cascading failures:
    ```bash
-   kubectl logs deployment/backend -n clipper --tail=500 | grep -E "panic|fatal|critical"
+   kubectl logs deployment/backend -n clpr --tail=500 | grep -E "panic|fatal|critical"
    ```
 
 3. Verify database and cache health:
    ```bash
-   kubectl exec -it postgres-pod -n clipper -- psql -U clipper -c "SELECT 1;"
-   kubectl exec -it redis-pod -n clipper -- redis-cli PING
+   kubectl exec -it postgres-pod -n clpr -- psql -U clpr -c "SELECT 1;"
+   kubectl exec -it redis-pod -n clpr -- redis-cli PING
    ```
 
 #### Resolution
 
 - **Immediate**: If recent deployment, rollback:
   ```bash
-  kubectl rollout undo deployment/backend -n clipper
+  kubectl rollout undo deployment/backend -n clpr
   ```
 - **Database down**: Restart database pod or check cloud provider status
 - **Code panic**: Review panic stack traces, deploy hotfix
 - **Resource exhaustion**: Scale deployment immediately:
   ```bash
-  kubectl scale deployment backend --replicas=5 -n clipper
+  kubectl scale deployment backend --replicas=5 -n clpr
   ```
 
 ### Job Not Running (Stale)
@@ -119,18 +178,18 @@ All background jobs expose the following Prometheus metrics:
 
 1. Check if job is scheduled to run:
    ```bash
-   kubectl logs deployment/backend -n clipper | grep "Starting.*scheduler"
+   kubectl logs deployment/backend -n clpr | grep "Starting.*scheduler"
    ```
 
 2. Verify job didn't get stuck:
    ```bash
-   kubectl top pods -n clipper
+   kubectl top pods -n clpr
    # Look for high CPU usage that might indicate stuck job
    ```
 
 3. Check for deadlocks or long-running operations:
    ```bash
-   kubectl exec -it postgres-pod -n clipper -- psql -U clipper -c \
+   kubectl exec -it postgres-pod -n clpr -- psql -U clpr -c \
      "SELECT pid, now() - pg_stat_activity.query_start AS duration, query 
       FROM pg_stat_activity 
       WHERE state = 'active' 
@@ -141,11 +200,11 @@ All background jobs expose the following Prometheus metrics:
 
 - **Job stuck**: Restart backend pod:
   ```bash
-  kubectl rollout restart deployment/backend -n clipper
+  kubectl rollout restart deployment/backend -n clpr
   ```
 - **Database lock**: Kill long-running query:
   ```bash
-  kubectl exec -it postgres-pod -n clipper -- psql -U clipper -c \
+  kubectl exec -it postgres-pod -n clpr -- psql -U clpr -c \
     "SELECT pg_terminate_backend(<pid>);"
   ```
 - **Configuration issue**: Check job interval settings in environment variables
@@ -160,18 +219,18 @@ All background jobs expose the following Prometheus metrics:
 
 1. Verify job is enabled and configured:
    ```bash
-   kubectl get configmap backend-config -n clipper -o yaml
+   kubectl get configmap backend-config -n clpr -o yaml
    ```
 
 2. Check for panic recovery or restart loops:
    ```bash
-   kubectl describe pod <backend-pod> -n clipper
+   kubectl describe pod <backend-pod> -n clpr
    # Look at restart count and events
    ```
 
 3. Review error logs for the specific job:
    ```bash
-   kubectl logs deployment/backend -n clipper --since=24h | grep "<job_name>"
+   kubectl logs deployment/backend -n clpr --since=24h | grep "<job_name>"
    ```
 
 #### Resolution
@@ -190,7 +249,7 @@ All background jobs expose the following Prometheus metrics:
 
 1. Check database query performance:
    ```bash
-   kubectl exec -it postgres-pod -n clipper -- psql -U clipper -c \
+   kubectl exec -it postgres-pod -n clpr -- psql -U clpr -c \
      "SELECT query, calls, mean_exec_time, max_exec_time 
       FROM pg_stat_statements 
       ORDER BY mean_exec_time DESC 
@@ -199,12 +258,12 @@ All background jobs expose the following Prometheus metrics:
 
 2. Analyze slow queries:
    ```bash
-   kubectl logs deployment/backend -n clipper | grep "slow query\|took.*ms"
+   kubectl logs deployment/backend -n clpr | grep "slow query\|took.*ms"
    ```
 
 3. Check for lock contention:
    ```bash
-   kubectl exec -it postgres-pod -n clipper -- psql -U clipper -c \
+   kubectl exec -it postgres-pod -n clpr -- psql -U clpr -c \
      "SELECT * FROM pg_locks WHERE NOT granted;"
    ```
 
@@ -251,7 +310,7 @@ All background jobs expose the following Prometheus metrics:
 
 - **Emergency**: Scale backend replicas immediately:
   ```bash
-  kubectl scale deployment backend --replicas=10 -n clipper
+  kubectl scale deployment backend --replicas=10 -n clpr
   ```
 - **Clear queue**: If items are stale, consider manual cleanup
 - **Root cause**: Fix underlying processing issue before scaling down
@@ -289,7 +348,7 @@ Key panels:
 
 ```bash
 # Connect to backend pod
-kubectl exec -it <backend-pod> -n clipper -- /bin/sh
+kubectl exec -it <backend-pod> -n clpr -- /bin/sh
 
 # Trigger job via API (if available)
 curl -X POST http://localhost:8080/admin/jobs/trigger \
@@ -301,13 +360,13 @@ curl -X POST http://localhost:8080/admin/jobs/trigger \
 
 Update environment variables in deployment and redeploy:
 ```bash
-kubectl rollout restart deployment/backend -n clipper
+kubectl rollout restart deployment/backend -n clpr
 ```
 
 ### Check Job Configuration
 
 ```bash
-kubectl exec -it <backend-pod> -n clipper -- env | grep -i "interval\|job"
+kubectl exec -it <backend-pod> -n clpr -- env | grep -i "interval\|job"
 ```
 
 ## Escalation
@@ -320,6 +379,6 @@ If unable to resolve within 30 minutes:
 
 ## Related Documentation
 
-- [Operations: Monitoring](../monitoring.md)
+- Operations: Monitoring
 - [Deployment: Runbook](../runbook.md)
 - [Webhook Monitoring](../webhook-monitoring.md)

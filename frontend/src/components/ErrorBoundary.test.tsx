@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '@/i18n/config';
 import ErrorBoundary from './ErrorBoundary';
+import { allowTestConsole } from '../test/setup';
 
 // Component that throws an error for testing
 function ThrowError({ shouldThrow }: { shouldThrow: boolean }) {
@@ -23,14 +24,10 @@ function renderWithI18n(ui: React.ReactElement) {
 }
 
 describe('ErrorBoundary', () => {
-  // Suppress console.error for these tests
-  const originalError = console.error;
-  beforeAll(() => {
-    console.error = vi.fn();
-  });
-  afterAll(() => {
-    console.error = originalError;
-  });
+  const allowBoundaryError = () => {
+    allowTestConsole('error', /^%o/);
+    allowTestConsole('error', /Error caught by boundary:.*Test error/);
+  };
 
   it('renders children when there is no error', () => {
     renderWithI18n(
@@ -43,6 +40,7 @@ describe('ErrorBoundary', () => {
   });
 
   it('renders error UI when an error is thrown', () => {
+    allowBoundaryError();
     renderWithI18n(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
@@ -50,10 +48,11 @@ describe('ErrorBoundary', () => {
     );
     
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
-    expect(screen.getByText(/We're sorry, but something unexpected happened/)).toBeInTheDocument();
+    expect(screen.getByText(/Something broke on our end/)).toBeInTheDocument();
   });
 
   it('displays reload and go home buttons', () => {
+    allowBoundaryError();
     renderWithI18n(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
@@ -65,6 +64,7 @@ describe('ErrorBoundary', () => {
   });
 
   it('displays contact support link', () => {
+    allowBoundaryError();
     renderWithI18n(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
@@ -76,7 +76,8 @@ describe('ErrorBoundary', () => {
   });
 
   it('renders custom fallback when provided', () => {
-    const customFallback = <div>Custom error message</div>;
+    allowBoundaryError();
+    const customFallback = () => <div>Custom error message</div>;
     
     renderWithI18n(
       <ErrorBoundary fallback={customFallback}>

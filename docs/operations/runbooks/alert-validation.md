@@ -368,7 +368,7 @@ docker-compose -f docker-compose.monitoring.yml logs prometheus
 - Wait for full alert `for` duration + scrape interval (typically 5-6 minutes)
 - Manually delete metrics from Pushgateway and resend:
   ```bash
-  curl -X DELETE http://localhost:9091/metrics/job/clipper-backend/instance/test
+  curl -X DELETE http://localhost:9091/metrics/job/clpr-backend/instance/test
   ./synthetic-signal-generator.sh recovery latency
   ```
 
@@ -434,7 +434,7 @@ For production environments, set up periodic validation:
 
 ```bash
 # Add to crontab
-0 2 * * * cd /opt/clipper/monitoring/tests && ./alert-validation-test.sh all > /var/log/alert-validation.log 2>&1
+0 2 * * * cd /opt/clpr/monitoring/tests && ./alert-validation-test.sh all > /var/log/alert-validation.log 2>&1
 ```
 
 ### Validation Schedule Recommendations
@@ -457,11 +457,11 @@ For production environments, set up periodic validation:
 
 ## Related Documentation
 
-- [Alert Validation Report](../../monitoring/docs/ALERT_VALIDATION_REPORT.md)
-- [Monitoring README](../../monitoring/README.md)
-- [Alert Testing Guide](alert-testing-staging.md)
-- [Alertmanager Setup](../../monitoring/ALERTMANAGER_SETUP.md)
-- [SLO Documentation](slos.md)
+- Alert Validation Report
+- Monitoring README
+- [Alert Testing Guide](../alert-testing-staging.md)
+- Alertmanager Setup
+- [SLO Documentation](../slos.md)
 
 ## Changelog
 

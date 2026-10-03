@@ -2,17 +2,20 @@ package handlers
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/repository"
+	"git.subcult.tv/subculture-collective/clpr/internal/services"
+	"git.subcult.tv/subculture-collective/clpr/pkg/twitch"
+	"git.subcult.tv/subculture-collective/clpr/pkg/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/internal/repository"
-	"github.com/subculture-collective/clipper/internal/services"
-	"github.com/subculture-collective/clipper/pkg/twitch"
-	"github.com/subculture-collective/clipper/pkg/utils"
 )
 
 // StreamHandler handles stream-related HTTP requests
@@ -35,11 +38,13 @@ func NewStreamHandler(twitchClient *twitch.Client, streamRepo *repository.Stream
 	}
 }
 
-// validateStreamerUsername validates a Twitch username
-// Twitch usernames: 4-25 characters, alphanumeric + underscore only
+// validateStreamerUsername validates a Twitch login name: 1-25 letters,
+// numbers, or underscores. New accounts need 4+ characters, but older
+// accounts such as "xqc" keep shorter names, so only the upper bound is
+// enforced (matching services.twitchChannelPattern).
 func validateStreamerUsername(username string) error {
-	if len(username) < 4 || len(username) > 25 {
-		return fmt.Errorf("username must be between 4 and 25 characters")
+	if len(username) < 1 || len(username) > 25 {
+		return fmt.Errorf("username must be between 1 and 25 characters")
 	}
 	for _, ch := range username {
 		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_') {
@@ -49,12 +54,34 @@ func validateStreamerUsername(username string) error {
 	return nil
 }
 
+func streamUserID(c *gin.Context) (uuid.UUID, bool) {
+	value, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return uuid.Nil, false
+	}
+	userID, ok := value.(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid authenticated user"})
+		return uuid.Nil, false
+	}
+	return userID, true
+}
+
+func normalizedStreamer(c *gin.Context) string {
+	return strings.ToLower(strings.TrimSpace(c.Param("streamer")))
+}
+
 // GetStreamStatus returns stream status for a specific streamer
 // GET /api/v1/streams/:streamer
 func (h *StreamHandler) GetStreamStatus(c *gin.Context) {
-	streamer := c.Param("streamer")
+	streamer := normalizedStreamer(c)
 	if streamer == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "streamer username is required"})
+		return
+	}
+	if err := validateStreamerUsername(streamer); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -145,19 +172,17 @@ func (h *StreamHandler) GetStreamStatus(c *gin.Context) {
 // CreateClipFromStream creates a clip from a live stream VOD
 // POST /api/v1/streams/:streamer/clips
 func (h *StreamHandler) CreateClipFromStream(c *gin.Context) {
-	streamer := c.Param("streamer")
+	streamer := normalizedStreamer(c)
 	if streamer == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "streamer username is required"})
 		return
 	}
 
 	// Get user ID from context (middleware sets this)
-	userIDVal, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+	userID, ok := streamUserID(c)
+	if !ok {
 		return
 	}
-	userID := userIDVal.(uuid.UUID)
 
 	// Get user object from context for creator information
 	userVal, userExists := c.Get("user")
@@ -349,10 +374,15 @@ func (h *StreamHandler) FollowStreamer(c *gin.Context) {
 	// Parse optional request body for notification preferences
 	var req models.StreamFollowRequest
 	notificationsEnabled := true // Default to enabled
-	if err := c.ShouldBindJSON(&req); err == nil && req.NotificationsEnabled != nil {
-		notificationsEnabled = *req.NotificationsEnabled
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if req.NotificationsEnabled != nil {
+			notificationsEnabled = *req.NotificationsEnabled
+		}
 	}
-	// Note: ShouldBindJSON returns an error for empty bodies, which is fine - we'll use the default
 
 	// Follow the streamer
 	follow, err := h.streamFollowRepo.FollowStreamer(ctx, userID, streamer, notificationsEnabled)
@@ -380,7 +410,7 @@ func (h *StreamHandler) FollowStreamer(c *gin.Context) {
 // UnfollowStreamer allows a user to unfollow a streamer
 // DELETE /api/v1/streams/:streamer/follow
 func (h *StreamHandler) UnfollowStreamer(c *gin.Context) {
-	streamer := c.Param("streamer")
+	streamer := normalizedStreamer(c)
 	if streamer == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "streamer username is required"})
 		return
@@ -393,18 +423,20 @@ func (h *StreamHandler) UnfollowStreamer(c *gin.Context) {
 	}
 
 	// Get user ID from context (middleware sets this)
-	userIDVal, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+	userID, ok := streamUserID(c)
+	if !ok {
 		return
 	}
-	userID := userIDVal.(uuid.UUID)
 
 	ctx := c.Request.Context()
 
 	// Unfollow the streamer
 	err := h.streamFollowRepo.UnfollowStreamer(ctx, userID, streamer)
 	if err != nil {
+		if errors.Is(err, repository.ErrStreamFollowNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "follow relationship not found"})
+			return
+		}
 		utils.GetLogger().Error("Failed to unfollow streamer", err, map[string]interface{}{
 			"user_id":  userID.String(),
 			"streamer": streamer,
@@ -428,18 +460,31 @@ func (h *StreamHandler) UnfollowStreamer(c *gin.Context) {
 // GET /api/v1/streams/following
 func (h *StreamHandler) GetFollowedStreamers(c *gin.Context) {
 	// Get user ID from context (middleware sets this)
-	userIDVal, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+	userID, ok := streamUserID(c)
+	if !ok {
 		return
 	}
-	userID := userIDVal.(uuid.UUID)
 
 	ctx := c.Request.Context()
 
 	// Get pagination parameters
-	limit := 50
-	offset := 0
+	limit, offset := 50, 0
+	if raw := c.Query("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be between 1 and 100"})
+			return
+		}
+		limit = parsed
+	}
+	if raw := c.Query("offset"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 || parsed > 100000 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "offset must be between 0 and 100000"})
+			return
+		}
+		offset = parsed
+	}
 
 	// Get followed streamers
 	follows, err := h.streamFollowRepo.GetFollowedStreamers(ctx, userID, limit, offset)
@@ -450,17 +495,25 @@ func (h *StreamHandler) GetFollowedStreamers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get followed streamers"})
 		return
 	}
+	total, err := h.streamFollowRepo.GetFollowCount(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count followed streamers"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"follows": follows,
 		"count":   len(follows),
+		"total":   total,
+		"limit":   limit,
+		"offset":  offset,
 	})
 }
 
 // GetStreamFollowStatus returns whether a user is following a specific streamer
 // GET /api/v1/streams/:streamer/follow-status
 func (h *StreamHandler) GetStreamFollowStatus(c *gin.Context) {
-	streamer := c.Param("streamer")
+	streamer := normalizedStreamer(c)
 	if streamer == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "streamer username is required"})
 		return
@@ -473,12 +526,10 @@ func (h *StreamHandler) GetStreamFollowStatus(c *gin.Context) {
 	}
 
 	// Get user ID from context (middleware sets this)
-	userIDVal, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+	userID, ok := streamUserID(c)
+	if !ok {
 		return
 	}
-	userID := userIDVal.(uuid.UUID)
 
 	ctx := c.Request.Context()
 
@@ -501,9 +552,11 @@ func (h *StreamHandler) GetStreamFollowStatus(c *gin.Context) {
 	// If following, get the notification preference
 	if isFollowing {
 		follow, err := h.streamFollowRepo.GetFollow(ctx, userID, streamer)
-		if err == nil {
-			response["notifications_enabled"] = follow.NotificationsEnabled
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get follow preferences"})
+			return
 		}
+		response["notifications_enabled"] = follow.NotificationsEnabled
 	}
 
 	c.JSON(http.StatusOK, response)

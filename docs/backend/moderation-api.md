@@ -32,7 +32,7 @@ Complete documentation for the Clipper moderation API endpoints, including authe
 
 The Moderation API provides comprehensive tools for managing user bans, moderator roles, and audit logging within the Clipper platform. All endpoints require authentication and appropriate permissions.
 
-**Base URL**: `https://api.clpr.tv/api/v1/moderation`
+**Base URL**: `https://clpr.tv/api/v1/moderation`
 
 **API Version**: v1
 
@@ -1298,7 +1298,7 @@ GET /api/v1/moderation/audit-logs/log-uuid-here
 #### Sync Bans
 
 ```bash
-curl -X POST https://api.clpr.tv/api/v1/moderation/sync-bans \
+curl -X POST https://clpr.tv/api/v1/moderation/sync-bans \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1309,14 +1309,14 @@ curl -X POST https://api.clpr.tv/api/v1/moderation/sync-bans \
 #### List Bans
 
 ```bash
-curl -X GET "https://api.clpr.tv/api/v1/moderation/bans?channelId=123e4567-e89b-12d3-a456-426614174000&limit=20" \
+curl -X GET "https://clpr.tv/api/v1/moderation/bans?channelId=123e4567-e89b-12d3-a456-426614174000&limit=20" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 #### Create Ban
 
 ```bash
-curl -X POST https://api.clpr.tv/api/v1/moderation/ban \
+curl -X POST https://clpr.tv/api/v1/moderation/ban \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1329,14 +1329,14 @@ curl -X POST https://api.clpr.tv/api/v1/moderation/ban \
 #### Revoke Ban
 
 ```bash
-curl -X DELETE https://api.clpr.tv/api/v1/moderation/ban/ban-uuid-here \
+curl -X DELETE https://clpr.tv/api/v1/moderation/ban/ban-uuid-here \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 #### Add Moderator
 
 ```bash
-curl -X POST https://api.clpr.tv/api/v1/moderation/moderators \
+curl -X POST https://clpr.tv/api/v1/moderation/moderators \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1349,7 +1349,7 @@ curl -X POST https://api.clpr.tv/api/v1/moderation/moderators \
 #### List Audit Logs
 
 ```bash
-curl -X GET "https://api.clpr.tv/api/v1/moderation/audit-logs?action=ban_user&limit=50" \
+curl -X GET "https://clpr.tv/api/v1/moderation/audit-logs?action=ban_user&limit=50" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -1361,7 +1361,7 @@ curl -X GET "https://api.clpr.tv/api/v1/moderation/audit-logs?action=ban_user&li
 
 ```javascript
 // Configuration
-const API_BASE = 'https://api.clpr.tv/api/v1/moderation';
+const API_BASE = 'https://clpr.tv/api/v1/moderation';
 const AUTH_TOKEN = 'YOUR_TOKEN';
 
 // Helper function for API calls
@@ -1455,7 +1455,7 @@ try {
 const axios = require('axios');
 
 const api = axios.create({
-  baseURL: 'https://api.clpr.tv/api/v1/moderation',
+  baseURL: 'https://clpr.tv/api/v1/moderation',
   headers: {
     'Authorization': `Bearer ${process.env.API_TOKEN}`,
     'Content-Type': 'application/json',
@@ -1521,7 +1521,7 @@ import (
 )
 
 const (
-	APIBase = "https://api.clpr.tv/api/v1/moderation"
+	APIBase = "https://clpr.tv/api/v1/moderation"
 )
 
 // API Client
@@ -1821,7 +1821,7 @@ Required environment variables for moderation features:
 
 ```env
 # Database
-DATABASE_URL=postgresql://user:password@localhost:5432/clipper
+DATABASE_URL=postgresql://user:password@localhost:5432/clpr
 
 # Redis (for rate limiting)
 REDIS_URL=redis://localhost:6379
@@ -1874,9 +1874,9 @@ docker run -d -p 6379:6379 redis:7-alpine
 
 # PostgreSQL
 docker run -d -p 5432:5432 \
-  -e POSTGRES_DB=clipper \
-  -e POSTGRES_USER=clipper \
-  -e POSTGRES_PASSWORD=clipper \
+  -e POSTGRES_DB=clpr \
+  -e POSTGRES_USER=clpr \
+  -e POSTGRES_PASSWORD=clpr \
   postgres:15-alpine
 ```
 
@@ -1931,7 +1931,7 @@ cd backend
 make build
 
 # Or using Docker
-docker build -t clipper-backend .
+docker build -t clpr-backend .
 ```
 
 ### Running
@@ -1951,7 +1951,7 @@ make dev
 
 ```bash
 # Using Docker Compose
-docker-compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.yml up -d
 
 # Or using binary
 ./backend/bin/api
@@ -1992,16 +1992,16 @@ Moderation metrics are exposed at `/metrics`:
 
 ```
 # Ban operations
-clipper_moderation_bans_created_total
-clipper_moderation_bans_revoked_total
-clipper_moderation_ban_sync_duration_seconds
+clpr_moderation_bans_created_total
+clpr_moderation_bans_revoked_total
+clpr_moderation_ban_sync_duration_seconds
 
 # Moderator operations
-clipper_moderation_moderators_added_total
-clipper_moderation_moderators_removed_total
+clpr_moderation_moderators_added_total
+clpr_moderation_moderators_removed_total
 
 # Audit logs
-clipper_moderation_audit_logs_created_total
+clpr_moderation_audit_logs_created_total
 ```
 
 2. **Logging**
@@ -2082,7 +2082,7 @@ RATE_LIMIT_WHITELIST_IPS=10.0.0.0/8,172.16.0.0/12
 
 ```bash
 # Check logs
-docker logs clipper-backend | grep "ban_sync"
+docker logs clpr-backend | grep "ban_sync"
 
 # Test Twitch API connection
 curl -X POST http://localhost:8080/api/v1/moderation/sync-bans \
@@ -2124,10 +2124,10 @@ curl http://localhost:8080/api/v1/users/me \
 ## Additional Resources
 
 - [OpenAPI Specification](/docs/openapi/openapi.yaml)
-- [Authentication Guide](/docs/backend/authentication.md)
+- Authentication Guide
 - [Authorization Framework](/docs/backend/authorization-framework.md)
-- [Rate Limiting](/docs/backend/rate-limiting.md)
-- [GitHub Issues](https://github.com/subculture-collective/clipper/issues)
+- Rate Limiting
+- [GitHub Issues](https://git.subcult.tv/subculture-collective/clpr/issues)
 - [API Status Page](https://status.clpr.tv)
 
 ---

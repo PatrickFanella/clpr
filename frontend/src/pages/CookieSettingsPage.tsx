@@ -11,7 +11,8 @@ import {
   Toggle,
 } from '../components';
 import { useConsent } from '../context/ConsentContext';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { effectiveConsentValue } from '../lib/consent-display';
 
 /**
  * Cookie Settings Page
@@ -21,11 +22,19 @@ import { useState } from 'react';
 export function CookieSettingsPage() {
   const { consent, updateConsent, doNotTrack, acceptAll, rejectAll } = useConsent();
   const [success, setSuccess] = useState(false);
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    };
+  }, []);
 
   const handleConsentChange = (category: string, value: boolean) => {
     updateConsent({ [category]: value });
     setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+    if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    successTimerRef.current = setTimeout(() => setSuccess(false), 3000);
   };
 
   return (
@@ -49,7 +58,7 @@ export function CookieSettingsPage() {
           {doNotTrack && (
             <Alert variant="info" className="mb-6">
               <strong>Do Not Track detected:</strong> Your browser has Do Not Track enabled. 
-              Tracking cookies will be disabled regardless of your settings.
+              Optional consent is effectively off. Your saved choices are retained but are not used while this signal remains enabled.
             </Alert>
           )}
 
@@ -92,7 +101,7 @@ export function CookieSettingsPage() {
                     Required for the website to function
                   </p>
                 </div>
-                <span className="text-xs bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 px-3 py-1 rounded">
+                <span className="text-xs bg-primary-100 dark:bg-primary-900 text-link dark:text-primary-300 px-3 py-1 rounded">
                   Always Active
                 </span>
               </div>
@@ -123,7 +132,7 @@ export function CookieSettingsPage() {
                     <td className="py-2">Session</td>
                   </tr>
                   <tr className="border-b border-border">
-                    <td className="py-2 font-mono text-xs">clipper_consent_preferences</td>
+                    <td className="py-2 font-mono text-xs">clpr_consent_preferences</td>
                     <td className="py-2">Stores your cookie consent choices</td>
                     <td className="py-2">12 months</td>
                   </tr>
@@ -143,7 +152,8 @@ export function CookieSettingsPage() {
                   </p>
                 </div>
                 <Toggle
-                  checked={consent.functional}
+                  aria-label="Functional cookies"
+                  checked={effectiveConsentValue(consent.functional, doNotTrack)}
                   onChange={(e) => handleConsentChange('functional', e.target.checked)}
                   disabled={doNotTrack}
                 />
@@ -189,7 +199,8 @@ export function CookieSettingsPage() {
                   </p>
                 </div>
                 <Toggle
-                  checked={consent.analytics}
+                  aria-label="Analytics cookies"
+                  checked={effectiveConsentValue(consent.analytics, doNotTrack)}
                   onChange={(e) => handleConsentChange('analytics', e.target.checked)}
                   disabled={doNotTrack}
                 />
@@ -240,7 +251,8 @@ export function CookieSettingsPage() {
                   </p>
                 </div>
                 <Toggle
-                  checked={consent.advertising}
+                  aria-label="Advertising cookies"
+                  checked={effectiveConsentValue(consent.advertising, doNotTrack)}
                   onChange={(e) => handleConsentChange('advertising', e.target.checked)}
                   disabled={doNotTrack}
                 />
@@ -270,16 +282,16 @@ export function CookieSettingsPage() {
                   please read our Privacy Policy.
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <Link to="/privacy">
-                    <Button variant="outline" size="sm">
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/privacy">
                       Privacy Policy
-                    </Button>
-                  </Link>
-                  <Link to="/settings">
-                    <Button variant="outline" size="sm">
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/settings">
                       Back to Settings
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 </div>
               </Stack>
             </CardBody>

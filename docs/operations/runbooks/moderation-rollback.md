@@ -103,14 +103,14 @@ Initiate rollback if:
 ssh production-server
 
 # Update environment variable
-sudo sed -i 's/FEATURE_TWITCH_MODERATION=true/FEATURE_TWITCH_MODERATION=false/' /etc/clipper/.env
+sudo sed -i 's/FEATURE_TWITCH_MODERATION=true/FEATURE_TWITCH_MODERATION=false/' /etc/clpr/.env
 
 # Restart services
-sudo systemctl restart clipper-backend
-sudo systemctl restart clipper-frontend
+sudo systemctl restart clpr-backend
+sudo systemctl restart clpr-frontend
 
 # Verify
-curl -s https://api.clpr.tv/api/v1/features | jq '.twitch_moderation'
+curl -s https://clpr.tv/api/v1/features | jq '.twitch_moderation'
 # Should return: false
 ```
 
@@ -118,7 +118,7 @@ curl -s https://api.clpr.tv/api/v1/features | jq '.twitch_moderation'
 
 ```bash
 # Connect to database
-psql -h production-db.clpr.tv -U clipper_admin -d clipper_prod
+psql -h production-db.clpr.tv -U clpr_admin -d clpr_prod
 
 # Disable feature
 UPDATE feature_flags 
@@ -138,23 +138,23 @@ API_TOKEN="${API_TOKEN}"
 
 # Disable feature flag
 curl -X PATCH -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/admin/features/twitch_moderation \
+  https://clpr.tv/api/v1/admin/features/twitch_moderation \
   -d '{"enabled": false, "reason": "Emergency rollback - INC-2026-001"}'
 
 # Verify
 curl -s -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/features | jq '.twitch_moderation'
+  https://clpr.tv/api/v1/features | jq '.twitch_moderation'
 ```
 
 #### Verification
 
 ```bash
 # 1. Check feature flag status
-curl -s https://api.clpr.tv/api/v1/features | jq '.twitch_moderation'
+curl -s https://clpr.tv/api/v1/features | jq '.twitch_moderation'
 
 # 2. Test Twitch ban endpoint (should return feature disabled)
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/moderation/twitch/ban \
+  https://clpr.tv/api/v1/moderation/twitch/ban \
   -d '{"broadcaster_id":"123","user_id":"456"}' | jq
 
 # Expected: {"error": "FEATURE_DISABLED", "message": "Twitch moderation is currently disabled"}
@@ -171,7 +171,7 @@ curl -X POST -H "Authorization: Bearer $API_TOKEN" \
 
 ```bash
 # Database method
-psql -h production-db.clpr.tv -U clipper_admin -d clipper_prod << EOF
+psql -h production-db.clpr.tv -U clpr_admin -d clpr_prod << EOF
 UPDATE feature_flags 
 SET enabled = false 
 WHERE name = 'ban_sync';
@@ -184,7 +184,7 @@ EOF
 
 # Verify
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/moderation/sync-bans \
+  https://clpr.tv/api/v1/moderation/sync-bans \
   -d '{"broadcaster_id":"123"}' | jq
 # Should return feature disabled error
 ```
@@ -200,12 +200,12 @@ curl -X POST -H "Authorization: Bearer $API_TOKEN" \
 ```bash
 # Temporarily disable audit log writes
 curl -X PATCH -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/admin/features/audit_logging \
+  https://clpr.tv/api/v1/admin/features/audit_logging \
   -d '{"enabled": false, "reason": "Emergency - database performance"}'
 
 # Alternative: Switch to async logging
 curl -X PATCH -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/admin/settings/audit_log_mode \
+  https://clpr.tv/api/v1/admin/settings/audit_log_mode \
   -d '{"mode": "async", "buffer_size": 1000}'
 ```
 
@@ -227,7 +227,7 @@ curl -X PATCH -H "Authorization: Bearer $API_TOKEN" \
 
 ```bash
 # Connect to database
-psql -h production-db.clpr.tv -U clipper_admin -d clipper_prod
+psql -h production-db.clpr.tv -U clpr_admin -d clpr_prod
 
 -- Check bans in last hour
 SELECT id, user_id, channel_id, reason, created_at 
@@ -265,7 +265,7 @@ COMMIT;
 
 ```bash
 # If you have ban IDs from incident
-psql -h production-db.clpr.tv -U clipper_admin -d clipper_prod << 'EOF'
+psql -h production-db.clpr.tv -U clpr_admin -d clpr_prod << 'EOF'
 \set ban_ids '(''ban-abc123'', ''ban-def456'', ''ban-ghi789'')'
 
 BEGIN;
@@ -312,12 +312,12 @@ echo
 # 1. Stop writes to affected tables
 echo "Step 1: Disabling moderation features..."
 curl -X PATCH -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/admin/features/all_moderation \
+  https://clpr.tv/api/v1/admin/features/all_moderation \
   -d '{"enabled": false}'
 
 # 2. Create current state backup
 echo "Step 2: Creating pre-restore backup..."
-pg_dump -h production-db.clpr.tv -U clipper_admin -d clipper_prod \
+pg_dump -h production-db.clpr.tv -U clpr_admin -d clpr_prod \
   -t bans -t moderators -t audit_logs \
   > "/tmp/pre-restore-backup-$(date +%Y%m%d-%H%M%S).sql"
 
@@ -330,7 +330,7 @@ pg_basebackup -h backup-db.clpr.tv -U replication_user \
 
 # 4. Import restored tables to production
 echo "Step 4: Importing restored data..."
-psql -h production-db.clpr.tv -U clipper_admin -d clipper_prod << SQL
+psql -h production-db.clpr.tv -U clpr_admin -d clpr_prod << SQL
 -- Backup current state to history table
 CREATE TABLE IF NOT EXISTS bans_history_${INCIDENT_ID} AS 
 SELECT * FROM bans;
@@ -347,7 +347,7 @@ SQL
 
 # 5. Verify restore
 echo "Step 5: Verifying restored data..."
-psql -h production-db.clpr.tv -U clipper_admin -d clipper_prod << SQL
+psql -h production-db.clpr.tv -U clpr_admin -d clpr_prod << SQL
 SELECT 
   'bans' AS table_name,
   COUNT(*) AS row_count,
@@ -366,7 +366,7 @@ SQL
 # 6. Re-enable features
 echo "Step 6: Re-enabling moderation features..."
 curl -X PATCH -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/admin/features/all_moderation \
+  https://clpr.tv/api/v1/admin/features/all_moderation \
   -d '{"enabled": true}'
 
 echo
@@ -391,19 +391,19 @@ echo "  3. Notify stakeholders"
 
 ```bash
 # View deployment history
-kubectl rollout history deployment/clipper-backend -n production
+kubectl rollout history deployment/clpr-backend -n production
 
 # Rollback to previous version
-kubectl rollout undo deployment/clipper-backend -n production
+kubectl rollout undo deployment/clpr-backend -n production
 
 # Rollback to specific revision
-kubectl rollout undo deployment/clipper-backend -n production --to-revision=3
+kubectl rollout undo deployment/clpr-backend -n production --to-revision=3
 
 # Monitor rollback progress
-kubectl rollout status deployment/clipper-backend -n production
+kubectl rollout status deployment/clpr-backend -n production
 
 # Verify pods are running
-kubectl get pods -n production -l app=clipper-backend
+kubectl get pods -n production -l app=clpr-backend
 ```
 
 #### Docker Compose Rollback
@@ -413,7 +413,7 @@ kubectl get pods -n production -l app=clipper-backend
 ssh production-server
 
 # Stop current containers
-cd /opt/clipper
+cd /opt/clpr
 sudo docker-compose down
 
 # Pull previous version
@@ -421,11 +421,11 @@ PREV_VERSION="v1.2.3"  # Get from git tags
 git checkout $PREV_VERSION
 
 # Rebuild and start
-sudo docker-compose build clipper-backend
-sudo docker-compose up -d clipper-backend
+sudo docker-compose build clpr-backend
+sudo docker-compose up -d clpr-backend
 
 # Check logs
-sudo docker-compose logs -f clipper-backend
+sudo docker-compose logs -f clpr-backend
 ```
 
 ---
@@ -457,8 +457,8 @@ curl -X POST "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/purge_cache"
 
 ```bash
 # Replace with previous version
-cd /var/www/clipper/frontend
-sudo tar -xzf /backups/frontend-v1.2.3.tar.gz -C /var/www/clipper/frontend
+cd /var/www/clpr/frontend
+sudo tar -xzf /backups/frontend-v1.2.3.tar.gz -C /var/www/clpr/frontend
 
 # Restart web server
 sudo systemctl restart nginx
@@ -489,7 +489,7 @@ echo
 # 1. Disable all moderation features
 echo "Disabling all features..."
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/admin/emergency/disable-moderation \
+  https://clpr.tv/api/v1/admin/emergency/disable-moderation \
   -d "{\"incident_id\": \"$INCIDENT_ID\", \"reason\": \"Emergency shutdown\"}"
 
 # 2. Close moderation API endpoints at firewall
@@ -499,7 +499,7 @@ sudo iptables -A OUTPUT -p tcp --dport 443 -d api.clpr.tv -m string \
 
 # 3. Stop background jobs
 echo "Stopping background jobs..."
-psql -h production-db.clpr.tv -U clipper_admin -d clipper_prod << SQL
+psql -h production-db.clpr.tv -U clpr_admin -d clpr_prod << SQL
 UPDATE background_jobs 
 SET enabled = false 
 WHERE job_type LIKE '%moderation%' OR job_type LIKE '%ban%';
@@ -507,7 +507,7 @@ SQL
 
 # 4. Create incident log
 echo "Creating incident log..."
-cat > "/var/log/clipper/emergency-shutdown-${INCIDENT_ID}.log" << LOG
+cat > "/var/log/clpr/emergency-shutdown-${INCIDENT_ID}.log" << LOG
 Emergency Shutdown - $INCIDENT_ID
 Time: $(date -u)
 Initiated by: $(whoami)
@@ -519,7 +519,7 @@ LOG
 
 echo
 echo "=== SHUTDOWN COMPLETE ==="
-echo "Log file: /var/log/clipper/emergency-shutdown-${INCIDENT_ID}.log"
+echo "Log file: /var/log/clpr/emergency-shutdown-${INCIDENT_ID}.log"
 echo
 echo "To restore:"
 echo "  1. Fix underlying issue"
@@ -541,23 +541,23 @@ sudo iptables -D OUTPUT -p tcp --dport 443 -d api.clpr.tv -m string \
 
 # 2. Re-enable features gradually
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/admin/features/ban_users \
+  https://clpr.tv/api/v1/admin/features/ban_users \
   -d '{"enabled": true}'
 
 sleep 5
 
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/admin/features/moderate_content \
+  https://clpr.tv/api/v1/admin/features/moderate_content \
   -d '{"enabled": true}'
 
 sleep 5
 
 curl -X POST -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/admin/features/twitch_moderation \
+  https://clpr.tv/api/v1/admin/features/twitch_moderation \
   -d '{"enabled": true}'
 
 # 3. Re-enable background jobs
-psql -h production-db.clpr.tv -U clipper_admin -d clipper_prod << SQL
+psql -h production-db.clpr.tv -U clpr_admin -d clpr_prod << SQL
 UPDATE background_jobs 
 SET enabled = true 
 WHERE job_type LIKE '%moderation%' OR job_type LIKE '%ban%';
@@ -594,7 +594,7 @@ echo
 
 # 1. Check feature flags
 echo "1. Feature Flags:"
-curl -s https://api.clpr.tv/api/v1/features | jq '{
+curl -s https://clpr.tv/api/v1/features | jq '{
   twitch_moderation,
   ban_sync,
   audit_logging
@@ -603,26 +603,26 @@ curl -s https://api.clpr.tv/api/v1/features | jq '{
 # 2. Test API health
 echo
 echo "2. API Health:"
-curl -s https://api.clpr.tv/api/v1/moderation/health | jq
+curl -s https://clpr.tv/api/v1/moderation/health | jq
 
 # 3. Verify database connectivity
 echo
 echo "3. Database:"
-psql -h production-db.clpr.tv -U clipper_admin -d clipper_prod -c \
+psql -h production-db.clpr.tv -U clpr_admin -d clpr_prod -c \
   "SELECT COUNT(*) as ban_count FROM bans WHERE created_at > NOW() - INTERVAL '1 hour';"
 
 # 4. Check recent audit logs
 echo
 echo "4. Audit Logs (last 5):"
 curl -s -H "Authorization: Bearer $API_TOKEN" \
-  https://api.clpr.tv/api/v1/moderation/audit-logs?limit=5 | \
+  https://clpr.tv/api/v1/moderation/audit-logs?limit=5 | \
   jq '.logs[] | {time: .created_at, action: .action}'
 
 # 5. Performance check
 echo
 echo "5. Performance:"
 START=$(date +%s%N)
-curl -s https://api.clpr.tv/api/v1/moderation/bans?limit=10 > /dev/null
+curl -s https://clpr.tv/api/v1/moderation/bans?limit=10 > /dev/null
 END=$(date +%s%N)
 LATENCY=$(( (END - START) / 1000000 ))
 echo "API latency: ${LATENCY}ms"

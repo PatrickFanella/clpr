@@ -33,7 +33,7 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
   showTooltip = true,
   className,
 }) => {
-  const tooltipText = 'Verified Creator - This account has been verified by Clipper administrators as authentic';
+  const tooltipText = 'Verified Creator - This account has been verified by clpr administrators as authentic';
 
   return (
     <span

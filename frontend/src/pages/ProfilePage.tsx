@@ -17,7 +17,7 @@ import {
 import { VerifiedBadge } from '../components/user';
 import { ClipCard } from '../components/clip/ClipCard';
 import { ClipCardSkeleton } from '../components/clip/ClipCardSkeleton';
-import { CommentSkeleton } from '../components/ui';
+import { Avatar, CommentSkeleton } from '../components/ui';
 import {
     BadgeGrid,
     KarmaBreakdownChart,
@@ -223,16 +223,12 @@ export function ProfilePage() {
                         <div className='flex flex-col xs:flex-row items-start gap-4 xs:gap-6'>
                             {/* Avatar */}
                             <div className='shrink-0 mx-auto xs:mx-0'>
-                                {user.avatar_url ?
-                                    <img
-                                        src={user.avatar_url}
-                                        alt={user.username}
-                                        className='border-border w-20 h-20 xs:w-24 xs:h-24 border-2 rounded-full'
-                                    />
-                                :   <div className='bg-primary-100 dark:bg-primary-900 text-primary-600 flex items-center justify-center w-20 h-20 xs:w-24 xs:h-24 text-2xl xs:text-3xl font-bold rounded-full'>
-                                        {user.username.charAt(0).toUpperCase()}
-                                    </div>
-                                }
+                                <Avatar
+                                    src={user.avatar_url}
+                                    alt=''
+                                    fallback={user.username}
+                                    frameClassName='border-border h-20 w-20 border-2 text-2xl xs:h-24 xs:w-24 xs:text-3xl'
+                                />
                             </div>
 
                             {/* User Info */}
@@ -253,7 +249,7 @@ export function ProfilePage() {
                                         {!user.is_verified && (
                                             <Link
                                                 to='/verification/apply'
-                                                className='inline-block text-xs xs:text-sm text-blue-600 dark:text-blue-400 hover:underline'
+                                                className='inline-block text-xs xs:text-sm text-link hover:underline'
                                             >
                                                 Apply for verification →
                                             </Link>
@@ -281,9 +277,9 @@ export function ProfilePage() {
                                 <div className='flex flex-wrap justify-center xs:justify-start gap-3 xs:gap-4 text-xs xs:text-sm'>
                                     <div className='flex items-center gap-2'>
                                         <span className='text-muted-foreground'>
-                                            Karma:
+                                            Uppies:
                                         </span>
-                                        <span className='text-primary-600 font-semibold'>
+                                        <span className='text-link font-semibold'>
                                             {user.karma_points}
                                         </span>
                                     </div>
@@ -328,19 +324,19 @@ export function ProfilePage() {
                                         <div className='flex gap-3'>
                                             <Link
                                                 to='/admin/dashboard'
-                                                className='text-sm text-primary-600 hover:text-primary-700 font-medium'
+                                                className='text-sm text-link hover:text-link font-medium'
                                             >
                                                 Dashboard
                                             </Link>
                                             <Link
                                                 to='/admin/reports'
-                                                className='text-sm text-primary-600 hover:text-primary-700 font-medium'
+                                                className='text-sm text-link hover:text-link font-medium'
                                             >
                                                 Reports
                                             </Link>
                                             <Link
                                                 to='/admin/submissions'
-                                                className='text-sm text-primary-600 hover:text-primary-700 font-medium'
+                                                className='text-sm text-link hover:text-link font-medium'
                                             >
                                                 Submissions
                                             </Link>
@@ -367,7 +363,7 @@ export function ProfilePage() {
                                         }
                                         className={`px-4 py-2 border-b-2 font-semibold whitespace-nowrap ${
                                             activeTab === 'overview' ?
-                                                'border-primary-500 text-primary-600'
+                                                'border-primary-500 text-link'
                                             :   'border-transparent text-muted-foreground hover:text-foreground'
                                         }`}
                                         role='tab'
@@ -381,7 +377,7 @@ export function ProfilePage() {
                                         }
                                         className={`px-4 py-2 border-b-2 font-semibold whitespace-nowrap ${
                                             activeTab === 'badges' ?
-                                                'border-primary-500 text-primary-600'
+                                                'border-primary-500 text-link'
                                             :   'border-transparent text-muted-foreground hover:text-foreground'
                                         }`}
                                         role='tab'
@@ -393,13 +389,13 @@ export function ProfilePage() {
                                         onClick={() => handleTabChange('karma')}
                                         className={`px-4 py-2 border-b-2 font-semibold whitespace-nowrap ${
                                             activeTab === 'karma' ?
-                                                'border-primary-500 text-primary-600'
+                                                'border-primary-500 text-link'
                                             :   'border-transparent text-muted-foreground hover:text-foreground'
                                         }`}
                                         role='tab'
                                         aria-selected={activeTab === 'karma'}
                                     >
-                                        Karma
+                                        Uppies
                                     </button>
                                     <button
                                         onClick={() =>
@@ -407,7 +403,7 @@ export function ProfilePage() {
                                         }
                                         className={`px-4 py-2 border-b-2 font-semibold whitespace-nowrap ${
                                             activeTab === 'comments' ?
-                                                'border-primary-500 text-primary-600'
+                                                'border-primary-500 text-link'
                                             :   'border-transparent text-muted-foreground hover:text-foreground'
                                         }`}
                                         role='tab'
@@ -421,7 +417,7 @@ export function ProfilePage() {
                                         }
                                         className={`px-4 py-2 border-b-2 font-semibold whitespace-nowrap ${
                                             activeTab === 'upvoted' ?
-                                                'border-primary-500 text-primary-600'
+                                                'border-primary-500 text-link'
                                             :   'border-transparent text-muted-foreground hover:text-foreground'
                                         }`}
                                         role='tab'
@@ -435,7 +431,7 @@ export function ProfilePage() {
                                         }
                                         className={`px-4 py-2 border-b-2 font-semibold whitespace-nowrap ${
                                             activeTab === 'downvoted' ?
-                                                'border-primary-500 text-primary-600'
+                                                'border-primary-500 text-link'
                                             :   'border-transparent text-muted-foreground hover:text-foreground'
                                         }`}
                                         role='tab'
@@ -532,7 +528,7 @@ export function ProfilePage() {
                                         />
                                     :   <div className='py-12 text-center'>
                                             <p className='text-muted-foreground'>
-                                                Loading karma data...
+                                                Loading uppies data...
                                             </p>
                                         </div>
                                     }
@@ -550,7 +546,7 @@ export function ProfilePage() {
                                                     <CardBody>
                                                         <Link
                                                             to={`/clips/${comment.clip_id}`}
-                                                            className='text-sm text-primary-600 hover:underline mb-2 block'
+                                                            className='text-sm text-link hover:underline mb-2 block'
                                                         >
                                                             View on clip
                                                         </Link>
@@ -619,7 +615,7 @@ export function ProfilePage() {
                                             tips={[
                                                 'Share your thoughts on clips you enjoy',
                                                 'Engage in discussions with other users',
-                                                'Earn karma by posting quality comments',
+                                                'Earn uppies by posting quality comments',
                                             ]}
                                         />
                                     }
@@ -679,7 +675,7 @@ export function ProfilePage() {
                                             description='Start upvoting clips you enjoy to see them here.'
                                             primaryAction={{
                                                 label: 'Discover Clips',
-                                                href: '/discover',
+                                                href: '/',
                                             }}
                                             secondaryAction={{
                                                 label: 'Browse Top Clips',

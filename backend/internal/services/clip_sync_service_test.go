@@ -5,9 +5,50 @@ import (
 	"testing"
 	"time"
 
-	"github.com/subculture-collective/clipper/internal/utils"
-	"github.com/subculture-collective/clipper/pkg/twitch"
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/utils"
+	"git.subcult.tv/subculture-collective/clpr/pkg/twitch"
+	"github.com/google/uuid"
 )
+
+type catalogSyncTwitchClient struct{}
+
+func (catalogSyncTwitchClient) GetTopGames(context.Context, int, string) (*twitch.TopGamesResponse, error) {
+	return &twitch.TopGamesResponse{Data: []twitch.Game{{ID: "509658", Name: "Just Chatting"}}}, nil
+}
+
+func (catalogSyncTwitchClient) GetClips(context.Context, *twitch.ClipParams) (*twitch.ClipsResponse, error) {
+	return &twitch.ClipsResponse{}, nil
+}
+
+func (catalogSyncTwitchClient) GetChannels(context.Context, []string) (*twitch.ChannelsResponse, error) {
+	return &twitch.ChannelsResponse{}, nil
+}
+
+type recordingGameWriter struct {
+	games []*models.GameEntity
+}
+
+func (w *recordingGameWriter) Create(_ context.Context, game *models.GameEntity) error {
+	w.games = append(w.games, game)
+	return nil
+}
+
+func TestSyncTrendingClipsPersistsTopGameCatalog(t *testing.T) {
+	writer := &recordingGameWriter{}
+	svc := NewClipSyncService(catalogSyncTwitchClient{}, nil, nil, nil, nil, nil)
+	svc.SetGameRepository(writer)
+
+	if _, err := svc.SyncTrendingClips(context.Background(), 24, nil); err != nil {
+		t.Fatalf("sync trending clips: %v", err)
+	}
+	if len(writer.games) != 1 {
+		t.Fatalf("persisted games = %d, want 1", len(writer.games))
+	}
+	if writer.games[0].TwitchGameID != "509658" || writer.games[0].Name != "Just Chatting" {
+		t.Fatalf("persisted game = %+v", writer.games[0])
+	}
+}
 
 func TestExtractClipID(t *testing.T) {
 	tests := []struct {
@@ -327,6 +368,30 @@ func TestBuildTrendingGameConfigs(t *testing.T) {
 	}
 }
 
+func TestFallbackCategories(t *testing.T) {
+	categories := fallbackCategories()
+	if len(categories) != len(defaultTrendingGameIDs) {
+		t.Fatalf("expected %d categories, got %d", len(defaultTrendingGameIDs), len(categories))
+	}
+
+	seen := map[string]bool{}
+	for i, cat := range categories {
+		if cat.GameID == "" {
+			t.Fatalf("category[%d] has empty GameID", i)
+		}
+		if cat.GameName != "fallback" {
+			t.Fatalf("category[%d] GameName = %q, want \"fallback\"", i, cat.GameName)
+		}
+		if cat.ViewerCount != 0 {
+			t.Fatalf("category[%d] ViewerCount = %d, want 0", i, cat.ViewerCount)
+		}
+		if seen[cat.GameID] {
+			t.Fatalf("duplicate GameID %s", cat.GameID)
+		}
+		seen[cat.GameID] = true
+	}
+}
+
 func TestApplyTrendingDefaults(t *testing.T) {
 	store := newMockTrendingStateStore(nil)
 	svc := &ClipSyncService{maxPages: 5, stateStore: store}
@@ -372,5 +437,47 @@ func TestResolveTrendingGamesUsesCachedList(t *testing.T) {
 
 	if configs[0].GameID != justChattingGameID {
 		t.Fatalf("expected Just Chatting to be first, got %s", configs[0].GameID)
+	}
+}
+
+func TestNewClipSyncServiceAutoTaggerNil(t *testing.T) {
+	// Backward-compat: nil autoTagger should be supported
+	svc := NewClipSyncService(nil, nil, nil, nil, nil, nil)
+	if svc.autoTagger != nil {
+		t.Fatal("expected autoTagger to be nil when constructed with nil")
+	}
+}
+
+func TestNewClipSyncServiceAutoTaggerSet(t *testing.T) {
+	autoTagger := NewAutoTaggerService(nil, nil)
+	svc := NewClipSyncService(nil, nil, nil, nil, nil, autoTagger)
+	if svc.autoTagger != autoTagger {
+		t.Fatal("expected autoTagger to be stored on ClipSyncService")
+	}
+}
+
+func TestMaybeAutoTagNilSafe(t *testing.T) {
+	// maybeAutoTag should never panic, even when autoTagger is nil
+	svc := &ClipSyncService{autoTagger: nil}
+	clip := &models.Clip{ID: uuid.New()}
+	// Should not panic
+	svc.maybeAutoTag(context.Background(), clip)
+}
+
+func TestMaybeAutoTagNilReturnsImmediately(t *testing.T) {
+	// Create a minimal ClipSyncService and verify maybeAutoTag does not block
+	// when autoTagger is nil (the common case in tests)
+	svc := &ClipSyncService{autoTagger: nil}
+	clip := &models.Clip{ID: uuid.New()}
+	done := make(chan struct{})
+	go func() {
+		svc.maybeAutoTag(context.Background(), clip)
+		close(done)
+	}()
+	select {
+	case <-done:
+		// Expected: returns immediately when autoTagger is nil
+	case <-time.After(time.Second):
+		t.Fatal("maybeAutoTag blocked unexpectedly")
 	}
 }

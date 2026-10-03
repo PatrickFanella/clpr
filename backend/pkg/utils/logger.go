@@ -225,7 +225,7 @@ func (l *StructuredLogger) Debug(message string, fields ...map[string]interface{
 	entry := LogEntry{
 		Level:   string(LogLevelDebug),
 		Message: message,
-		Service: "clipper-backend",
+		Service: "clpr-backend",
 	}
 	if len(fields) > 0 {
 		entry.Fields = fields[0]
@@ -238,7 +238,7 @@ func (l *StructuredLogger) Info(message string, fields ...map[string]interface{}
 	entry := LogEntry{
 		Level:   string(LogLevelInfo),
 		Message: message,
-		Service: "clipper-backend",
+		Service: "clpr-backend",
 	}
 	if len(fields) > 0 {
 		entry.Fields = fields[0]
@@ -251,7 +251,7 @@ func (l *StructuredLogger) Warn(message string, fields ...map[string]interface{}
 	entry := LogEntry{
 		Level:   string(LogLevelWarn),
 		Message: message,
-		Service: "clipper-backend",
+		Service: "clpr-backend",
 	}
 	if len(fields) > 0 {
 		entry.Fields = fields[0]
@@ -264,7 +264,7 @@ func (l *StructuredLogger) Error(message string, err error, fields ...map[string
 	entry := LogEntry{
 		Level:   string(LogLevelError),
 		Message: message,
-		Service: "clipper-backend",
+		Service: "clpr-backend",
 	}
 	if err != nil {
 		entry.Error = err.Error()
@@ -303,7 +303,7 @@ func (l *StructuredLogger) GinLogger() gin.HandlerFunc {
 		entry := &LogEntry{
 			Level:      string(LogLevelInfo),
 			Message:    "HTTP Request",
-			Service:    "clipper-backend",
+			Service:    "clpr-backend",
 			TraceID:    traceID,
 			UserID:     userID,
 			Method:     c.Request.Method,
@@ -373,7 +373,7 @@ func (l *StructuredLogger) Fatal(message string, err error, fields ...map[string
 	entry := LogEntry{
 		Level:   string(LogLevelFatal),
 		Message: message,
-		Service: "clipper-backend",
+		Service: "clpr-backend",
 	}
 	if err != nil {
 		entry.Error = err.Error()
@@ -412,6 +412,12 @@ var (
 	passwordPattern = regexp.MustCompile(`(?i)(password|passwd|pwd|secret|token|apikey|api_key|access_token|auth_token)["']?\s*[:=]\s*["']?([^"'\s,}&]+)["']?`)
 	// Bearer tokens
 	bearerPattern = regexp.MustCompile(`(?i)Bearer\s+[A-Za-z0-9\-._~+/]+=*`)
+	// OAuth credentials and tokens in URL query strings
+	oauthQueryPattern = regexp.MustCompile(`(?i)([?&](?:code|state|access_token|refresh_token|id_token)=)[^&\s]+`)
+	// Cookie headers can contain session and CSRF credentials
+	cookiePattern = regexp.MustCompile(`(?i)((?:set-)?cookie\s*[:=]\s*)[^\r\n]+`)
+	// PEM private keys must never enter logs, even inside wrapped errors
+	privateKeyPattern = regexp.MustCompile(`(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----`)
 )
 
 // RedactPII redacts personally identifiable information from a string
@@ -428,7 +434,46 @@ func RedactPII(text string) string {
 	text = passwordPattern.ReplaceAllString(text, `$1":"[REDACTED]"`)
 	// Redact Bearer tokens
 	text = bearerPattern.ReplaceAllString(text, "Bearer [REDACTED_TOKEN]")
+	text = oauthQueryPattern.ReplaceAllString(text, `${1}[REDACTED]`)
+	text = cookiePattern.ReplaceAllString(text, `${1}[REDACTED]`)
+	text = privateKeyPattern.ReplaceAllString(text, "[REDACTED_PRIVATE_KEY]")
 	return text
+}
+
+func sensitiveLogKey(key string) bool {
+	key = strings.ToLower(strings.TrimSpace(key))
+	for _, fragment := range []string{
+		"password", "passwd", "secret", "token", "api_key", "apikey",
+		"authorization", "cookie", "oauth", "private_key", "client_secret",
+	} {
+		if strings.Contains(key, fragment) {
+			return true
+		}
+	}
+	return key == "code" || key == "state"
+}
+
+func redactLogValue(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case string:
+		return RedactPII(typed)
+	case map[string]interface{}:
+		return RedactPIIFromFields(typed)
+	case []interface{}:
+		redacted := make([]interface{}, len(typed))
+		for i, item := range typed {
+			redacted[i] = redactLogValue(item)
+		}
+		return redacted
+	case []string:
+		redacted := make([]string, len(typed))
+		for i, item := range typed {
+			redacted[i] = RedactPII(item)
+		}
+		return redacted
+	default:
+		return value
+	}
 }
 
 // RedactPIIFromFields redacts PII from log entry fields
@@ -439,26 +484,11 @@ func RedactPIIFromFields(fields map[string]interface{}) map[string]interface{} {
 
 	redacted := make(map[string]interface{})
 	for key, value := range fields {
-		lowerKey := strings.ToLower(key)
-
-		// Redact sensitive field names
-		if strings.Contains(lowerKey, "password") ||
-			strings.Contains(lowerKey, "secret") ||
-			strings.Contains(lowerKey, "token") ||
-			strings.Contains(lowerKey, "api_key") ||
-			strings.Contains(lowerKey, "apikey") ||
-			strings.Contains(lowerKey, "authorization") ||
-			strings.Contains(lowerKey, "auth") {
+		if sensitiveLogKey(key) {
 			redacted[key] = "[REDACTED]"
 			continue
 		}
-
-		// Redact PII from string values
-		if str, ok := value.(string); ok {
-			redacted[key] = RedactPII(str)
-		} else {
-			redacted[key] = value
-		}
+		redacted[key] = redactLogValue(value)
 	}
 	return redacted
 }

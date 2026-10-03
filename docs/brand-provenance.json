@@ -1,0 +1,32 @@
+{
+  "repository": "subculture-collective/subcult-studio",
+  "revision": "38b41c003b634fde7c79df042dab68580e28379f",
+  "brand_pack": "branding/2026-10-01-packs/brands/clpr",
+  "direction": "Play / Clip stack + single-clip square",
+  "copied": "2026-10-02",
+  "files": [
+    {
+      "source": "branding/2026-10-01-packs/references/clpr-play-wordmark.svg",
+      "source_sha256": "1a2f113200a1901cf5f978efde150b50dfa2493d16a47e43c66f0de019e91d5e",
+      "targets": [
+        "frontend/src/assets/brand/clpr-logo.svg",
+        "frontend/public/clpr-logo.svg"
+      ],
+      "target_sha256": "914f98de53b87375d7a3bfc0ab093b7a32e8a29c576bba84da67fa96063adbb7",
+      "change": "Path data and transforms copied unchanged; Inkscape/Sodipodi editor attributes removed."
+    },
+    {
+      "source": "branding/2026-10-01-packs/references/clpr-play-icon.svg",
+      "source_sha256": "de228a440f98590425d564063603ad1f1b755d93c60f4f300537208acc7605f3",
+      "targets": [
+        "frontend/src/assets/brand/clpr-mark.svg"
+      ],
+      "target_sha256": "c0aea68ff8eca46ecc7c8a7978dca14d5394d4a1c19c0a87e2bf4f0af047ab60",
+      "change": "Path data and transforms copied unchanged; Inkscape/Sodipodi editor attributes removed."
+    }
+  ],
+  "derived": {
+    "script": "frontend/scripts/render-brand-assets.mjs",
+    "note": "App icons, favicons, social card, banner PNGs and extension icons are rendered from the copied SVGs. Colours and fonts match the pack's tokens.json; the fonts are the Latin subsets already in frontend/src/assets/fonts."
+  }
+}

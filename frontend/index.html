@@ -2,49 +2,50 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <link rel="icon" type="image/x-icon" href="/favicon_io/favicon.ico" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261002" />
+        <link rel="alternate icon" type="image/x-icon" href="/favicon_io/favicon.ico?v=20261002" />
         <link
             rel="icon"
             type="image/png"
             sizes="32x32"
-            href="/favicon_io/favicon-32x32.png"
+            href="/favicon_io/favicon-32x32.png?v=20261002"
         />
         <link
             rel="icon"
             type="image/png"
             sizes="16x16"
-            href="/favicon_io/favicon-16x16.png"
+            href="/favicon_io/favicon-16x16.png?v=20261002"
         />
         <link
             rel="icon"
             type="image/png"
             sizes="192x192"
-            href="/favicon_io/android-chrome-192x192.png"
+            href="/favicon_io/android-chrome-192x192.png?v=20261002"
         />
         <link
             rel="icon"
             type="image/png"
             sizes="512x512"
-            href="/favicon_io/android-chrome-512x512.png"
+            href="/favicon_io/android-chrome-512x512.png?v=20261002"
         />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
             name="theme-color"
-            content="#ffffff"
+            content="#0E0C13"
             media="(prefers-color-scheme: light)"
         />
         <meta
             name="theme-color"
-            content="#1a1a1a"
+            content="#0E0C13"
             media="(prefers-color-scheme: dark)"
         />
 
         <!-- PWA Manifest -->
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/manifest.json?v=20261002" />
         <link
             rel="apple-touch-icon"
             sizes="180x180"
-            href="/favicon_io/apple-touch-icon.png"
+            href="/favicon_io/apple-touch-icon.png?v=20261002"
         />
 
         <!-- Preconnect to external domains for better performance -->
@@ -56,39 +57,52 @@
         />
 
         <!-- Default SEO tags (will be overridden by react-helmet-async) -->
-        <title>clpr - Community-Driven Twitch Clip Curation</title>
+        <title>clpr - Twitch clips by creator, topic and tag</title>
         <meta
             name="description"
-            content="Discover, share, and vote on the best Twitch clips. Join our community to curate and enjoy the most entertaining moments from your favorite streamers."
+            content="Twitch clips by creator, topic and tag. Playlists for the ones you keep sending people."
         />
 
-        <!-- Default Open Graph tags -->
+        <!-- Default Open Graph tags. og:url, twitter:url and rel=canonical are
+             page-specific: the SEO component sets them per route, and the edge
+             serves per-clip tags to link-preview crawlers. -->
         <meta property="og:site_name" content="clpr" />
+        <meta property="og:locale" content="en_US" />
         <meta property="og:type" content="website" />
         <meta
             property="og:title"
-            content="clpr - Community-Driven Twitch Clip Curation"
+            content="clpr - Twitch clips by creator, topic and tag"
         />
         <meta
             property="og:description"
-            content="Discover, share, and vote on the best Twitch clips. Join our community to curate and enjoy the most entertaining moments from your favorite streamers."
+            content="Twitch clips by creator, topic and tag. Playlists for the ones you keep sending people."
         />
-        <meta property="og:image" content="/clpr-banner-1021px.png" />
+        <meta property="og:image" content="https://clpr.tv/social-card.png" />
+        <meta property="og:image:secure_url" content="https://clpr.tv/social-card.png" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="clpr: Somebody clipped it. It's probably in here. Twitch clips by creator, topic and tag." />
 
         <!-- Default Twitter Card tags -->
         <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content="@clpr_tv" />
+        <meta name="twitter:creator" content="@clpr_tv" />
+        <meta name="twitter:domain" content="clpr.tv" />
         <meta
             name="twitter:title"
-            content="clpr - Community-Driven Twitch Clip Curation"
+            content="clpr - Twitch clips by creator, topic and tag"
         />
         <meta
             name="twitter:description"
-            content="Discover, share, and vote on the best Twitch clips. Join our community to curate and enjoy the most entertaining moments from your favorite streamers."
+            content="Twitch clips by creator, topic and tag. Playlists for the ones you keep sending people."
         />
-        <meta name="twitter:image" content="/clpr-500px.png" />
+        <meta name="twitter:image" content="https://clpr.tv/social-card.png" />
+        <meta name="twitter:image:alt" content="clpr: Somebody clipped it. It's probably in here. Twitch clips by creator, topic and tag." />
     </head>
     <body>
         <div id="root"></div>
+        <script src="/analytics-config.js"></script>
         <script type="module" src="/src/main.tsx"></script>
     </body>
 </html>

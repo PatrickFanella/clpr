@@ -1,85 +1,62 @@
+//go:build integration
+
 package repository
 
 import (
+	"context"
 	"testing"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/testutil"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/subculture-collective/clipper/internal/models"
 )
 
-// TestCalculateTrustScoreBreakdown tests the trust score breakdown calculation
-func TestCalculateTrustScoreBreakdown(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
+// users.display_name is nullable. A single user without one made every
+// leaderboard fail with "cannot scan NULL into *string" (HTTP 500).
+func TestLeaderboardsFallBackToUsernameWithoutDisplayName(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	defer testutil.CleanupTestDB(t, pool)
+	testutil.TruncateTables(t, pool, "user_stats", "users")
+
+	ctx := context.Background()
+	userID := uuid.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO users (id, twitch_id, username) VALUES ($1, $2, $3)`, userID, uuid.NewString(), "no-display-name"); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, userID); err != nil {
+		t.Fatalf("create user stats: %v", err)
 	}
 
-	// This test requires a database connection
-	// For now, we'll create a minimal test that validates the structure
-	t.Run("breakdown structure validation", func(t *testing.T) {
-		breakdown := &models.TrustScoreBreakdown{
-			TotalScore:       75,
-			AccountAgeScore:  15,
-			KarmaScore:       30,
-			ReportAccuracy:   15,
-			ActivityScore:    15,
-			MaxScore:         100,
-			AccountAgeDays:   365,
-			KarmaPoints:      1000,
-			CorrectReports:   10,
-			IncorrectReports: 2,
-			TotalComments:    50,
-			TotalVotes:       200,
-			DaysActive:       30,
-			IsBanned:         false,
+	repo := NewReputationRepository(pool)
+	boards := map[string]func() (string, error){
+		"karma": func() (string, error) {
+			entries, err := repo.GetKarmaLeaderboard(ctx, 10, 0)
+			if err != nil || len(entries) != 1 {
+				return "", err
+			}
+			return entries[0].DisplayName, nil
+		},
+		"engagement": func() (string, error) {
+			entries, err := repo.GetEngagementLeaderboard(ctx, 10, 0)
+			if err != nil || len(entries) != 1 {
+				return "", err
+			}
+			return entries[0].DisplayName, nil
+		},
+		"trust score": func() (string, error) {
+			entries, err := repo.GetTrustScoreLeaderboard(ctx, 10, 0)
+			if err != nil || len(entries) != 1 {
+				return "", err
+			}
+			return entries[0].DisplayName, nil
+		},
+	}
+	for name, load := range boards {
+		displayName, err := load()
+		if err != nil {
+			t.Fatalf("%s leaderboard: %v", name, err)
 		}
-
-		assert.Equal(t, 100, breakdown.MaxScore)
-		assert.Equal(t, 75, breakdown.TotalScore)
-		assert.True(t, breakdown.TotalScore <= breakdown.MaxScore)
-		assert.Equal(t, 75, breakdown.AccountAgeScore+breakdown.KarmaScore+breakdown.ReportAccuracy+breakdown.ActivityScore)
-	})
-}
-
-// TestUpdateUserTrustScore tests updating a user's trust score
-func TestUpdateUserTrustScore(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
-	// This would require a real database connection
-	// Placeholder for future implementation
-	t.Run("placeholder", func(t *testing.T) {
-		t.Skip("Integration test requires database")
-	})
-}
-
-// TestGetTrustScoreHistory tests retrieving trust score history
-func TestGetTrustScoreHistory(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
-	t.Run("validates history entry structure", func(t *testing.T) {
-		userID := uuid.New()
-		history := models.TrustScoreHistory{
-			ID:           uuid.New(),
-			UserID:       userID,
-			OldScore:     70,
-			NewScore:     75,
-			ChangeReason: models.TrustScoreReasonScheduledRecalc,
-			ComponentScores: map[string]interface{}{
-				"account_age_score": 15,
-				"karma_score":       30,
-				"report_accuracy":   15,
-				"activity_score":    15,
-			},
+		if displayName != "no-display-name" {
+			t.Errorf("%s leaderboard display name = %q, want the username", name, displayName)
 		}
-
-		require.NotNil(t, history.ComponentScores)
-		assert.Equal(t, 70, history.OldScore)
-		assert.Equal(t, 75, history.NewScore)
-		assert.Equal(t, models.TrustScoreReasonScheduledRecalc, history.ChangeReason)
-	})
+	}
 }

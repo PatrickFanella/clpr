@@ -25,14 +25,18 @@ export function SearchPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const toast = useToast();
     const query = searchParams.get('q') || '';
-    const typeParam = searchParams.get('type') || 'all';
+    const rawTypeParam = searchParams.get('type') || 'all';
+    const typeParam = rawTypeParam === 'games' ? 'twitch_categories' : rawTypeParam;
     const sortParam = searchParams.get('sort') || 'relevance';
     const pageParam = (() => {
         const p = parseInt(searchParams.get('page') || '1', 10);
         return isNaN(p) || p < 1 ? 1 : p;
     })();
     const languageParam = searchParams.get('language') || undefined;
-    const gameIdParam = searchParams.get('game_id') || undefined;
+    const twitchCategoryIdParam =
+        searchParams.get('twitch_category_id') ||
+        searchParams.get('game_id') ||
+        undefined;
     const dateFromParam = searchParams.get('date_from') || undefined;
     const dateToParam = searchParams.get('date_to') || undefined;
     const minVotesParam = searchParams.get('min_votes');
@@ -46,7 +50,7 @@ export function SearchPage() {
 
     const [filters, setFilters] = useState<SearchFiltersType>({
         language: languageParam,
-        gameId: gameIdParam,
+        twitchCategoryId: twitchCategoryIdParam,
         dateFrom: dateFromParam,
         dateTo: dateToParam,
         minVotes: minVotesParam ? parseInt(minVotesParam, 10) : undefined,
@@ -142,7 +146,7 @@ export function SearchPage() {
                     page: pageParam,
                     limit: 20,
                     language: filters.language,
-                    gameId: filters.gameId,
+                    twitchCategoryId: filters.twitchCategoryId,
                     dateFrom: filters.dateFrom,
                     dateTo: filters.dateTo,
                     minVotes: filters.minVotes,
@@ -153,7 +157,7 @@ export function SearchPage() {
                 const totalResults =
                     (result.counts.clips || 0) +
                     (result.counts.creators || 0) +
-                    (result.counts.games || 0) +
+                    (result.counts.twitch_categories || result.counts.games || 0) +
                     (result.counts.tags || 0);
                 addToHistory(query, totalResults);
 
@@ -206,7 +210,7 @@ export function SearchPage() {
         queueMicrotask(() => {
             setFilters({
                 language: languageParam,
-                gameId: gameIdParam,
+                twitchCategoryId: twitchCategoryIdParam,
                 dateFrom: dateFromParam,
                 dateTo: dateToParam,
                 minVotes:
@@ -216,7 +220,7 @@ export function SearchPage() {
         });
     }, [
         languageParam,
-        gameIdParam,
+        twitchCategoryIdParam,
         dateFromParam,
         dateToParam,
         minVotesParam,
@@ -269,9 +273,11 @@ export function SearchPage() {
             newParams.delete('language');
         }
 
-        if (newFilters.gameId) {
-            newParams.set('game_id', newFilters.gameId);
+        if (newFilters.twitchCategoryId) {
+            newParams.set('twitch_category_id', newFilters.twitchCategoryId);
+            newParams.delete('game_id');
         } else {
+            newParams.delete('twitch_category_id');
             newParams.delete('game_id');
         }
 
@@ -314,7 +320,7 @@ export function SearchPage() {
         // Only treat filters as active if at least one has a meaningful value
         const hasActiveFilters =
             !!filters.language ||
-            !!filters.gameId ||
+            !!filters.twitchCategoryId ||
             !!filters.dateFrom ||
             !!filters.dateTo ||
             (typeof filters.minVotes === 'number' &&
@@ -348,8 +354,8 @@ export function SearchPage() {
     const seoTitle = query ? `Search: ${query}` : 'Search Clips';
     const seoDescription =
         query ?
-            `Search results for "${query}" on Clipper. Find Twitch clips, games, creators, and tags matching your query.`
-        :   'Search for Twitch clips, games, creators, and tags on Clipper. Discover amazing gaming moments from your favorite streamers.';
+            `Search results for "${query}" on clpr. Find Twitch clips, creators, tags, and categories matching your query.`
+        :   'Search Twitch clips, creators, tags, and categories on clpr.';
 
     if (!query.trim()) {
         return (
@@ -373,8 +379,8 @@ export function SearchPage() {
                     <div className='max-w-4xl mx-auto'>
                         <div className='text-center text-muted-foreground py-8 xs:py-12 mb-8'>
                             <p className='text-base xs:text-lg px-4'>
-                                Enter a search query to find clips, games,
-                                creators, and tags.
+                                Enter a search query to find clips, creators,
+                                tags, and Twitch categories.
                             </p>
                         </div>
 
@@ -396,7 +402,7 @@ export function SearchPage() {
             count:
                 (data?.counts.clips || 0) +
                 (data?.counts.creators || 0) +
-                (data?.counts.games || 0) +
+                (data?.counts.twitch_categories || data?.counts.games || 0) +
                 (data?.counts.tags || 0),
         },
         { id: 'clips', label: 'Clips', count: data?.counts.clips || 0 },
@@ -405,8 +411,12 @@ export function SearchPage() {
             label: 'Creators',
             count: data?.counts.creators || 0,
         },
-        { id: 'games', label: 'Games', count: data?.counts.games || 0 },
         { id: 'tags', label: 'Tags', count: data?.counts.tags || 0 },
+        {
+            id: 'twitch_categories',
+            label: 'Twitch Categories',
+            count: data?.counts.twitch_categories || data?.counts.games || 0,
+        },
     ];
 
     return (
@@ -465,8 +475,8 @@ export function SearchPage() {
                 </div>
 
                 {/* Tabs and Sort */}
-                <div className='flex flex-col xs:flex-row xs:items-center xs:justify-between gap-3 xs:gap-0 mb-4 xs:mb-6 border-b border-border'>
-                    <div className='flex gap-0.5 xs:gap-1 overflow-x-auto scrollbar-hide'>
+                <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 mb-4 xs:mb-6 border-b border-border'>
+                    <div className='flex w-full gap-0.5 xs:gap-1 overflow-x-auto scrollbar-hide'>
                         {tabs.map(tab => (
                             <button
                                 key={tab.id}
@@ -475,7 +485,7 @@ export function SearchPage() {
                                 }
                                 className={`px-3 xs:px-4 py-2 font-medium transition-colors relative whitespace-nowrap touch-target text-sm xs:text-base ${
                                     activeTab === tab.id ?
-                                        'text-primary'
+                                        'text-primary-300'
                                     :   'text-muted-foreground hover:text-foreground'
                                 }`}
                                 data-testid={`tab-${tab.id}`}
@@ -494,11 +504,12 @@ export function SearchPage() {
                     </div>
 
                     <select
+                        aria-label='Sort search results'
                         value={sortParam}
                         onChange={e =>
                             handleSortChange(e.target.value as SortType)
                         }
-                        className='px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 touch-target'
+                        className='w-full md:w-40 pl-3 pr-8 py-2 rounded-md border border-border bg-background text-foreground text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 touch-target'
                         data-testid='search-sort-select'
                     >
                         <option value='relevance'>Relevance</option>
@@ -633,7 +644,7 @@ export function SearchPage() {
                                                     </p>
                                                 )}
                                                 <div className='mt-2 text-xs text-muted-foreground'>
-                                                    {creator.karma_points} karma
+                                                    {creator.karma_points} uppies
                                                 </div>
                                             </div>
                                         ))}
@@ -641,27 +652,27 @@ export function SearchPage() {
                                 </section>
                             )}
 
-                        {/* Games */}
-                        {(activeTab === 'all' || activeTab === 'games') &&
-                            data.results.games &&
-                            data.results.games.length > 0 && (
+                        {/* Twitch Categories */}
+                        {(activeTab === 'all' || activeTab === 'twitch_categories') &&
+                            data.results.twitch_categories &&
+                            data.results.twitch_categories.length > 0 && (
                                 <section>
                                     <h2 className='text-xl font-bold mb-4'>
-                                        Games{' '}
+                                        Twitch Categories{' '}
                                         {activeTab === 'all' &&
-                                            `(${data.counts.games})`}
+                                            `(${data.counts.twitch_categories || data.counts.games})`}
                                     </h2>
                                     <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'>
-                                        {data.results.games.map(game => (
+                                        {data.results.twitch_categories.map(category => (
                                             <div
-                                                key={game.id}
+                                                key={category.id}
                                                 className='p-4 rounded-lg border border-border hover:border-primary transition-colors search-result-card'
                                             >
                                                 <h3 className='font-semibold text-lg'>
-                                                    {game.name}
+                                                    {category.name}
                                                 </h3>
                                                 <p className='text-sm text-muted-foreground mt-1'>
-                                                    {game.clip_count} clips
+                                                    {category.clip_count} clips
                                                 </p>
                                             </div>
                                         ))}
@@ -707,7 +718,7 @@ export function SearchPage() {
 
                         {/* Empty State */}
                         {data.meta.total_items === 0 && (
-                            <div data-testid='empty-state'>
+                            <div>
                                 <EmptyStateWithAction
                                     icon={
                                         <svg

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/pkg/twitch"
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/pkg/twitch"
 )
 
 // executeStrategy runs the appropriate curation strategy and returns matching clips.
@@ -37,6 +37,18 @@ func (s *PlaylistScriptService) executeStrategy(ctx context.Context, script *mod
 
 	case "fresh_faces":
 		return s.curationRepo.FreshFaces(ctx, script)
+
+	case "one_per_creator":
+		return s.curationRepo.OnePerCreator(ctx, script)
+
+	case "diversity_roulette":
+		return s.curationRepo.DiversityRoulette(ctx, script)
+
+	case "clip_of_the_day":
+		return s.curationRepo.ClipOfTheDay(ctx, script)
+
+	case "weekend_mix":
+		return s.curationRepo.WeekendMix(ctx, script)
 
 	case "similar_vibes":
 		if script.SeedClipID == nil {

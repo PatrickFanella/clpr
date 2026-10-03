@@ -1,0 +1,40 @@
+import { Link } from 'react-router-dom';
+import { Container, SEO, Spinner } from '../components';
+import { useTopicCategories } from '../hooks/useDiscoveryQueries';
+
+export function TopicsPage() {
+    const { data, isLoading, isError } = useTopicCategories();
+    const topics = data?.categories ?? [];
+
+    return (
+        <>
+            <SEO
+                title='Topics'
+                description='Twitch clips sorted by what they are about.'
+                canonicalUrl='/topics'
+            />
+            <Container className='py-8'>
+                <h1 className='text-3xl font-bold text-foreground mb-2'>Topics</h1>
+                <p className='text-muted-foreground mb-8'>Clips sorted by what they&apos;re about, whatever category the stream was in.</p>
+                {isLoading ? (
+                    <div className='flex justify-center py-16'><Spinner size='xl' /></div>
+                ) : isError ? (
+                    <p className='text-center text-muted-foreground py-16'>Topics could not be loaded.</p>
+                ) : topics.length === 0 ? (
+                    <p className='text-center text-muted-foreground py-16'>No topics are available yet.</p>
+                ) : (
+                    <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+                        {topics.map(topic => (
+                            <Link key={topic.id} to={`/topics/${topic.slug}`} className='flex items-start gap-3 rounded-xl border border-border bg-surface p-5 hover:border-brand hover:bg-surface-hover transition-colors'>
+                                <div>
+                                    <h2 className='font-semibold text-foreground'>{topic.name}</h2>
+                                    {topic.description && <p className='text-sm text-muted-foreground mt-1 line-clamp-2'>{topic.description}</p>}
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                )}
+            </Container>
+        </>
+    );
+}

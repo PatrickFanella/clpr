@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { forumApi } from '@/lib/forum-api';
 import type { VoteStats } from '@/types/forum';
 
 interface VoteButtonsProps {
@@ -36,52 +37,32 @@ export function VoteButtons({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/v1/forum/replies/${replyId}/vote`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ vote_value: newVote }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to vote');
-      }
+      await forumApi.voteOnReply(replyId, newVote);
 
       // Fetch updated stats to ensure consistency
-      const statsResponse = await fetch(`/api/v1/forum/replies/${replyId}/votes`, {
-        credentials: 'include',
-      });
-      
-      if (statsResponse.ok) {
-        const { data } = await statsResponse.json();
+      try {
+        const data = await forumApi.getReplyVotes(replyId);
         if (data) {
           // Validate response data
           const validatedStats: VoteStats = {
             upvotes: typeof data.upvotes === 'number' ? data.upvotes : 0,
             downvotes: typeof data.downvotes === 'number' ? data.downvotes : 0,
             net_votes: typeof data.net_votes === 'number' ? data.net_votes : 0,
-            user_vote: (data.user_vote === -1 || data.user_vote === 0 || data.user_vote === 1) 
-              ? data.user_vote 
+            user_vote: (data.user_vote === -1 || data.user_vote === 0 || data.user_vote === 1)
+              ? data.user_vote
               : 0,
           };
-          
+
           setVoteCount(validatedStats.net_votes);
           setLocalVote(validatedStats.user_vote);
-          
+
           if (onVoteChange) {
             onVoteChange(validatedStats);
           }
         }
-      } else {
+      } catch (statsError) {
         // Keep optimistic update but log that stats could not be refreshed
-        console.warn(
-          'Failed to refresh vote stats for reply',
-          replyId,
-          'Status:',
-          statsResponse.status
-        );
+        console.warn('Failed to refresh vote stats for reply', replyId, statsError);
       }
     } catch (error) {
       // Revert on error
@@ -103,9 +84,9 @@ export function VoteButtons({
         onClick={() => handleVote(1)}
         disabled={isLoading || disabled}
         className={cn(
-          'p-1 hover:bg-gray-700 rounded transition-colors',
+          'p-1 hover:bg-surface-hover rounded transition-colors',
           'disabled:opacity-50 disabled:cursor-not-allowed',
-          localVote === 1 && 'text-green-500 bg-green-500/10'
+          localVote === 1 && 'text-upvote bg-upvote/10'
         )}
         title="Upvote"
         aria-label="Upvote"
@@ -128,9 +109,9 @@ export function VoteButtons({
       <span
         className={cn(
           'text-sm font-semibold min-w-[2.5rem] text-center',
-          isPositive && 'text-green-500',
-          isNegative && 'text-red-500',
-          voteCount === 0 && 'text-gray-400'
+          isPositive && 'text-upvote',
+          isNegative && 'text-downvote',
+          voteCount === 0 && 'text-muted-foreground'
         )}
       >
         {voteCount > 0 ? '+' : ''}
@@ -142,9 +123,9 @@ export function VoteButtons({
         onClick={() => handleVote(-1)}
         disabled={isLoading || disabled}
         className={cn(
-          'p-1 hover:bg-gray-700 rounded transition-colors',
+          'p-1 hover:bg-surface-hover rounded transition-colors',
           'disabled:opacity-50 disabled:cursor-not-allowed',
-          localVote === -1 && 'text-red-500 bg-red-500/10'
+          localVote === -1 && 'text-downvote bg-downvote/10'
         )}
         title="Downvote"
         aria-label="Downvote"

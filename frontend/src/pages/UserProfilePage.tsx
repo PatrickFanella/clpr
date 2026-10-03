@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useParams, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Container, Spinner, SEO, Button } from '../components';
+import { Avatar, Container, Spinner, SEO, Button, ResourceUnavailable } from '../components';
+import { isNotFoundError } from '../lib/error-utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import {
@@ -19,8 +20,9 @@ import {
     Calendar,
     ChevronLeft,
     ChevronRight,
+    AlertTriangle,
 } from 'lucide-react';
-import { ClipCard } from '../components/clip';
+import { ClipGridCard } from '../components/clip';
 
 type TabType = 'clips' | 'activity' | 'followers' | 'following';
 
@@ -48,13 +50,14 @@ export function UserProfilePage() {
         data: userData,
         isLoading,
         error,
+        refetch,
     } = useQuery({
         queryKey: ['user-profile-by-username', username],
         queryFn: async () => {
             const response = await api.get<{
                 success: boolean;
                 data: UserProfile;
-            }>(`/api/v1/users/by-username/${username}?full=true`);
+            }>(`/users/by-username/${username}?full=true`);
             return response.data.data;
         },
         enabled: !!username,
@@ -135,18 +138,29 @@ export function UserProfilePage() {
     }
 
     if (error || !userData) {
+        const notFound = !error || isNotFoundError(error);
         return (
             <>
-                <SEO title='User Not Found' noindex />
+                <SEO title={notFound ? 'User not found' : 'Profile unavailable'} noindex />
                 <Container className='py-8'>
-                    <div className='text-center py-12'>
-                        <h2 className='text-2xl font-bold mb-4'>
-                            User Not Found
-                        </h2>
-                        <p className='text-muted-foreground'>
-                            The user profile you're looking for doesn't exist.
-                        </p>
-                    </div>
+                    {notFound ?
+                        <ResourceUnavailable
+                            kind='not-found'
+                            title="This profile isn't here"
+                            description='The username may have changed, or the account no longer exists.'
+                            links={[
+                                { label: 'Back to the feed', href: '/' },
+                                { label: 'See leaderboards', href: '/leaderboards' },
+                            ]}
+                        />
+                    :   <ResourceUnavailable
+                            kind='error'
+                            title="We couldn't load this profile"
+                            description='Check your connection and try again.'
+                            onRetry={() => void refetch()}
+                            links={[{ label: 'Back to the feed', href: '/' }]}
+                        />
+                    }
                 </Container>
             </>
         );
@@ -174,16 +188,16 @@ export function UserProfilePage() {
                     {/* Profile Header */}
                     <div className='bg-card border border-border rounded-xl p-6 mb-6'>
                         <div className='flex items-start gap-4'>
-                            {userData.avatar_url && (
-                                <img
-                                    src={userData.avatar_url}
-                                    alt={userData.display_name}
-                                    className='w-20 h-20 rounded-full'
-                                />
-                            )}
-                            <div className='flex-1'>
-                                <div className='flex items-start justify-between mb-2'>
-                                    <div>
+                            <Avatar
+                                src={userData.avatar_url}
+                                alt=''
+                                fallback={userData.display_name || userData.username}
+                                frameClassName='h-16 w-16 text-3xl sm:h-20 sm:w-20'
+                                className='shrink-0'
+                            />
+                            <div className='min-w-0 flex-1'>
+                                <div className='flex flex-wrap items-start justify-between gap-2 mb-2'>
+                                    <div className='min-w-0 break-words'>
                                         <h1 className='text-2xl font-bold mb-1'>
                                             {userData.display_name}
                                         </h1>
@@ -219,7 +233,7 @@ export function UserProfilePage() {
                                     )}
                                 </div>
                                 {userData.bio && (
-                                    <p className='text-sm mb-4'>
+                                    <p className='text-sm mb-4 break-words'>
                                         {userData.bio}
                                     </p>
                                 )}
@@ -229,8 +243,9 @@ export function UserProfilePage() {
                                         className='mb-4 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3'
                                     >
                                         <div className='flex items-start gap-2'>
-                                            <span className='text-red-600 dark:text-red-400 font-semibold text-sm'>
-                                                ⚠️ This user is banned
+                                            <span className='text-red-600 dark:text-red-400 font-semibold text-sm flex items-center gap-1'>
+                                                <AlertTriangle size={16} strokeWidth={1.75} />
+                                                This user is banned
                                             </span>
                                         </div>
                                         {userData.ban_reason && (
@@ -248,7 +263,7 @@ export function UserProfilePage() {
                                         )}
                                     </div>
                                 )}
-                                <div className='flex gap-6 text-sm'>
+                                <div className='flex flex-wrap gap-x-6 gap-y-2 text-sm'>
                                     <div>
                                         <span className='font-semibold'>
                                             {userData.stats.clips_submitted}
@@ -278,7 +293,7 @@ export function UserProfilePage() {
                                             {userData.karma_points}
                                         </span>
                                         <span className='text-muted-foreground ml-1'>
-                                            Karma
+                                            Uppies
                                         </span>
                                     </div>
                                     <div className='flex items-center text-muted-foreground'>
@@ -295,7 +310,7 @@ export function UserProfilePage() {
 
                     {/* Tabs */}
                     <div className='border-b border-border mb-6'>
-                        <nav className='flex gap-6'>
+                        <nav className='flex gap-6 overflow-x-auto'>
                             <button
                                 onClick={() => handleTabChange('clips')}
                                 className={`pb-3 border-b-2 transition-colors ${
@@ -342,11 +357,11 @@ export function UserProfilePage() {
                     {/* Tab Content */}
                     {activeTab === 'clips' && (
                         <div>
-                            {clipsData && clipsData.clips.length > 0 ?
+                            {clipsData?.clips?.length ?
                                 <>
                                     <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                                         {clipsData.clips.map(clip => (
-                                            <ClipCard
+                                            <ClipGridCard
                                                 key={clip.id}
                                                 clip={clip}
                                             />
@@ -400,7 +415,7 @@ export function UserProfilePage() {
 
                     {activeTab === 'activity' && (
                         <div>
-                            {activityData && activityData.data.length > 0 ?
+                            {activityData?.data?.length ?
                                 <>
                                     <div className='space-y-4'>
                                         {activityData.data.map(activity => (
@@ -443,7 +458,7 @@ export function UserProfilePage() {
                                                         {activity.clip_title && (
                                                             <Link
                                                                 to={`/clip/${activity.clip_id}`}
-                                                                className='text-primary hover:underline text-sm mt-1 block'
+                                                                className='text-link underline underline-offset-2 text-sm mt-1 block'
                                                             >
                                                                 {
                                                                     activity.clip_title
@@ -510,7 +525,7 @@ export function UserProfilePage() {
 
                     {activeTab === 'followers' && (
                         <div>
-                            {followersData && followersData.data.length > 0 ?
+                            {followersData?.data?.length ?
                                 <>
                                     <div className='space-y-4'>
                                         {followersData.data.map(follower => (
@@ -534,7 +549,7 @@ export function UserProfilePage() {
                                                         <div>
                                                             <Link
                                                                 to={`/user/${follower.username}`}
-                                                                className='font-semibold hover:text-primary'
+                                                                className='font-semibold hover:text-link'
                                                             >
                                                                 {
                                                                     follower.display_name
@@ -611,7 +626,7 @@ export function UserProfilePage() {
 
                     {activeTab === 'following' && (
                         <div>
-                            {followingData && followingData.data.length > 0 ?
+                            {followingData?.data?.length ?
                                 <>
                                     <div className='space-y-4'>
                                         {followingData.data.map(
@@ -636,7 +651,7 @@ export function UserProfilePage() {
                                                             <div>
                                                                 <Link
                                                                     to={`/user/${followedUser.username}`}
-                                                                    className='font-semibold hover:text-primary'
+                                                                    className='font-semibold hover:text-link'
                                                                 >
                                                                     {
                                                                         followedUser.display_name

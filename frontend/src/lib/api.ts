@@ -1,6 +1,13 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    /** Skip automatic refresh for intentional anonymous session probes. */
+    skipAuthRefresh?: boolean;
+  }
+}
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1";
 
@@ -47,6 +54,15 @@ const isUnauthorizedError = (error: AxiosError): boolean =>
 // Request interceptor to add CSRF token to state-changing requests
 apiClient.interceptors.request.use(
   (config) => {
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      // Let Axios/the browser set multipart/form-data with the generated boundary.
+      if (typeof config.headers.delete === 'function') {
+        config.headers.delete('Content-Type');
+      } else {
+        delete config.headers['Content-Type'];
+      }
+    }
+
     // Only add CSRF token for state-changing methods
     if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
       if (csrfToken) {
@@ -90,6 +106,10 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
     };
+
+    if (isUnauthorizedError(error) && originalRequest?.skipAuthRefresh) {
+      return Promise.reject(error);
+    }
 
     if (isUnauthorizedError(error) && originalRequest?._retry) {
       notifyUnauthorized(error);

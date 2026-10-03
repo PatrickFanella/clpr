@@ -107,7 +107,7 @@ export function SubmissionConfirmation({
                             {submission.tags.map(tag => (
                                 <span
                                     key={tag}
-                                    className='px-3 py-1 bg-primary/10 text-primary rounded-full text-sm'
+                                    className='px-3 py-1 bg-primary/10 text-link text-sm'
                                 >
                                     {tag}
                                 </span>
@@ -179,20 +179,21 @@ export function SubmissionConfirmation({
             {/* Action Buttons */}
             <div className='flex flex-col sm:flex-row gap-3'>
                 {fromDiscover && (
-                    <Link to='/discover' className='sm:flex-1'>
-                        <Button variant='primary' fullWidth>
+                    <Button asChild variant='primary' fullWidth>
+                        <Link to='/' className='sm:flex-1'>
                             Back to Discovery
-                        </Button>
-                    </Link>
+                        </Link>
+                    </Button>
                 )}
-                <Link to='/submissions' className='sm:flex-1'>
-                    <Button
+                <Button
+                    asChild
                         variant={fromDiscover ? 'secondary' : 'primary'}
                         fullWidth
                     >
+                    <Link to='/submissions' className='sm:flex-1'>
                         View My Submissions
-                    </Button>
-                </Link>
+                    </Link>
+                </Button>
                 <Button
                     variant='secondary'
                     fullWidth

@@ -5,8 +5,9 @@ import { Helmet } from '@dr.pogodin/react-helmet';
 import { Pencil, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { fetchCreatorClips, updateClipMetadata, updateClipVisibility } from '../lib/clip-api';
-import { Container, Button } from '../components';
+import { Container, Button, ResourceUnavailable } from '../components';
 import type { Clip } from '../types/clip';
+import { CreatorEvents, trackEvent } from '../lib/telemetry';
 
 export function CreatorDashboardPage() {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export function CreatorDashboardPage() {
   const [editTitle, setEditTitle] = useState('');
 
   // Fetch creator clips
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['creatorClips', creatorId],
     queryFn: () => fetchCreatorClips({ creatorId: creatorId! }),
     enabled: !!creatorId,
@@ -26,7 +27,8 @@ export function CreatorDashboardPage() {
   const updateMetadataMutation = useMutation({
     mutationFn: ({ clipId, title }: { clipId: string; title: string }) =>
       updateClipMetadata(clipId, { title }),
-    onSuccess: () => {
+    onSuccess: (_result, { clipId }) => {
+      trackEvent(CreatorEvents.CLIP_TITLE_UPDATED, { clip_id: clipId });
       queryClient.invalidateQueries({ queryKey: ['creatorClips', creatorId] });
       setEditingClipId(null);
       setEditTitle('');
@@ -37,7 +39,8 @@ export function CreatorDashboardPage() {
   const updateVisibilityMutation = useMutation({
     mutationFn: ({ clipId, isHidden }: { clipId: string; isHidden: boolean }) =>
       updateClipVisibility(clipId, isHidden),
-    onSuccess: () => {
+    onSuccess: (_result, { clipId, isHidden }) => {
+      trackEvent(CreatorEvents.CLIP_VISIBILITY_UPDATED, { clip_id: clipId, is_hidden: isHidden });
       queryClient.invalidateQueries({ queryKey: ['creatorClips', creatorId] });
     },
   });
@@ -82,7 +85,13 @@ export function CreatorDashboardPage() {
   if (error) {
     return (
       <Container className="py-8">
-        <div className="text-center text-red-600">Failed to load creator clips</div>
+        <ResourceUnavailable
+          kind="error"
+          title="We couldn't load your clips"
+          description="Check your connection and try again."
+          onRetry={() => void refetch()}
+          links={[{ label: 'Back to the feed', href: '/' }]}
+        />
       </Container>
     );
   }
@@ -95,24 +104,24 @@ export function CreatorDashboardPage() {
 
       <Container className="py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             Creator Dashboard
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-muted-foreground">
             Manage your clips - edit titles and control visibility
           </p>
         </div>
 
-        {data?.clips.length === 0 ? (
-          <div className="text-center text-gray-600 dark:text-gray-400 py-12">
+        {data?.clips?.length === 0 ? (
+          <div className="text-center text-muted-foreground py-12">
             <p className="text-lg">No clips found</p>
           </div>
         ) : (
           <div className="space-y-6">
-            {data?.clips.map((clip) => (
+            {data?.clips?.map((clip) => (
               <div
                 key={clip.id}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6"
+                className="bg-surface rounded-lg shadow-md p-6"
               >
                 <div className="flex items-start gap-4">
                   {/* Clip thumbnail */}
@@ -141,7 +150,7 @@ export function CreatorDashboardPage() {
                           type="text"
                           value={editTitle}
                           onChange={(e) => setEditTitle(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-surface text-foreground"
                           placeholder="Clip title"
                           aria-describedby={`clip-title-help-${clip.id}`}
                         />
@@ -169,7 +178,7 @@ export function CreatorDashboardPage() {
                     ) : (
                       <>
                         <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          <h3 className="text-lg font-semibold text-foreground">
                             {clip.title}
                             {clip.is_hidden && (
                               <span className="ml-2 text-sm text-yellow-600 dark:text-yellow-400">
@@ -179,14 +188,14 @@ export function CreatorDashboardPage() {
                           </h3>
                           <button
                             onClick={() => handleEditClick(clip)}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                            className="p-2 hover:bg-surface-hover rounded focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                             title="Edit title"
                             aria-label={`Edit title for ${clip.title}`}
                           >
                             <Pencil className="w-4 h-4" aria-hidden="true" />
                           </button>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        <p className="text-sm text-muted-foreground mb-3">
                           Created by {clip.creator_name} • {clip.view_count} views • Score: {clip.vote_score}
                         </p>
                       </>
@@ -223,8 +232,8 @@ export function CreatorDashboardPage() {
 
         {/* Pagination info */}
         {data && data.total > 0 && (
-          <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-            Showing {data.clips.length} of {data.total} clips
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            Showing {data?.clips?.length ?? 0} of {data.total} clips
           </div>
         )}
       </Container>

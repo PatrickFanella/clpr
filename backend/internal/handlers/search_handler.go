@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/repository"
+	"git.subcult.tv/subculture-collective/clpr/internal/services"
+	"git.subcult.tv/subculture-collective/clpr/pkg/metrics"
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/internal/repository"
-	"github.com/subculture-collective/clipper/internal/services"
-	"github.com/subculture-collective/clipper/pkg/metrics"
 )
 
 // SearchHandler handles search-related requests
@@ -122,6 +122,7 @@ func (h *SearchHandler) Search(c *gin.Context) {
 		})
 		return
 	}
+	req.SyncTwitchCategoryAliases()
 
 	// Validate and set defaults
 	if err := h.validateAndSetDefaults(&req); err != nil {
@@ -193,6 +194,12 @@ func (h *SearchHandler) Search(c *gin.Context) {
 			return
 		}
 	}
+	if results == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Search provider returned no response",
+		})
+		return
+	}
 
 	// Add failover headers if fallback was used
 	if usedFallback {
@@ -201,18 +208,24 @@ func (h *SearchHandler) Search(c *gin.Context) {
 		c.Header("X-Search-Failover-Service", "opensearch")
 	}
 
+	// Enforce the public response contract at the HTTP boundary as a final
+	// compatibility guard for injected or rolling-deployment search providers.
+	results.SyncTwitchCategoryAliases()
+
 	// Track search analytics (optional, get user ID if authenticated)
 	totalResults := results.Counts.Clips + results.Counts.Creators + results.Counts.Games + results.Counts.Tags
 
 	// Try to get user from context (if authenticated)
-	if userVal, exists := c.Get("user"); exists {
-		if user, ok := userVal.(*models.User); ok {
-			// Track search with user ID
-			_ = h.searchRepo.TrackSearch(c.Request.Context(), &user.ID, req.Query, totalResults)
+	if h.searchRepo != nil {
+		if userVal, exists := c.Get("user"); exists {
+			if user, ok := userVal.(*models.User); ok {
+				// Track search with user ID
+				_ = h.searchRepo.TrackSearch(c.Request.Context(), &user.ID, req.Query, totalResults)
+			}
+		} else {
+			// Track anonymous search
+			_ = h.searchRepo.TrackSearch(c.Request.Context(), nil, req.Query, totalResults)
 		}
-	} else {
-		// Track anonymous search
-		_ = h.searchRepo.TrackSearch(c.Request.Context(), nil, req.Query, totalResults)
 	}
 
 	c.JSON(http.StatusOK, results)
@@ -347,6 +360,7 @@ func (h *SearchHandler) SearchWithScores(c *gin.Context) {
 		})
 		return
 	}
+	req.SyncTwitchCategoryAliases()
 
 	// Validate and set defaults
 	if err := h.validateAndSetDefaults(&req); err != nil {
@@ -372,6 +386,7 @@ func (h *SearchHandler) SearchWithScores(c *gin.Context) {
 		})
 		return
 	}
+	results.SearchResponse.SyncTwitchCategoryAliases()
 
 	// Track search analytics
 	totalResults := results.Counts.Clips + results.Counts.Creators + results.Counts.Games + results.Counts.Tags

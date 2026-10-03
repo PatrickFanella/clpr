@@ -20,35 +20,24 @@ else
     echo -e "${GREEN}✓ Using existing MFA_ENCRYPTION_KEY${NC}"
 fi
 
-# Stripe webhook secret for webhook signature testing
-if [ -z "$TEST_STRIPE_WEBHOOK_SECRET" ]; then
-    export TEST_STRIPE_WEBHOOK_SECRET="whsec_test_$(openssl rand -hex 24)"
-    echo -e "${GREEN}✓ Generated TEST_STRIPE_WEBHOOK_SECRET${NC}"
-else
-    echo -e "${GREEN}✓ Using existing TEST_STRIPE_WEBHOOK_SECRET${NC}"
-fi
-
-# Set Stripe webhook secret for the main config too
-export STRIPE_WEBHOOK_SECRET="${TEST_STRIPE_WEBHOOK_SECRET}"
-
 # OpenSearch/Elasticsearch configuration for semantic search
-if [ -z "$OPENSEARCH_URL" ]; then
-    export OPENSEARCH_URL="http://localhost:9201"
+if [ -z "${OPENSEARCH_URL:-}" ]; then
+    export OPENSEARCH_URL="${TEST_OPENSEARCH_URL:-http://${TEST_SERVICE_HOST:-localhost}:9201}"
     echo -e "${GREEN}✓ Set OPENSEARCH_URL=${OPENSEARCH_URL}${NC}"
 fi
 
 # Test database configuration
-export TEST_DATABASE_HOST="${TEST_DATABASE_HOST:-localhost}"
+export TEST_DATABASE_HOST="${TEST_DATABASE_HOST:-${TEST_SERVICE_HOST:-localhost}}"
 export TEST_DATABASE_PORT="${TEST_DATABASE_PORT:-5437}"
-export TEST_DATABASE_USER="${TEST_DATABASE_USER:-clipper}"
-export TEST_DATABASE_PASSWORD="${TEST_DATABASE_PASSWORD:-clipper_password}"
-export TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-clipper_test}"
+export TEST_DATABASE_USER="${TEST_DATABASE_USER:-clpr}"
+export TEST_DATABASE_PASSWORD="${TEST_DATABASE_PASSWORD:-clpr_password}"
+export TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-clpr_test}"
 
 # Compose a full connection URL for tests that consume TEST_DATABASE_URL directly
 export TEST_DATABASE_URL="postgres://${TEST_DATABASE_USER}:${TEST_DATABASE_PASSWORD}@${TEST_DATABASE_HOST}:${TEST_DATABASE_PORT}/${TEST_DATABASE_NAME}?sslmode=disable"
 
 # Redis test configuration
-export TEST_REDIS_HOST="${TEST_REDIS_HOST:-localhost}"
+export TEST_REDIS_HOST="${TEST_REDIS_HOST:-${TEST_SERVICE_HOST:-localhost}}"
 export TEST_REDIS_PORT="${TEST_REDIS_PORT:-6380}"
 
 echo -e "${GREEN}✓ Test database configured${NC}"
@@ -106,10 +95,6 @@ cat > .env.test <<EOF
 
 # MFA Configuration
 MFA_ENCRYPTION_KEY=${MFA_ENCRYPTION_KEY}
-
-# Stripe Configuration
-TEST_STRIPE_WEBHOOK_SECRET=${TEST_STRIPE_WEBHOOK_SECRET}
-STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
 
 # OpenSearch Configuration
 OPENSEARCH_URL=${OPENSEARCH_URL}

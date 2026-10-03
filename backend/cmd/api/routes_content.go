@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/middleware"
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/internal/middleware"
 )
 
 func registerContentRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra *Infrastructure) {
@@ -14,6 +14,7 @@ func registerContentRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, inf
 		// Public tag endpoints
 		tags.GET("", h.Tag.ListTags)
 		tags.GET("/search", middleware.RateLimitMiddleware(infra.Redis, 60, time.Minute), h.Tag.SearchTags)
+		tags.GET("/tree", h.Tag.GetTagTree)
 		tags.GET("/:slug", h.Tag.GetTag)
 		tags.GET("/:slug/clips", h.Tag.GetClipsByTag)
 	}
@@ -28,7 +29,7 @@ func registerContentRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, inf
 
 		// Search analytics endpoints
 		search.GET("/trending", middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Search.GetTrendingSearches) // Popular searches (public)
-		search.GET("/history", middleware.AuthMiddleware(svcs.Auth), h.Search.GetSearchHistory)                              // User search history (authenticated)
+		search.GET("/history", middleware.AuthMiddleware(svcs.Auth), h.Search.GetSearchHistory)                             // User search history (authenticated)
 
 		// Admin-only analytics endpoints
 		searchAdmin := search.Group("")
@@ -47,6 +48,7 @@ func registerContentRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, inf
 		{
 			// User submission endpoints (10 submissions per hour per user)
 			submissions.POST("", middleware.RateLimitMiddleware(infra.Redis, 10, time.Hour), h.Submission.SubmitClip)
+			submissions.POST("/upload", middleware.RateLimitMiddleware(infra.Redis, 10, time.Hour), h.Submission.SubmitUpload)
 			submissions.GET("", h.Submission.GetUserSubmissions)
 			submissions.GET("/stats", h.Submission.GetSubmissionStats)
 			// Metadata endpoint with rate limiting (100 requests/hour per user)

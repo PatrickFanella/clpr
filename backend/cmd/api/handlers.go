@@ -3,7 +3,10 @@ package main
 import (
 	"log"
 
-	"github.com/subculture-collective/clipper/internal/handlers"
+	"git.subcult.tv/subculture-collective/clpr/internal/docscontent"
+	"git.subcult.tv/subculture-collective/clpr/internal/handlers"
+	"git.subcult.tv/subculture-collective/clpr/internal/services"
+	"git.subcult.tv/subculture-collective/clpr/internal/storage"
 )
 
 // Handlers holds all HTTP handler instances.
@@ -16,6 +19,7 @@ type Handlers struct {
 	Clip                *handlers.ClipHandler
 	Favorite            *handlers.FavoriteHandler
 	Tag                 *handlers.TagHandler
+	TagPromotion        *handlers.TagPromotionHandler
 	Search              *handlers.SearchHandler
 	Report              *handlers.ReportHandler
 	Reputation          *handlers.ReputationHandler
@@ -23,16 +27,16 @@ type Handlers struct {
 	Analytics           *handlers.AnalyticsHandler
 	Engagement          *handlers.EngagementHandler
 	AuditLog            *handlers.AuditLogHandler
-	Subscription        *handlers.SubscriptionHandler
 	User                *handlers.UserHandler
 	AdminUser           *handlers.AdminUserHandler
+	AdminOpenAPI        *handlers.AdminOpenAPIHandler
 	UserSettings        *handlers.UserSettingsHandler
 	Consent             *handlers.ConsentHandler
 	Contact             *handlers.ContactHandler
 	SEO                 *handlers.SEOHandler
 	Pages               *handlers.PagesHandler
+	Share               *handlers.ShareHandler
 	Docs                *handlers.DocsHandler
-	Revenue             *handlers.RevenueHandler
 	Ad                  *handlers.AdHandler
 	Export              *handlers.ExportHandler
 	WebhookSubscription *handlers.WebhookSubscriptionHandler
@@ -46,6 +50,7 @@ type Handlers struct {
 	Community           *handlers.CommunityHandler
 	DiscoveryList       *handlers.DiscoveryListHandler
 	Category            *handlers.CategoryHandler
+	Topic               *handlers.TopicHandler
 	Game                *handlers.GameHandler
 	AccountType         *handlers.AccountTypeHandler
 	Verification        *handlers.VerificationHandler
@@ -57,15 +62,16 @@ type Handlers struct {
 	Playlist            *handlers.PlaylistHandler
 	PlaylistScript      *handlers.PlaylistScriptHandler
 	Queue               *handlers.QueueHandler
+	StreamerClipRoom    *handlers.StreamerClipRoomHandler
 	WatchHistory        *handlers.WatchHistoryHandler
 	WatchParty          *handlers.WatchPartyHandler
 	Event               *handlers.EventHandler
-	ClipSync            *handlers.ClipSyncHandler       // may be nil
-	Submission          *handlers.SubmissionHandler      // may be nil
-	Moderation          *handlers.ModerationHandler      // may be nil
-	LiveStatus          *handlers.LiveStatusHandler      // may be nil
-	Stream              *handlers.StreamHandler          // may be nil
-	TwitchOAuth         *handlers.TwitchOAuthHandler     // may be nil
+	ClipSync            *handlers.ClipSyncHandler    // may be nil
+	Submission          *handlers.SubmissionHandler  // may be nil
+	Moderation          *handlers.ModerationHandler  // may be nil
+	LiveStatus          *handlers.LiveStatusHandler  // may be nil
+	Stream              *handlers.StreamHandler      // may be nil
+	TwitchOAuth         *handlers.TwitchOAuthHandler // may be nil
 	Forum               *handlers.ForumHandler
 	ForumModeration     *handlers.ForumModerationHandler
 	NSFW                *handlers.NSFWHandler
@@ -78,15 +84,18 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 	authHandler := handlers.NewAuthHandler(svcs.Auth, cfg)
 	mfaHandler := handlers.NewMFAHandler(svcs.MFA, cfg)
 	monitoringHandler := handlers.NewMonitoringHandler(infra.Redis)
-	webhookMonitoringHandler := handlers.NewWebhookMonitoringHandler(svcs.WebhookRetry, svcs.OutboundWebhook)
 	commentHandler := handlers.NewCommentHandler(svcs.Comment)
 	clipHandler := handlers.NewClipHandler(
 		svcs.Clip,
 		svcs.Auth,
 		handlers.WithClipExtractionJobService(svcs.ClipExtractionJob),
+		handlers.WithClipConfig(&cfg.Clip),
 	)
 	favoriteHandler := handlers.NewFavoriteHandler(repos.Favorite, repos.Vote, svcs.Clip)
 	tagHandler := handlers.NewTagHandler(repos.Tag, repos.Clip, svcs.AutoTag)
+	if infra.Redis != nil {
+		tagHandler.SetResponseCache(infra.Redis)
+	}
 	searchHandler := handlers.NewSearchHandler(repos.Search, svcs.Auth)
 	if svcs.HybridSearch != nil {
 		// Use hybrid search (BM25 + vector similarity)
@@ -102,21 +111,29 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 	reportHandler := handlers.NewReportHandler(repos.Report, repos.Clip, repos.Comment, repos.User, svcs.Auth)
 	reputationHandler := handlers.NewReputationHandler(svcs.Reputation, svcs.Auth)
 	notificationHandler := handlers.NewNotificationHandler(svcs.Notification, svcs.Email)
-	analyticsHandler := handlers.NewAnalyticsHandler(svcs.Analytics, svcs.Auth)
+	analyticsHandler := handlers.NewAnalyticsHandler(svcs.Analytics)
 	engagementHandler := handlers.NewEngagementHandler(svcs.Engagement, svcs.Auth)
 	auditLogHandler := handlers.NewAuditLogHandler(svcs.AuditLog)
-	subscriptionHandler := handlers.NewSubscriptionHandler(svcs.Subscription)
 	userHandler := handlers.NewUserHandler(repos.Clip, repos.Vote, repos.Comment, repos.User, repos.Broadcaster, svcs.AccountMerge)
 	adminUserHandler := handlers.NewAdminUserHandler(repos.User, repos.AuditLog, svcs.Auth)
 	userSettingsHandler := handlers.NewUserSettingsHandler(svcs.UserSettings, svcs.Auth)
 	consentHandler := handlers.NewConsentHandler(repos.Consent)
-	contactHandler := handlers.NewContactHandler(repos.Contact, svcs.Auth)
+	contactHandler := handlers.NewContactHandler(repos.Contact)
 	seoHandler := handlers.NewSEOHandler(repos.Clip, repos.Game)
 	pagesHandler := handlers.NewPagesHandler(repos.Clip, repos.Broadcaster, repos.Game)
-	docsHandler := handlers.NewDocsHandler(cfg.Server.DocsPath, "subculture-collective", "clipper", "main")
-	revenueHandler := handlers.NewRevenueHandler(svcs.Revenue)
+	shareHandler := handlers.NewShareHandler(repos.Clip)
+	docsFS, docsSource := docscontent.Open(cfg.Server.DocsPath)
+	publicDocs, docsErr := docscontent.PublicDocuments()
+	if docsErr != nil {
+		// Fail closed: without a valid allowlist no document is published.
+		log.Printf("Public documentation manifest is invalid; serving no documents: %v", docsErr)
+		publicDocs = nil
+	}
+	log.Printf("Serving %d public documents from %s source", len(publicDocs), docsSource)
+	docsHandler := handlers.NewDocsHandlerFS(docsFS, publicDocs, "subculture-collective", "clpr", "main")
 	adHandler := handlers.NewAdHandler(svcs.Ad)
-	exportHandler := handlers.NewExportHandler(svcs.Export, svcs.Auth, repos.User)
+	exportHandler := handlers.NewExportHandler(svcs.Export, repos.User)
+	webhookMonitoringHandler := handlers.NewWebhookMonitoringHandler(svcs.OutboundWebhook)
 	webhookSubscriptionHandler := handlers.NewWebhookSubscriptionHandler(svcs.OutboundWebhook)
 	webhookDLQHandler := handlers.NewWebhookDLQHandler(svcs.OutboundWebhook)
 	configHandler := handlers.NewConfigHandler(cfg)
@@ -124,10 +141,14 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 	emailMetricsHandler := handlers.NewEmailMetricsHandler(svcs.EmailMetrics, repos.EmailLog)
 	sendgridWebhookHandler := handlers.NewSendGridWebhookHandler(repos.EmailLog, cfg.Email.SendGridWebhookPublicKey)
 	feedHandler := handlers.NewFeedHandler(svcs.Feed, svcs.Auth, repos.Vote, repos.Favorite, repos.User)
+	if cfg.FeatureFlags.RecentEngagement {
+		feedHandler.EnableRecentEngagement(repos.Engagement)
+	}
 	filterPresetHandler := handlers.NewFilterPresetHandler(svcs.FilterPreset)
 	communityHandler := handlers.NewCommunityHandler(svcs.Community, svcs.Auth)
 	discoveryListHandler := handlers.NewDiscoveryListHandler(repos.DiscoveryList, repos.Analytics)
 	categoryHandler := handlers.NewCategoryHandler(repos.Category, repos.Clip)
+	topicHandler := handlers.NewTopicHandler(repos.ClipTopic)
 	gameHandler := handlers.NewGameHandler(repos.Game, repos.Clip, svcs.Auth)
 	accountTypeHandler := handlers.NewAccountTypeHandler(svcs.AccountType, svcs.Auth)
 	verificationHandler := handlers.NewVerificationHandler(repos.Verification, svcs.Notification, pool)
@@ -142,6 +163,7 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 	playlistHandler := handlers.NewPlaylistHandler(svcs.Playlist)
 	playlistScriptHandler := handlers.NewPlaylistScriptHandler(svcs.PlaylistScript)
 	queueHandler := handlers.NewQueueHandler(svcs.Queue)
+	streamerClipRoomHandler := handlers.NewStreamerClipRoomHandler(svcs.StreamerClipRoom, svcs.StreamerClipRoomListener, repos.TwitchAuth, svcs.WSServer)
 	watchHistoryHandler := handlers.NewWatchHistoryHandler(repos.WatchHistory)
 	watchPartyHandler := handlers.NewWatchPartyHandler(svcs.WatchParty, svcs.WatchPartyHubManager, repos.WatchParty, repos.Analytics, cfg)
 	eventHandler := handlers.NewEventHandler(svcs.EventTracker)
@@ -152,13 +174,21 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 	var liveStatusHandler *handlers.LiveStatusHandler
 	var streamHandler *handlers.StreamHandler
 	var twitchOAuthHandler *handlers.TwitchOAuthHandler
+	var clipStorage storage.ClipStorage
+	uploadValidator := services.NewUploadValidator(cfg.ClipSource, nil)
+
+	if storageClient, err := storage.NewS3ClipStorage(cfg.ClipStorage); err != nil {
+		log.Printf("WARNING: hosted uploads disabled: %v", err)
+	} else {
+		clipStorage = storageClient
+	}
 
 	if svcs.ClipSync != nil {
-		clipSyncHandler = handlers.NewClipSyncHandler(svcs.ClipSync, cfg)
+		clipSyncHandler = handlers.NewClipSyncHandler(svcs.ClipSync)
 	}
 
 	if svcs.LiveStatus != nil {
-		liveStatusHandler = handlers.NewLiveStatusHandler(svcs.LiveStatus, svcs.Auth)
+		liveStatusHandler = handlers.NewLiveStatusHandler(svcs.LiveStatus)
 	}
 
 	// Initialize Twitch-related handlers
@@ -168,7 +198,8 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 	}
 
 	if svcs.Submission != nil {
-		submissionHandler = handlers.NewSubmissionHandler(svcs.Submission)
+		svcs.Submission.SetClipStorage(clipStorage)
+		submissionHandler = handlers.NewSubmissionHandler(svcs.Submission, uploadValidator, clipStorage)
 		// Create moderation handler using services from submission service
 		abuseDetector := svcs.Submission.GetAbuseDetector()
 		moderationEventService := svcs.Submission.GetModerationEventService()
@@ -197,6 +228,7 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 		Clip:                clipHandler,
 		Favorite:            favoriteHandler,
 		Tag:                 tagHandler,
+		TagPromotion:        handlers.NewTagPromotionHandler(svcs.TagPromotion),
 		Search:              searchHandler,
 		Report:              reportHandler,
 		Reputation:          reputationHandler,
@@ -204,16 +236,16 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 		Analytics:           analyticsHandler,
 		Engagement:          engagementHandler,
 		AuditLog:            auditLogHandler,
-		Subscription:        subscriptionHandler,
 		User:                userHandler,
 		AdminUser:           adminUserHandler,
+		AdminOpenAPI:        handlers.NewAdminOpenAPIHandler(),
 		UserSettings:        userSettingsHandler,
 		Consent:             consentHandler,
 		Contact:             contactHandler,
 		SEO:                 seoHandler,
 		Pages:               pagesHandler,
+		Share:               shareHandler,
 		Docs:                docsHandler,
-		Revenue:             revenueHandler,
 		Ad:                  adHandler,
 		Export:              exportHandler,
 		WebhookSubscription: webhookSubscriptionHandler,
@@ -227,6 +259,7 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 		Community:           communityHandler,
 		DiscoveryList:       discoveryListHandler,
 		Category:            categoryHandler,
+		Topic:               topicHandler,
 		Game:                gameHandler,
 		AccountType:         accountTypeHandler,
 		Verification:        verificationHandler,
@@ -238,6 +271,7 @@ func initHandlers(svcs *Services, repos *Repositories, infra *Infrastructure) *H
 		Playlist:            playlistHandler,
 		PlaylistScript:      playlistScriptHandler,
 		Queue:               queueHandler,
+		StreamerClipRoom:    streamerClipRoomHandler,
 		WatchHistory:        watchHistoryHandler,
 		WatchParty:          watchPartyHandler,
 		Event:               eventHandler,

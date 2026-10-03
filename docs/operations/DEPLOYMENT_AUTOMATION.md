@@ -53,17 +53,17 @@ The script will:
 ### Configuration
 
 Set these environment variables:
-- `POSTGRES_USER` (default: clipper)
+- `POSTGRES_USER` (default: clpr)
 - `POSTGRES_PASSWORD` (required)
-- `POSTGRES_DB` (default: clipper_db)
-- `DEPLOY_DIR` (default: /opt/clipper)
+- `POSTGRES_DB` (default: clpr_db)
+- `DEPLOY_DIR` (default: /opt/clpr)
 
 ### Example
 
 ```bash
 # Load secrets securely from a secrets file (recommended)
 export POSTGRES_PASSWORD="$(cat /run/secrets/postgres_password)"
-export DEPLOY_DIR="/opt/clipper"
+export DEPLOY_DIR="/opt/clpr"
 ./scripts/blue-green-deploy.sh
 ```
 
@@ -232,13 +232,13 @@ If migrations fail:
 
 ```bash
 # Check database connectivity
-docker exec clipper-postgres pg_isready -U clipper
+docker exec clpr-postgres pg_isready -U clpr
 
 # Check migration status
 # Note: Use environment variable for DB URL to avoid exposing password in process list
-export CLIPPER_DB_URL="postgresql://clipper:YOUR_PASSWORD@postgres:5432/clipper_db?sslmode=disable"
-docker run --rm --network clipper-network \
-  -v /opt/clipper/backend/migrations:/migrations:ro \
+export CLIPPER_DB_URL="postgresql://clpr:YOUR_PASSWORD@postgres:5432/clpr_db?sslmode=disable"
+docker run --rm --network clpr-network \
+  -v /opt/clpr/backend/migrations:/migrations:ro \
   -e DATABASE_URL="$CLIPPER_DB_URL" \
   migrate/migrate:v4.17.0 \
   -path /migrations \
@@ -274,6 +274,6 @@ If validation incorrectly flags configuration:
 
 ## See Also
 
-- [Blue-Green Deployment Guide](../docs/BLUE_GREEN_DEPLOYMENT.md)
-- [Load Testing Guide](../backend/tests/load/README.md)
-- [Production Hardening Checklist](../docs/PRODUCTION_HARDENING.md)
+- Blue-Green Deployment Guide
+- Load Testing Guide
+- Production Hardening Checklist

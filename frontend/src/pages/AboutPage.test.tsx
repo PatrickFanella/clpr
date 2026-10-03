@@ -1,99 +1,66 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { AboutPage } from './AboutPage';
 
-// Mock the components (include SEO to avoid helmet interactions in tests)
-vi.mock('../components', () => ({
-    Container: ({ children }: { children: React.ReactNode }) => (
-        <div>{children}</div>
-    ),
-    Card: ({ children, id }: { children: React.ReactNode; id?: string }) => (
-        <div id={id}>{children}</div>
-    ),
-    CardBody: ({ children }: { children: React.ReactNode }) => (
-        <div>{children}</div>
-    ),
+vi.mock('../components', async () => {
+  const { Button } = await vi.importActual<typeof import('../components/ui/Button')>('../components/ui/Button');
+  return {
+    Button,
+    Container: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     SEO: () => null,
-}));
+  };
+});
+
+const fetchClipsMock = vi.hoisted(() => vi.fn());
+vi.mock('../lib/clip-api', () => ({ fetchClips: fetchClipsMock }));
 
 describe('AboutPage', () => {
-    it('renders the page title', () => {
-        render(
-            <MemoryRouter>
-                <AboutPage />
-            </MemoryRouter>
-        );
+  const renderPage = () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(<QueryClientProvider client={client}><MemoryRouter><AboutPage /></MemoryRouter></QueryClientProvider>);
+  };
 
-        expect(screen.getByText('About clpr')).toBeInTheDocument();
+  it('presents clpr as a place to find clips by creator, topic and tag', () => {
+    fetchClipsMock.mockResolvedValue({ clips: [] });
+    renderPage();
+    expect(screen.getByRole('heading', { name: /somebody clipped it/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /streams wander/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /what.s in here/i })).toBeInTheDocument();
+  });
+
+  it("shows today's clips and leaves out flagged or thumbnail-less ones", async () => {
+    fetchClipsMock.mockResolvedValue({
+      clips: [
+        { id: 'a', title: 'First clip', broadcaster_name: 'one', thumbnail_url: 'https://example.test/a.jpg' },
+        { id: 'b', title: 'Flagged clip', broadcaster_name: 'two', thumbnail_url: 'https://example.test/b.jpg', is_nsfw: true },
+        { id: 'c', title: 'No thumbnail', broadcaster_name: 'three' },
+      ],
     });
+    renderPage();
+    expect(await screen.findByRole('link', { name: /first clip/i })).toHaveAttribute('href', '/clip/a');
+    expect(screen.queryByText('Flagged clip')).not.toBeInTheDocument();
+    expect(screen.queryByText('No thumbnail')).not.toBeInTheDocument();
+  });
 
-    it('displays the last updated date', () => {
-        render(
-            <MemoryRouter>
-                <AboutPage />
-            </MemoryRouter>
-        );
+  it('omits the live section when no clips load', async () => {
+    fetchClipsMock.mockRejectedValue(new Error('offline'));
+    renderPage();
+    expect(screen.queryByRole('heading', { name: /on clpr right now/i })).not.toBeInTheDocument();
+  });
 
-        expect(screen.getByText(/Last updated:/i)).toBeInTheDocument();
-    });
+  it('does not advertise development or repository links', () => {
+    fetchClipsMock.mockResolvedValue({ clips: [] });
+    const { container } = renderPage();
+    expect(container).not.toHaveTextContent(/open source|technology stack|github/i);
+  });
 
-    it('renders key sections with headings', () => {
-        render(
-            <MemoryRouter>
-                <AboutPage />
-            </MemoryRouter>
-        );
-
-        expect(screen.getByText('What is clpr?')).toBeInTheDocument();
-        expect(screen.getByText('How It Works')).toBeInTheDocument();
-        expect(screen.getByText('Key Features')).toBeInTheDocument();
-        expect(screen.getByText('Open Source & Community')).toBeInTheDocument();
-        expect(screen.getByText('Technology Stack')).toBeInTheDocument();
-        expect(screen.getByText('Get in Touch')).toBeInTheDocument();
-    });
-
-    it('has anchor IDs for navigation', () => {
-        const { container } = render(
-            <MemoryRouter>
-                <AboutPage />
-            </MemoryRouter>
-        );
-
-        expect(container.querySelector('#what-is-clpr')).toBeInTheDocument();
-        expect(container.querySelector('#how-it-works')).toBeInTheDocument();
-        expect(container.querySelector('#features')).toBeInTheDocument();
-        expect(container.querySelector('#open-source')).toBeInTheDocument();
-        expect(container.querySelector('#tech-stack')).toBeInTheDocument();
-        expect(container.querySelector('#contact')).toBeInTheDocument();
-    });
-
-    it('links to GitHub repository', () => {
-        render(
-            <MemoryRouter>
-                <AboutPage />
-            </MemoryRouter>
-        );
-
-        const githubLinks = screen.getAllByText('View on GitHub');
-        expect(githubLinks.length).toBeGreaterThan(0);
-        expect(githubLinks[0]).toHaveAttribute(
-            'href',
-            'https://github.com/subculture-collective/clipper'
-        );
-    });
-
-    it('links to privacy and terms pages', () => {
-        render(
-            <MemoryRouter>
-                <AboutPage />
-            </MemoryRouter>
-        );
-
-        const privacyLink = screen.getByText('Privacy Policy');
-        expect(privacyLink).toHaveAttribute('href', '/privacy');
-
-        const termsLink = screen.getByText('Terms of Service');
-        expect(termsLink).toHaveAttribute('href', '/terms');
-    });
+  it('links to community rules, contact, and Patreon', () => {
+    fetchClipsMock.mockResolvedValue({ clips: [] });
+    renderPage();
+    expect(screen.getByRole('link', { name: /community rules/i })).toHaveAttribute('href', '/community-rules');
+    expect(screen.getByRole('link', { name: /contact us/i })).toHaveAttribute('href', '/contact');
+    expect(screen.getByRole('link', { name: /patreon/i })).toHaveAttribute('href', 'https://support.subcult.tv');
+  });
 });

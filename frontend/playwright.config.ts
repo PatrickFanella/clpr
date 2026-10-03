@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const apiOrigin =
+    process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18088';
+const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+
 /**
  * Playwright E2E Test Configuration
  *
@@ -14,7 +18,7 @@ import { defineConfig, devices } from '@playwright/test';
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-    testDir: './e2e/tests',
+    testDir: './e2e',
 
     /* Maximum time one test can run for */
     timeout: 30 * 1000,
@@ -33,8 +37,8 @@ export default defineConfig({
     /* Retry on CI only - 2 retries as per requirements */
     retries: process.env.CI ? 2 : 0,
 
-    /* Parallel workers - 4 on CI as per requirements, limit to 6 locally to prevent resource exhaustion */
-    workers: process.env.CI ? 4 : 6,
+    /* Keep local and CI concurrency identical so Vite cold-start behavior is deterministic. */
+    workers: 4,
 
     /* Reporter to use - HTML format with CI-friendly list reporter */
     reporter: [
@@ -44,6 +48,9 @@ export default defineConfig({
 
     /* Shared settings for all the projects below */
     use: {
+        /* Keep production service workers from bypassing page.route mocks. */
+        serviceWorkers: 'block',
+
         /* Base URL - configurable via environment variable for local/staging/production */
         baseURL:
             process.env.PLAYWRIGHT_BASE_URL ||
@@ -66,42 +73,52 @@ export default defineConfig({
         navigationTimeout: 30 * 1000,
     },
 
-    /* Configure projects for major browsers */
+    /* Mocked UI checks cannot satisfy the real-backend release gate. */
     projects: [
         {
-            name: 'chromium',
-            use: { ...devices['Desktop Chrome'] },
+            name: 'mocked-chromium',
+            use: {
+                ...devices['Desktop Chrome'],
+                launchOptions: chromiumExecutable
+                    ? { executablePath: chromiumExecutable }
+                    : undefined,
+            },
+            testMatch: /mocked\/.*\.spec\.ts/,
         },
-
         {
-            name: 'firefox',
+            name: 'real-chromium',
+            use: {
+                ...devices['Desktop Chrome'],
+                launchOptions: chromiumExecutable
+                    ? { executablePath: chromiumExecutable }
+                    : undefined,
+            },
+            testMatch: /real-backend\/.*\.spec\.ts/,
+        },
+        {
+            name: 'real-firefox',
             use: { ...devices['Desktop Firefox'] },
+            testMatch: /real-backend\/.*\.spec\.ts/,
         },
-
         {
-            name: 'webkit',
+            name: 'real-webkit',
             use: { ...devices['Desktop Safari'] },
+            testMatch: /real-backend\/.*\.spec\.ts/,
         },
-
-        /* Optionally test against mobile viewports - enable as needed */
-        // {
-        //   name: 'Mobile Chrome',
-        //   use: { ...devices['Pixel 5'] },
-        // },
-        // {
-        //   name: 'Mobile Safari',
-        //   use: { ...devices['iPhone 12'] },
-        // },
     ],
 
     /* Run your local dev server before starting the tests */
     webServer: {
-        command:
-            'VITE_AUTO_CONSENT=true VITE_ENABLE_ANALYTICS=false VITE_API_URL=http://127.0.0.1:8080/api/v1 VITE_STRIPE_PRO_MONTHLY_PRICE_ID=price_e2e_monthly VITE_STRIPE_PRO_YEARLY_PRICE_ID=price_e2e_yearly VITE_E2E_TEST_LOGIN=true VITE_E2E_TEST_USER=user1_e2e' +
-            (process.env.E2E_CDN_FAILOVER_MODE === 'true' ? ' VITE_CDN_FAILOVER_MODE=true' : '') +
-            ' npm run dev -- --host 127.0.0.1',
+        env: {
+            VITE_AUTO_CONSENT: 'true',
+            VITE_ENABLE_ANALYTICS: 'false',
+            VITE_API_BASE_URL: apiOrigin + '/api/v1',
+            VITE_DEV_API_PROXY_TARGET: apiOrigin,
+            ...(process.env.E2E_CDN_FAILOVER_MODE === 'true' ? { VITE_CDN_FAILOVER_MODE: 'true' } : {}),
+        },
+        command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 5173 --strictPort',
         url: 'http://127.0.0.1:5173',
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: false,
         timeout: 120 * 1000, // 120 seconds for CI environments
         stdout: 'pipe',
         stderr: 'pipe',

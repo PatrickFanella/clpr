@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/middleware"
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/internal/middleware"
 )
 
 func registerClipRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra *Infrastructure) {
@@ -13,6 +13,7 @@ func registerClipRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra 
 	{
 		// Public clip endpoints
 		clips.GET("", h.Clip.ListClips)
+		clips.GET("/:id/media", h.Clip.GetClipMedia)
 		clips.GET("/:id", h.Clip.GetClip)
 		clips.GET("/:id/related", h.Clip.GetRelatedClips)
 		clips.GET("/:id/processing-status", middleware.RateLimitMiddleware(infra.Redis, 60, time.Minute), h.Clip.GetClipProcessingStatus)
@@ -22,10 +23,11 @@ func registerClipRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra 
 
 		// Clip tags (public)
 		clips.GET("/:id/tags", h.Tag.GetClipTags)
+		clips.GET("/:id/topics", h.Topic.ListClipTopics)
 
 		// Clip analytics (public)
 		clips.GET("/:id/analytics", h.Analytics.GetClipAnalytics)
-		clips.POST("/:id/track-view", h.Analytics.TrackClipView)
+		clips.POST("/:id/track-view", middleware.RateLimitMiddleware(infra.Redis, 120, time.Minute), h.Analytics.TrackClipView)
 
 		// Clip engagement score (public)
 		clips.GET("/:id/engagement", h.Engagement.GetContentEngagementScore)

@@ -4,9 +4,10 @@ import type { Tag } from './tag';
 
 export interface SearchRequest {
   query: string;
-  type?: 'clips' | 'creators' | 'games' | 'tags' | 'all';
+  type?: 'clips' | 'creators' | 'twitch_categories' | 'games' | 'tags' | 'all';
   sort?: 'relevance' | 'recent' | 'popular';
   gameId?: string;
+  twitchCategoryId?: string;
   creatorId?: string;
   language?: string;
   tags?: string[];
@@ -26,22 +27,25 @@ export interface SearchResponse {
 }
 
 export interface SearchResultsByType {
-  clips?: Clip[];
-  creators?: User[];
-  games?: SearchGame[];
-  tags?: Tag[];
+  clips: Clip[];
+  creators: User[];
+  games: SearchGame[];
+  twitch_categories: SearchGame[];
+  tags: Tag[];
 }
 
 export interface SearchCounts {
   clips: number;
   creators: number;
   games: number;
+  twitch_categories: number;
   tags: number;
 }
 
 export interface SearchFacets {
   languages?: FacetBucket[];
   games?: FacetBucket[];
+  twitch_categories?: FacetBucket[];
   tags?: FacetBucket[];
   date_range?: DateRangeFacet;
 }
@@ -80,6 +84,7 @@ export interface SearchSuggestion {
 
 export interface SearchFilters {
   gameId?: string;
+  twitchCategoryId?: string;
   creatorId?: string;
   language?: string;
   tags?: string[];

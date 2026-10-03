@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/middleware"
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/internal/middleware"
 )
 
 func registerUserRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra *Infrastructure) {
@@ -58,17 +58,9 @@ func registerUserRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra 
 		users.GET("/me/settings", middleware.AuthMiddleware(svcs.Auth), h.UserSettings.GetSettings)
 		users.PUT("/me/settings", middleware.AuthMiddleware(svcs.Auth), h.UserSettings.UpdateSettings)
 
-		// Data export (authenticated, rate limited)
-		users.GET("/me/export", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 1, time.Hour), h.UserSettings.ExportData)
-
 		// Cookie consent management (authenticated, rate limited)
 		users.GET("/me/consent", middleware.AuthMiddleware(svcs.Auth), h.Consent.GetConsent)
 		users.POST("/me/consent", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Consent.SaveConsent)
-
-		// Account deletion (authenticated, rate limited)
-		users.POST("/me/delete", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 1, time.Hour), h.UserSettings.RequestAccountDeletion)
-		users.POST("/me/delete/cancel", middleware.AuthMiddleware(svcs.Auth), h.UserSettings.CancelAccountDeletion)
-		users.GET("/me/delete/status", middleware.AuthMiddleware(svcs.Auth), h.UserSettings.GetDeletionStatus)
 
 		// Email logs for current user (authenticated)
 		users.GET("/me/email-logs", middleware.AuthMiddleware(svcs.Auth), h.EmailMetrics.GetUserEmailLogs)
@@ -83,6 +75,7 @@ func registerUserRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra 
 
 		// Game follows for a user
 		users.GET("/:id/games/following", h.Game.GetFollowedGames)
+		users.GET("/:id/twitch-categories/following", h.Game.GetFollowedGames)
 		// User feeds routes
 		users.GET("/:id/feeds", middleware.OptionalAuthMiddleware(svcs.Auth), h.Feed.ListUserFeeds)
 		users.POST("/:id/feeds", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 10, time.Hour), h.Feed.CreateFeed)
@@ -108,13 +101,13 @@ func registerUserRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra 
 	creators := v1.Group("/creators")
 	{
 		// Public creator analytics endpoints
-		creators.GET("/:creatorName/analytics/overview", h.Analytics.GetCreatorAnalyticsOverview)
-		creators.GET("/:creatorName/analytics/clips", h.Analytics.GetCreatorTopClips)
-		creators.GET("/:creatorName/analytics/trends", h.Analytics.GetCreatorTrends)
-		creators.GET("/:creatorName/analytics/audience", h.Analytics.GetCreatorAudienceInsights)
+		creators.GET("/:creator/analytics/overview", h.Analytics.GetCreatorAnalyticsOverview)
+		creators.GET("/:creator/analytics/clips", h.Analytics.GetCreatorTopClips)
+		creators.GET("/:creator/analytics/trends", h.Analytics.GetCreatorTrends)
+		creators.GET("/:creator/analytics/audience", h.Analytics.GetCreatorAudienceInsights)
 
 		// Creator clips listing (shows hidden clips if authenticated as creator)
-		creators.GET("/:creatorName/clips", middleware.OptionalAuthMiddleware(svcs.Auth), h.Clip.ListCreatorClips)
+		creators.GET("/:creator/clips", middleware.OptionalAuthMiddleware(svcs.Auth), h.Clip.ListCreatorClips)
 
 		// Creator data export routes (authenticated, rate limited)
 		creators.POST("/me/export/request", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 3, 24*time.Hour), h.Export.RequestExport)
@@ -128,6 +121,10 @@ func registerUserRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra 
 	{
 		// Popular broadcasters (must come before /:id route)
 		broadcasters.GET("/popular", h.Broadcaster.ListPopularBroadcasters)
+		broadcasters.GET("/discover", publicCache(infra), h.Broadcaster.ListCreatorDiscovery)
+
+		// Broadcaster rankings by engagement score (must come before /:id route)
+		broadcasters.GET("/rankings", h.Broadcaster.GetBroadcasterRankings)
 
 		// Live status endpoints (must come before /:id route)
 		if h.LiveStatus != nil {
@@ -157,7 +154,7 @@ func registerUserRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra 
 		// Public category endpoints
 		categories.GET("", h.Category.ListCategories)
 		categories.GET("/:slug", h.Category.GetCategory)
-		categories.GET("/:slug/games", h.Category.ListCategoryGames)
-		categories.GET("/:slug/clips", h.Category.ListCategoryClips)
+		categories.GET("/:slug/games", middleware.OptionalAuthMiddleware(svcs.Auth), h.Category.ListCategoryGames)
+		categories.GET("/:slug/clips", publicCache(infra), h.Category.ListCategoryClips)
 	}
 }

@@ -1,10 +1,11 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef, useId } from 'react';
 import { cn } from '@/lib/utils';
 import {
     useTheatreMode,
     useQualityPreference,
     useKeyboardControls,
 } from '@/hooks';
+import { usePlaybackControl } from '@/hooks/usePlaybackControl';
 import type { VideoQuality } from '@/lib/adaptive-bitrate';
 import { HlsPlayer } from './HlsPlayer';
 import { QualitySelector } from './QualitySelector';
@@ -62,6 +63,17 @@ export function TheatreMode({
         togglePictureInPicture,
     } = useTheatreMode();
 
+    // Global playback control — only one video plays at a time
+    const theatrePlayerId = useId();
+    const { requestPlayback, registerPlayer } = usePlaybackControl(`theatre-${theatrePlayerId}`);
+
+    useEffect(() => {
+        const unregister = registerPlayer(() => {
+            videoRef.current?.pause();
+        });
+        return unregister;
+    }, [registerPlayer, videoRef]);
+
     const { quality, setQuality } = useQualityPreference();
     const [bandwidth, setBandwidth] = useState<number>();
     const [bufferHealth, setBufferHealth] = useState(100);
@@ -116,11 +128,12 @@ export function TheatreMode({
         if (!video) return;
 
         if (video.paused) {
+            requestPlayback();
             video.play();
         } else {
             video.pause();
         }
-    }, [videoRef]);
+    }, [videoRef, requestPlayback]);
 
     // Handle mute toggle
     const handleMute = useCallback(() => {
@@ -211,6 +224,21 @@ export function TheatreMode({
             video.removeEventListener('timeupdate', handleTimeUpdate);
         };
     }, [videoRef]);
+
+    // Play tracking — notify global playback control when this video starts
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        const handlePlayEvent = () => {
+            requestPlayback();
+        };
+
+        video.addEventListener('playing', handlePlayEvent);
+        return () => {
+            video.removeEventListener('playing', handlePlayEvent);
+        };
+    }, [videoRef, requestPlayback]);
 
     // Pause tracking
     useEffect(() => {
@@ -354,7 +382,7 @@ export function TheatreMode({
             <div
                 className={cn(
                     'absolute top-0 left-0 right-0 p-4',
-                    'bg-gradient-to-b from-black/80 to-transparent',
+                    'bg-black/70',
                     'transition-opacity duration-300 pointer-events-none',
                     showControls ? 'opacity-100' : 'opacity-0',
                 )}
@@ -395,7 +423,7 @@ export function TheatreMode({
                             </button>
                             <button
                                 onClick={handleResume}
-                                className='flex-1 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded transition-colors'
+                                className='flex-1 px-4 py-2 bg-primary-400 hover:bg-primary-300 text-background rounded transition-colors'
                             >
                                 Resume
                             </button>
@@ -408,7 +436,7 @@ export function TheatreMode({
             <div
                 className={cn(
                     'absolute bottom-0 left-0 right-0 p-4',
-                    'bg-gradient-to-t from-black/80 to-transparent',
+                    'bg-black/75',
                     'transition-opacity duration-300',
                     showControls ?
                         'opacity-100 pointer-events-auto'
@@ -473,7 +501,7 @@ export function TheatreMode({
                                 className={cn(
                                     'px-4 py-2 rounded transition-colors font-medium text-sm',
                                     isTheatreMode ?
-                                        'bg-primary-500 hover:bg-primary-600 text-white'
+                                        'bg-primary-400 hover:bg-primary-300 text-background'
                                     :   'bg-black/60 hover:bg-black/80 text-white',
                                 )}
                                 aria-label={

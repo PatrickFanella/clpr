@@ -602,15 +602,15 @@ Set up alerts for:
 
 ## Related Documentation
 
-- [Twitch Integration Guide](../backend/twitch-integration.md)
-- [API Reference](../backend/api.md)
-- [Caching Strategy](../backend/caching-strategy.md)
-- [User Guide](../users/user-guide.md)
+- Twitch Integration Guide
+- API Reference
+- Caching Strategy
+- User Guide
 
 ## Support
 
 For issues or questions:
 
-- GitHub Issues: [Create an issue](https://github.com/subculture-collective/clipper/issues)
+- GitHub Issues: [Create an issue](https://git.subcult.tv/subculture-collective/clpr/issues)
 - Documentation: [View full docs](../index.md)
-- Community: [Join discussions](https://github.com/subculture-collective/clipper/discussions)
+- Community: [Join discussions](https://git.subcult.tv/subculture-collective/clpr/discussions)

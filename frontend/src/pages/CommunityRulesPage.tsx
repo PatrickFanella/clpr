@@ -1,10 +1,10 @@
-import { Container, Card, CardBody } from '../components';
+import { Container, Card, CardBody, SEO } from '../components';
 
 export function CommunityRulesPage() {
-  const lastUpdated = 'January 15, 2025';
+  const lastUpdated = 'August 11, 2026';
 
   return (
-    <Container className="py-8 max-w-4xl">
+    <><SEO title='Community Rules' description='The rules that keep the clpr community respectful and safe.' canonicalUrl='/community-rules' /><Container className="py-8 max-w-4xl">
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-4">Community Rules</h1>
         <p className="text-sm text-muted-foreground">Last updated: {lastUpdated}</p>
@@ -15,9 +15,7 @@ export function CommunityRulesPage() {
         <Card>
           <CardBody>
             <p className="text-muted-foreground">
-              Welcome to clpr! Our community is built on respect, authenticity, and a shared passion for gaming. 
-              These rules help ensure clpr remains a positive space for everyone to discover, share, and celebrate 
-              amazing gaming moments.
+              clpr is for sharing Twitch clips and talking about them. These rules cover how to treat creators and each other while you do, what you can submit, and what happens when someone breaks them.
             </p>
           </CardBody>
         </Card>
@@ -27,7 +25,7 @@ export function CommunityRulesPage() {
           <CardBody>
             <h2 className="text-2xl font-semibold mb-4">1. Be Respectful and Kind</h2>
             <p className="text-muted-foreground mb-4">
-              Treat all community members with respect and courtesy. We're here to celebrate gaming, not to tear each other down.
+              Treat all community members with respect and courtesy. We're here to celebrate creators and moments, not to tear each other down.
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li>No harassment, hate speech, or discriminatory language</li>
@@ -43,7 +41,7 @@ export function CommunityRulesPage() {
           <CardBody>
             <h2 className="text-2xl font-semibold mb-4">2. Share Authentic Content</h2>
             <p className="text-muted-foreground mb-4">
-              clpr is for genuine gaming highlights. Help maintain quality and authenticity in our community.
+              clpr is for genuine moments from live creators. Help maintain quality and authenticity in our community.
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li>Only submit clips from legitimate Twitch streams</li>
@@ -76,7 +74,7 @@ export function CommunityRulesPage() {
           <CardBody>
             <h2 className="text-2xl font-semibold mb-4">4. Keep Content Safe and Appropriate</h2>
             <p className="text-muted-foreground mb-4">
-              clpr should be accessible to a wide gaming audience. Some content doesn't belong here.
+              clpr should be accessible to a broad audience across many creator communities. Some content doesn't belong here.
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li>No NSFW (Not Safe For Work) content</li>
@@ -97,7 +95,7 @@ export function CommunityRulesPage() {
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li>Don't share personal information without consent</li>
               <li>No doxxing or revealing private details about others</li>
-              <li>Respect streamers' and creators' boundaries</li>
+              <li>Respect creators' boundaries</li>
               <li>Report content that violates someone's privacy</li>
             </ul>
           </CardBody>
@@ -114,7 +112,7 @@ export function CommunityRulesPage() {
               <li>Respect copyright and intellectual property rights</li>
               <li>Don't share pirated content or encourage illegal activities</li>
               <li>Comply with Twitch's Terms of Service and Community Guidelines</li>
-              <li>Follow any additional game-specific or publisher guidelines</li>
+              <li>Follow any applicable creator, category, or rights-holder guidelines</li>
             </ul>
           </CardBody>
         </Card>
@@ -163,16 +161,15 @@ export function CommunityRulesPage() {
               If you have questions about these rules or want to report a concern, you can:
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
-              <li>Open an issue on our <a href="https://github.com/subculture-collective/clipper" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">GitHub repository</a></li>
               <li>Contact the moderation team through the platform's report feature</li>
-              <li>Join our community Discord for general questions</li>
+              <li>Email <a href="mailto:support@clpr.tv" className="text-link underline underline-offset-2">support@clpr.tv</a> for questions or concerns</li>
             </ul>
             <p className="text-muted-foreground mt-4">
-              Thank you for being part of the clpr community and helping make it a great place for all gamers! 🎮
+              Thank you for helping make clpr a great place for creators, viewers, and clip fans.
             </p>
           </CardBody>
         </Card>
       </div>
-    </Container>
+    </Container></>
   );
 }

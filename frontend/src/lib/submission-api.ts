@@ -1,3 +1,4 @@
+import type { AxiosProgressEvent } from 'axios';
 import apiClient from './api';
 import type {
   SubmitClipRequest,
@@ -33,6 +34,13 @@ export interface ClipMetadata {
   url: string;
 }
 
+export interface SubmitClipUploadRequest {
+  file: File;
+  custom_title?: string;
+  is_nsfw: boolean;
+  submission_reason?: string;
+}
+
 /**
  * Submit a clip for moderation
  */
@@ -43,6 +51,30 @@ export async function submitClip(
     '/submissions',
     request
   );
+  return response.data;
+}
+
+/**
+ * Upload a clip video for moderation
+ */
+export async function submitClipUpload(
+  request: SubmitClipUploadRequest,
+  onUploadProgress?: (progressEvent: AxiosProgressEvent) => void
+): Promise<SubmissionResponse> {
+  const formData = new FormData();
+  formData.append('file', request.file);
+  formData.append('custom_title', request.custom_title?.trim() || '');
+  formData.append('is_nsfw', String(request.is_nsfw));
+  formData.append('submission_reason', request.submission_reason?.trim() || '');
+
+  const response = await apiClient.post<SubmissionResponse>(
+    '/submissions/upload',
+    formData,
+    {
+      onUploadProgress,
+    }
+  );
+
   return response.data;
 }
 
@@ -82,7 +114,17 @@ export async function getUserSubmissions(
       params: { page, limit },
     }
   );
-  return response.data;
+  const payload = response.data;
+  return {
+    success: payload?.success ?? true,
+    data: Array.isArray(payload?.data) ? payload.data : [],
+    meta: {
+      page: payload?.meta?.page ?? page,
+      limit: payload?.meta?.limit ?? limit,
+      total: payload?.meta?.total ?? 0,
+      total_pages: payload?.meta?.total_pages ?? 0,
+    },
+  };
 }
 
 /**

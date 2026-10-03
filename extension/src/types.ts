@@ -1,5 +1,5 @@
 /**
- * Shared type definitions for the Clipper browser extension.
+ * Shared type definitions for the clpr browser extension.
  */
 
 /** Represents the current authentication state stored in chrome.storage.local */
@@ -18,7 +18,7 @@ export interface TwitchClipInfo {
   channel?: string;
 }
 
-/** Clip metadata returned by the Clipper API */
+/** Clip metadata returned by the clpr API */
 export interface ClipMetadata {
   clip_id: string;
   title: string;
@@ -31,7 +31,7 @@ export interface ClipMetadata {
   url: string;
 }
 
-/** Tag as returned by the Clipper API */
+/** Tag as returned by the clpr API */
 export interface Tag {
   id: string;
   name: string;
@@ -76,6 +76,6 @@ export interface ExtensionConfig {
 }
 
 export const DEFAULT_CONFIG: ExtensionConfig = {
-  apiBaseUrl: 'https://api.clipper.gg/api/v1',
-  frontendUrl: 'https://clipper.gg',
+  apiBaseUrl: 'https://clpr.tv/api/v1',
+  frontendUrl: 'https://clpr.tv',
 };

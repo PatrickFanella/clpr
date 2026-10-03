@@ -53,8 +53,8 @@ Complete OpenAPI 3.1 specification documenting all 474+ API endpoints for the Cl
 
 > ⚠️ **Note**: These are maintained for backward compatibility but `openapi.yaml` is now the single source of truth.
 
-- [`clip-submission-api.yaml`](./clip-submission-api.yaml) - Clip submission workflow
-- [`comments-api.yaml`](./comments-api.yaml) - Comment threading system
+- `clip-submission-api.yaml` - Clip submission workflow
+- `comments-api.yaml` - Comment threading system
 
 ## 🚀 Quick Start
 
@@ -159,7 +159,7 @@ npx @openapitools/openapi-generator-cli generate \
   -i docs/openapi/openapi.yaml \
   -g typescript-axios \
   -o generated/typescript-client \
-  --additional-properties=npmName=@clipper/api-client,npmVersion=1.0.0
+  --additional-properties=npmName=@clpr/api-client,npmVersion=1.0.0
 ```
 
 ### TypeScript/JavaScript (Fetch)
@@ -178,7 +178,7 @@ npx @openapitools/openapi-generator-cli generate \
   -i docs/openapi/openapi.yaml \
   -g python \
   -o generated/python-client \
-  --additional-properties=packageName=clipper_api,packageVersion=1.0.0
+  --additional-properties=packageName=clpr_api,packageVersion=1.0.0
 ```
 
 ### Go
@@ -188,7 +188,7 @@ npx @openapitools/openapi-generator-cli generate \
   -i docs/openapi/openapi.yaml \
   -g go \
   -o generated/go-client \
-  --additional-properties=packageName=clipper
+  --additional-properties=packageName=clpr
 ```
 
 ### Other Languages
@@ -223,7 +223,7 @@ Most endpoints require JWT Bearer authentication:
 ```bash
 # Example authenticated request
 curl -H "Authorization: Bearer YOUR_TOKEN" \
-  https://api.clpr.tv/api/v1/clips
+  https://clpr.tv/api/v1/clips
 ```
 
 **Getting a Token:**
@@ -246,17 +246,14 @@ Rate limit headers in responses:
 
 ## 🌍 API Environments
 
-### Development
-- Base URL: `http://localhost:8080`
-- Use for local development and testing
-
-### Staging
-- Base URL: `https://staging.clpr.tv`
-- Pre-production environment for integration testing
-
 ### Production
-- Base URL: `https://api.clpr.tv`
-- Production API with full SLA and monitoring
+- Base URL: `https://clpr.tv` (every path includes its `/api/v1` prefix)
+- Only `/health` and `/health/ready` are public among the unversioned
+  routes; operations marked `x-clpr-internal-only` are reachable only on the
+  private network
+
+### Local development
+- Base URL: `http://localhost:8080` when running the backend locally
 
 ## 📝 Specification Structure
 
@@ -334,11 +331,11 @@ Access the generated API documentation through the admin dashboard:
 
 ## 🔗 Related Documentation
 
-- [Main API Documentation](../backend/api.md)
-- [Clip Submission Guide](../CLIP_SUBMISSION_API_GUIDE.md)
-- [Authentication Guide](../backend/authentication.md)
-- [Rate Limiting](../backend/rate-limiting.md)
-- [WebSocket API](../backend/websocket-api.md)
+- Main API Documentation
+- Clip Submission Guide
+- Authentication Guide
+- Rate Limiting
+- WebSocket API
 
 ## 🐛 Troubleshooting
 
@@ -365,8 +362,8 @@ The spec documents all 474+ endpoints. If an endpoint is missing or incorrect:
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/subculture-collective/clipper/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/subculture-collective/clipper/discussions)
+- **Issues**: [GitHub Issues](https://git.subcult.tv/subculture-collective/clpr/issues)
+- **Discussions**: [GitHub Discussions](https://git.subcult.tv/subculture-collective/clpr/discussions)
 - **Email**: support@clpr.tv
 
 ## 📜 License

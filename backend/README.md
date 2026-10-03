@@ -65,11 +65,11 @@ backend/
    ```bash
    # macOS
    brew install golang-migrate
-   
+
    # Linux
    curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
    sudo mv migrate /usr/local/bin/
-   
+
    # Or using Go
    go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
    ```
@@ -93,10 +93,10 @@ backend/
    ```bash
    # From project root
    make migrate-up
-   
+
    # Or from backend directory
    cd backend
-   migrate -path migrations -database "postgresql://clipper:clipper_password@localhost:5436/clipper_db?sslmode=disable" up
+   migrate -path migrations -database "postgresql://clpr:clpr_password@localhost:5436/clpr_db?sslmode=disable" up
    ```
 
 7. (Optional) Seed database with sample data:
@@ -112,7 +112,7 @@ backend/
 8. Run the server:
 
    ```bash
-   go run cmd/api/main.go
+  go run ./cmd/api
    ```
 
 The server will start on `http://localhost:8080`
@@ -244,9 +244,12 @@ Go models for all database tables are defined in `internal/models/models.go`:
 ### Health Check
 
 - `GET /health` - Basic server health check
-- `GET /health/ready` - Readiness check (includes database and Redis connectivity)
+- `GET /health/ready` - Minimal readiness status (dependency details remain private)
 - `GET /health/live` - Liveness check
-- `GET /health/stats` - Database connection pool statistics
+- `GET /internal/operations/database` - Database pool statistics (operational bearer token required)
+- `GET /internal/operations/cache` - Cache statistics (operational bearer token required)
+- `GET /internal/operations/webhooks` - Webhook retry statistics (operational bearer token required)
+- `GET /internal/operations/metrics` - Prometheus metrics (operational bearer token required)
 
 ### Authentication
 
@@ -328,6 +331,7 @@ See `.env.example` for all available configuration options:
 - **Redis**: Host, port, password
 - **JWT**: Private/public keys for authentication
 - **Twitch**: OAuth credentials
+- **Clip**: Submission quality and storage settings (`CLIP_*` env vars)
 - **Stripe**: Payment integration
 - **Email**: SendGrid integration
 - **OpenSearch**: Search service connection
@@ -357,6 +361,35 @@ REC_CACHE_TTL_HOURS=24          # Cache TTL in hours (default: 24)
 ```
 
 For optimization guidance, see `../docs/CF-OPTIMIZATION-RESULTS.md`.
+
+### Clip Submission Storage Configuration
+
+These settings are wired for backend configuration and validation; the app does not ship a direct upload flow here.
+
+```bash
+CLIP_MAX_DURATION_SECONDS=60
+CLIP_RECOMMENDED_DURATION_SECONDS=60
+CLIP_MAX_UPLOAD_BYTES=104857600
+CLIP_ALLOWED_UPLOAD_MIME_TYPES=video/mp4,video/webm,video/quicktime
+CLIP_REQUIRE_MODERATION_FOR_UPLOAD=false
+CLIP_STORAGE_PROVIDER=local
+CLIP_STORAGE_ENDPOINT=
+CLIP_STORAGE_BUCKET=
+CLIP_STORAGE_REGION=us-east-1
+CLIP_STORAGE_ACCESS_KEY=
+CLIP_STORAGE_SECRET_KEY=
+CLIP_STORAGE_FORCE_PATH_STYLE=false
+CLIP_STORAGE_PUBLIC_BASE_URL=
+CLIP_MEDIA_PUBLIC_BASE_URL=
+```
+
+Direct clip media is exposed through the app-owned redirect endpoint
+`/api/v1/clips/{id}/media`. When `video_url` points at object storage, clip API
+responses rewrite it to that endpoint, and the endpoint redirects to the resolved
+storage URL without proxying video bytes through the backend. Set
+`CLIP_MEDIA_PUBLIC_BASE_URL` (for example, `https://clpr.tv/api/v1/clips`) when
+clients need absolute app-owned media URLs; otherwise responses use a relative
+API path.
 
 - **Redis**: Host, port, password
 - **JWT**: Secret key, token expiration
@@ -471,13 +504,13 @@ The backend includes evaluation frameworks for assessing the quality of search a
 ### Recommendation Evaluation
 - **Metrics**: Precision@k, Recall@k, nDCG, Diversity, Serendipity, Cold-start performance
 - **Dataset**: `testdata/recommendation_evaluation_dataset.yaml`
-- **CLI tools**: 
+- **CLI tools**:
   - `cmd/evaluate-recommendations` - Run evaluations
   - `cmd/grid-search-recommendations` - Parameter optimization
-- **Makefile**: 
+- **Makefile**:
   - `make evaluate-recommendations` or `make evaluate-recommendations-json`
   - `make grid-search-recommendations` or `make grid-search-recommendations-full`
-- **Documentation**: 
+- **Documentation**:
   - `../docs/RECOMMENDATION-EVALUATION.md` - Evaluation framework
   - `../docs/CF-OPTIMIZATION-RESULTS.md` - Optimization results and A/B test plan
 - **CI**: Runs nightly via GitHub Actions (`.github/workflows/recommendation-evaluation.yml`)

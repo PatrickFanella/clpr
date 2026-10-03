@@ -1,7 +1,7 @@
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Container, SEO } from '../components';
-import { TwitchPlayer, ClipCreator, StreamFollowButton, TwitchChatEmbed } from '../components/stream';
+import { TwitchPlayer, ClipCreator, StreamFollowButton, TwitchChatEmbed, LiveIndicator } from '../components/stream';
 import { fetchStreamStatus } from '../lib/stream-api';
 import { ClipCard } from '../components/clip';
 import { fetchBroadcasterClips } from '../lib/broadcaster-api';
@@ -33,7 +33,7 @@ export function StreamPage() {
     return (
       <Container>
         <div className="text-center py-12">
-          <p className="text-gray-400">Invalid stream URL</p>
+          <p className="text-muted-foreground">Invalid stream URL</p>
         </div>
       </Container>
     );
@@ -50,7 +50,7 @@ export function StreamPage() {
         }
       />
 
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="min-h-screen bg-background">
         {/* Stream Player and Chat Container */}
         <div className="w-full bg-black">
           <div className="max-w-[2000px] mx-auto">
@@ -74,51 +74,56 @@ export function StreamPage() {
         <Container className="py-6">
           <div className="mb-8">
             <div className="flex items-center gap-4 mb-4 flex-wrap">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-3xl font-bold text-foreground">
                 {streamer}
               </h1>
               {streamInfo?.is_live && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                  <span className="w-2 h-2 mr-2 bg-red-500 rounded-full animate-pulse"></span>
-                  LIVE
-                </span>
+                <LiveIndicator viewerCount={streamInfo.viewer_count} />
               )}
-              {/* Follow Button */}
-              <StreamFollowButton streamerUsername={streamer} />
-              
-              {/* Chat Controls */}
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  onClick={() => setShowChat(!showChat)}
-                  className="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
-                >
-                  {showChat ? 'Hide Chat' : 'Show Chat'}
-                </button>
-                {showChat && (
-                  <select
-                    value={chatPosition}
-                    onChange={(e) => setChatPosition(e.target.value as 'side' | 'bottom')}
-                    className="px-3 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                {/* Follow Button */}
+                <StreamFollowButton streamerUsername={streamer} />
+
+                {/* Chat Controls */}
+                <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
+                  {isAuthenticated && (
+                    <Link
+                      to={`/streamer-tools/${encodeURIComponent(streamer)}/clips`}
+                      className="px-3 py-1 text-sm rounded border border-purple-500 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                    >
+                      Clip Room
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => setShowChat(!showChat)}
+                    className="px-3 py-1 text-sm rounded border border-border hover:bg-surface-hover text-foreground"
                   >
-                    <option value="side">Side</option>
-                    <option value="bottom">Bottom</option>
-                  </select>
-                )}
-                {/* Create Clip Button - only show if stream is live and user is authenticated */}
-                {streamInfo?.is_live && isAuthenticated && (
-                  <ClipCreator streamer={streamer} />
-                )}
-              </div>
+                    {showChat ? 'Hide Chat' : 'Show Chat'}
+                  </button>
+                  {showChat && (
+                    <select
+                      value={chatPosition}
+                      onChange={(e) => setChatPosition(e.target.value as 'side' | 'bottom')}
+                      className="px-3 py-1 text-sm rounded border border-border bg-surface text-foreground"
+                    >
+                      <option value="side">Side</option>
+                      <option value="bottom">Bottom</option>
+                    </select>
+                  )}
+                  {/* Create Clip Button - only show if stream is live and user is authenticated */}
+                  {streamInfo?.is_live && isAuthenticated && (
+                    <ClipCreator streamer={streamer} />
+                  )}
+                </div>
             </div>
 
             {streamInfo?.is_live && streamInfo.title && (
               <div className="space-y-2">
-                <h2 className="text-xl text-gray-800 dark:text-gray-200">
+                <h2 className="text-xl text-foreground">
                   {streamInfo.title}
                 </h2>
                 {streamInfo.game_name && (
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Playing: {streamInfo.game_name}
+                  <p className="text-muted-foreground">
+                    Twitch category: {streamInfo.game_name}
                   </p>
                 )}
               </div>
@@ -127,7 +132,7 @@ export function StreamPage() {
 
           {/* Recent Clips */}
           <div className="mt-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+            <h2 className="text-2xl font-bold mb-6 text-foreground">
               Recent Clips
             </h2>
 
@@ -135,7 +140,7 @@ export function StreamPage() {
               <div className="flex justify-center items-center py-12">
                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
               </div>
-            ) : clipsData?.data.length ? (
+            ) : clipsData?.data?.length ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {clipsData.data.map((clip) => (
                   <ClipCard key={clip.id} clip={clip} />
@@ -143,7 +148,7 @@ export function StreamPage() {
               </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400">
+                <p className="text-muted-foreground">
                   No clips available yet
                 </p>
               </div>

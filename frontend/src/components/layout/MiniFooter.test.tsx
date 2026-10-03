@@ -1,7 +1,25 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { useRef } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { MiniFooter } from './MiniFooter';
+import { useRegisterTwitchPlayer } from '@/hooks/useTwitchPlayerLayer';
+
+function Player() {
+  const ref = useRef<HTMLDivElement>(null);
+  useRegisterTwitchPlayer(ref, true);
+  return <div ref={ref} data-testid='player' />;
+}
+
+// The player spans the viewport's left side, where the fixed button sits.
+function stubPlayerUnderButton(playerLeft: number) {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const rect = this.dataset.testid === 'player'
+      ? { left: playerLeft, top: 100, right: playerLeft + 800, bottom: 700, width: 800, height: 600 }
+      : { left: 32, top: 599, right: 88, bottom: 655, width: 56, height: 56 };
+    return rect as DOMRect;
+  });
+}
 
 // Wrapper component for router context
 const RouterWrapper = ({ children }: { children: React.ReactNode }) => (
@@ -77,11 +95,10 @@ describe('MiniFooter', () => {
     const expandButton = screen.getByRole('button', { name: /show footer links/i });
     fireEvent.click(expandButton);
     
-    // Check GitHub link
-    const githubLink = screen.getByRole('link', { name: /github/i });
-    expect(githubLink).toHaveAttribute('href', 'https://github.com/subculture-collective/clipper');
-    expect(githubLink).toHaveAttribute('target', '_blank');
-    expect(githubLink).toHaveAttribute('rel', 'noopener noreferrer');
+    const patreonLink = screen.getByRole('link', { name: /patreon/i });
+    expect(patreonLink).toHaveAttribute('href', 'https://support.subcult.tv');
+    expect(patreonLink).toHaveAttribute('target', '_blank');
+    expect(patreonLink).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it('should have proper accessibility attributes on buttons', () => {
@@ -107,19 +124,21 @@ describe('MiniFooter', () => {
     expect(screen.queryByText(/quick links/i)).not.toBeInTheDocument();
   });
 
-  it('should be positioned at bottom-left', () => {
-    const { container } = render(<MiniFooter />, { wrapper: RouterWrapper });
-    
-    const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper.className).toContain('fixed');
-    expect(wrapper.className).toContain('bottom-4');
-    expect(wrapper.className).toContain('left-4');
-  });
+  describe('around Twitch players', () => {
+    afterEach(() => vi.restoreAllMocks());
 
-  it('should have proper z-index for layering', () => {
-    const { container } = render(<MiniFooter />, { wrapper: RouterWrapper });
-    
-    const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper.className).toContain('z-40');
+    it('steps aside while it would cover a player', () => {
+      stubPlayerUnderButton(0);
+      render(<><Player /><MiniFooter /></>, { wrapper: RouterWrapper });
+      const button = screen.getByRole('button', { name: /show footer links/i, hidden: true });
+      expect(button.parentElement).toHaveClass('invisible');
+    });
+
+    it('stays visible when the player is elsewhere', () => {
+      stubPlayerUnderButton(400);
+      render(<><Player /><MiniFooter /></>, { wrapper: RouterWrapper });
+      const button = screen.getByRole('button', { name: /show footer links/i });
+      expect(button.parentElement).not.toHaveClass('invisible');
+    });
   });
 });

@@ -267,6 +267,24 @@ describe('CommentItem - Collapse/Expand Badge', () => {
   });
 
   describe('Deleted/removed comments', () => {
+    it('should show creator restriction message for hidden comments', () => {
+      const comment = createMockComment({
+        is_hidden_by_creator_moderation: true,
+        creator_moderation_message: 'Backend supplied moderation message that must be ignored',
+        child_count: 0,
+        replies: [],
+      });
+
+      renderWithClient(<CommentItem comment={comment} clipId="clip-1" />);
+
+      expect(
+        screen.getByText(
+          "This comment is hidden because your account is restricted from interacting with this creator's content.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Test comment')).not.toBeInTheDocument();
+    });
+
     it('should show collapse badge for deleted comment with replies', () => {
       const comment = createMockComment({
         is_deleted: true,
@@ -477,23 +495,6 @@ describe('CommentItem - Collapse/Expand Badge', () => {
 
       // Should show continue thread link with count
       expect(screen.getByText(/View 3 more replies in thread/i)).toBeInTheDocument();
-    });
-
-    it('should have correct link styling and classes', () => {
-      const comment = createMockComment({
-        child_count: 5,
-        replies: [createMockComment({ id: 'reply-1' })],
-      });
-
-      renderWithClient(<CommentItem comment={comment} clipId="clip-1" depth={10} maxDepth={10} />);
-
-      const link = screen.getByText(/View 5 more replies in thread/i);
-
-      // Check for expected classes
-      expect(link).toHaveClass('text-sm');
-      expect(link).toHaveClass('text-primary-500');
-      expect(link).toHaveClass('hover:text-primary-600');
-      expect(link).toHaveClass('inline-block');
     });
 
     it('should use correct clipId in link URL', () => {

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Helmet } from '@dr.pogodin/react-helmet';
+import { Helmet, HelmetProvider } from '@dr.pogodin/react-helmet';
+import { resolveSiteUrl } from '../lib/site-url';
 
 export interface SEOProps {
     title?: string;
@@ -7,6 +8,9 @@ export interface SEOProps {
     canonicalUrl?: string;
     ogType?: 'website' | 'article' | 'video.other';
     ogImage?: string;
+    imageAlt?: string;
+    imageWidth?: string;
+    imageHeight?: string;
     ogVideo?: string;
     ogVideoType?: string;
     ogVideoWidth?: string;
@@ -20,11 +24,14 @@ export interface SEOProps {
     structuredData?: Record<string, unknown>;
 }
 
-const DEFAULT_TITLE = 'Clipper - Community-Driven Twitch Clip Curation';
+const DEFAULT_TITLE = 'clpr - Twitch clips by creator, topic and tag';
 const DEFAULT_DESCRIPTION =
-    'Discover, share, and vote on the best Twitch clips. Join our community to curate and enjoy the most entertaining moments from your favorite streamers.';
-const DEFAULT_IMAGE = '/clpr-banner-1021px.png';
-const SITE_NAME = 'Clipper';
+    'Twitch clips by creator, topic and tag. Playlists for the ones you keep sending people.';
+const DEFAULT_IMAGE = '/social-card.png';
+const DEFAULT_IMAGE_ALT =
+    "clpr: Somebody clipped it. It's probably in here. Twitch clips by creator, topic and tag.";
+const SITE_NAME = 'clpr';
+const TWITTER_HANDLE = '@clpr_tv';
 
 export function SEO({
     title,
@@ -32,6 +39,9 @@ export function SEO({
     canonicalUrl,
     ogType = 'website',
     ogImage = DEFAULT_IMAGE,
+    imageAlt = DEFAULT_IMAGE_ALT,
+    imageWidth,
+    imageHeight,
     ogVideo,
     ogVideoType,
     ogVideoWidth,
@@ -45,13 +55,20 @@ export function SEO({
     structuredData,
 }: SEOProps) {
     const fullTitle = title ? `${title} | ${SITE_NAME}` : DEFAULT_TITLE;
-    const baseUrl = import.meta.env.VITE_BASE_URL || window.location.origin;
-    const fullCanonicalUrl =
-        canonicalUrl ?
-            `${baseUrl}${canonicalUrl}`
-        :   window.location.href.split('?')[0];
-    const fullOgImage =
-        ogImage.startsWith('http') ? ogImage : `${baseUrl}${ogImage}`;
+    const configuredSiteUrl =
+        import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.VITE_BASE_URL;
+    const fullCanonicalUrl = resolveSiteUrl(
+        canonicalUrl ?? window.location.pathname,
+        configuredSiteUrl,
+        window.location.origin,
+    );
+    const fullOgImage = ogImage.startsWith('http')
+        ? ogImage
+        : resolveSiteUrl(ogImage, configuredSiteUrl, window.location.origin);
+    const resolvedImageWidth =
+        imageWidth ?? (ogImage === DEFAULT_IMAGE ? '1200' : undefined);
+    const resolvedImageHeight =
+        imageHeight ?? (ogImage === DEFAULT_IMAGE ? '630' : undefined);
 
     useEffect(() => {
         // Update meta theme-color based on dark mode if needed
@@ -69,58 +86,80 @@ export function SEO({
         robotsContent.length > 0 ? robotsContent.join(', ') : undefined;
 
     return (
-        <Helmet>
-            {/* Basic Meta Tags */}
-            <title>{fullTitle}</title>
-            <meta name='description' content={description} />
-            {robots && <meta name='robots' content={robots} />}
-            <link rel='canonical' href={fullCanonicalUrl} />
+        <HelmetProvider>
+            <Helmet>
+                {/* Basic Meta Tags */}
+                <title>{fullTitle}</title>
+                <meta name="description" content={description} />
+                {robots && <meta name="robots" content={robots} />}
+                <link rel="canonical" href={fullCanonicalUrl} />
 
-            {/* Open Graph Meta Tags */}
-            <meta property='og:site_name' content={SITE_NAME} />
-            <meta property='og:title' content={fullTitle} />
-            <meta property='og:description' content={description} />
-            <meta property='og:type' content={ogType} />
-            <meta property='og:url' content={fullCanonicalUrl} />
-            <meta property='og:image' content={fullOgImage} />
-            {ogVideo && <meta property='og:video' content={ogVideo} />}
-            {ogVideoType && (
-                <meta property='og:video:type' content={ogVideoType} />
-            )}
-            {ogVideoWidth && (
-                <meta property='og:video:width' content={ogVideoWidth} />
-            )}
-            {ogVideoHeight && (
-                <meta property='og:video:height' content={ogVideoHeight} />
-            )}
+                {/* Open Graph Meta Tags */}
+                <meta property="og:site_name" content={SITE_NAME} />
+                <meta property="og:locale" content="en_US" />
+                <meta property="og:title" content={fullTitle} />
+                <meta property="og:description" content={description} />
+                <meta property="og:type" content={ogType} />
+                <meta property="og:url" content={fullCanonicalUrl} />
+                <meta property="og:image" content={fullOgImage} />
+                <meta property="og:image:secure_url" content={fullOgImage} />
+                {resolvedImageWidth && (
+                    <meta
+                        property="og:image:width"
+                        content={resolvedImageWidth}
+                    />
+                )}
+                {resolvedImageHeight && (
+                    <meta
+                        property="og:image:height"
+                        content={resolvedImageHeight}
+                    />
+                )}
+                <meta property="og:image:alt" content={imageAlt} />
+                {ogVideo && <meta property="og:video" content={ogVideo} />}
+                {ogVideoType && (
+                    <meta property="og:video:type" content={ogVideoType} />
+                )}
+                {ogVideoWidth && (
+                    <meta property="og:video:width" content={ogVideoWidth} />
+                )}
+                {ogVideoHeight && (
+                    <meta property="og:video:height" content={ogVideoHeight} />
+                )}
 
-            {/* Twitter Card Meta Tags */}
-            <meta name='twitter:card' content={twitterCard} />
-            <meta name='twitter:title' content={fullTitle} />
-            <meta name='twitter:description' content={description} />
-            <meta name='twitter:image' content={fullOgImage} />
-            {twitterPlayer && (
-                <meta name='twitter:player' content={twitterPlayer} />
-            )}
-            {twitterPlayerWidth && (
-                <meta
-                    name='twitter:player:width'
-                    content={twitterPlayerWidth}
-                />
-            )}
-            {twitterPlayerHeight && (
-                <meta
-                    name='twitter:player:height'
-                    content={twitterPlayerHeight}
-                />
-            )}
+                {/* Twitter Card Meta Tags */}
+                <meta name="twitter:card" content={twitterCard} />
+                <meta name="twitter:site" content={TWITTER_HANDLE} />
+                <meta name="twitter:creator" content={TWITTER_HANDLE} />
+                <meta name="twitter:domain" content="clpr.tv" />
+                <meta name="twitter:url" content={fullCanonicalUrl} />
+                <meta name="twitter:title" content={fullTitle} />
+                <meta name="twitter:description" content={description} />
+                <meta name="twitter:image" content={fullOgImage} />
+                <meta name="twitter:image:alt" content={imageAlt} />
+                {twitterPlayer && (
+                    <meta name="twitter:player" content={twitterPlayer} />
+                )}
+                {twitterPlayerWidth && (
+                    <meta
+                        name="twitter:player:width"
+                        content={twitterPlayerWidth}
+                    />
+                )}
+                {twitterPlayerHeight && (
+                    <meta
+                        name="twitter:player:height"
+                        content={twitterPlayerHeight}
+                    />
+                )}
 
-            {/* Structured Data (JSON-LD) */}
-            {structuredData && (
-                <script type='application/ld+json'>
-                    {JSON.stringify(structuredData)}
-                </script>
-            )}
-        </Helmet>
+                {/* Structured Data (JSON-LD) */}
+                {structuredData && (
+                    <script type="application/ld+json">
+                        {JSON.stringify(structuredData)}
+                    </script>
+                )}
+            </Helmet>
+        </HelmetProvider>
     );
 }

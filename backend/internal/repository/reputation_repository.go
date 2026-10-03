@@ -3,12 +3,19 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/subculture-collective/clipper/internal/models"
+)
+
+var (
+	ErrBadgeNotFound       = errors.New("badge not awarded to user")
+	ErrBadgeAlreadyAwarded = errors.New("badge already awarded")
 )
 
 // ReputationRepository handles reputation-related database operations
@@ -130,6 +137,67 @@ func (r *ReputationRepository) RemoveBadge(ctx context.Context, userID uuid.UUID
 	return nil
 }
 
+// ApplyAdminBadgeMutation enforces the administrator hierarchy and commits the
+// badge mutation and its audit record atomically.
+func (r *ReputationRepository) ApplyAdminBadgeMutation(ctx context.Context, userID, actorID uuid.UUID, badgeID string, award bool) error {
+	if userID == actorID {
+		return ErrAdminSelfMutation
+	}
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var actorRole, targetRole string
+	if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 FOR UPDATE`, actorID).Scan(&actorRole); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrAdminRequired
+		}
+		return err
+	}
+	if actorRole != models.RoleAdmin {
+		return ErrAdminRequired
+	}
+	if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&targetRole); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+	if targetRole == models.RoleAdmin {
+		return ErrProtectedAdminTarget
+	}
+
+	action := "award_badge"
+	if award {
+		result, err := tx.Exec(ctx, `INSERT INTO user_badges (user_id, badge_id, awarded_by) VALUES ($1, $2, $3) ON CONFLICT (user_id, badge_id) DO NOTHING`, userID, badgeID, actorID)
+		if err != nil {
+			return err
+		}
+		if result.RowsAffected() == 0 {
+			return ErrBadgeAlreadyAwarded
+		}
+	} else {
+		action = "remove_badge"
+		result, err := tx.Exec(ctx, `DELETE FROM user_badges WHERE user_id = $1 AND badge_id = $2`, userID, badgeID)
+		if err != nil {
+			return err
+		}
+		if result.RowsAffected() == 0 {
+			return ErrBadgeNotFound
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO moderation_audit_logs
+			(id, action, entity_type, entity_id, moderator_id, actor_id, target_user_id, reason, created_at)
+		VALUES ($1, $2, 'user', $3, $4, $4, $3, $5, NOW())`,
+		uuid.New(), action, userID, actorID, "badge: "+badgeID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // GetUserStats retrieves user statistics
 func (r *ReputationRepository) GetUserStats(ctx context.Context, userID uuid.UUID) (*models.UserStats, error) {
 	query := `
@@ -230,7 +298,7 @@ func (r *ReputationRepository) CalculateEngagementScore(ctx context.Context, use
 // GetKarmaLeaderboard returns top users by karma score
 func (r *ReputationRepository) GetKarmaLeaderboard(ctx context.Context, limit, offset int) ([]models.LeaderboardEntry, error) {
 	query := `
-		SELECT id, username, display_name, avatar_url, karma_points, rank
+		SELECT id, username, COALESCE(display_name, username), avatar_url, karma_points, rank
 		FROM karma_leaderboard
 		LIMIT $1 OFFSET $2
 	`
@@ -267,7 +335,7 @@ func (r *ReputationRepository) GetKarmaLeaderboard(ctx context.Context, limit, o
 // GetEngagementLeaderboard returns top users by engagement score
 func (r *ReputationRepository) GetEngagementLeaderboard(ctx context.Context, limit, offset int) ([]models.LeaderboardEntry, error) {
 	query := `
-		SELECT id, username, display_name, avatar_url, engagement_score,
+		SELECT id, username, COALESCE(display_name, username), avatar_url, engagement_score,
 		       total_comments, total_votes_cast, total_clips_submitted
 		FROM engagement_leaderboard
 		LIMIT $1 OFFSET $2
@@ -613,7 +681,7 @@ func (r *ReputationRepository) GetTrustScoreHistory(ctx context.Context, userID 
 // GetTrustScoreLeaderboard returns top users by trust score
 func (r *ReputationRepository) GetTrustScoreLeaderboard(ctx context.Context, limit, offset int) ([]models.LeaderboardEntry, error) {
 	query := `
-		SELECT id, username, display_name, avatar_url, trust_score, karma_points, rank
+		SELECT id, username, COALESCE(display_name, username), avatar_url, trust_score, karma_points, rank
 		FROM trust_score_leaderboard
 		LIMIT $1 OFFSET $2
 	`

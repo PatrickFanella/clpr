@@ -1,6 +1,11 @@
 import React, { useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastProps {
   id: string;
   /**
@@ -13,6 +18,10 @@ export interface ToastProps {
    */
   message: string;
   /**
+   * Optional action button (e.g. "Undo")
+   */
+  action?: ToastAction;
+  /**
    * Duration in milliseconds before auto-dismiss
    * @default 3000
    */
@@ -24,17 +33,17 @@ export interface ToastProps {
 }
 
 const variantClasses = {
-  success: 'text-white',
-  warning: 'text-white',
-  error: 'text-white',
-  info: 'text-white',
+  success: 'text-foreground',
+  warning: 'text-foreground',
+  error: 'text-foreground',
+  info: 'text-foreground',
 };
 
 const variantStyles = {
-  success: { backgroundColor: '#16a34a', borderColor: '#15803d' },
-  warning: { backgroundColor: '#d97706', borderColor: '#b45309' },
-  error: { backgroundColor: '#dc2626', borderColor: '#b91c1c' },
-  info: { backgroundColor: '#2563eb', borderColor: '#1d4ed8' },
+  success: { backgroundColor: 'rgb(var(--clpr-surface-raised))', borderColor: '#3DDC97', boxShadow: 'inset 3px 0 0 #3DDC97' },
+  warning: { backgroundColor: 'rgb(var(--clpr-surface-raised))', borderColor: '#FFC24A', boxShadow: 'inset 3px 0 0 #FFC24A' },
+  error: { backgroundColor: 'rgb(var(--clpr-surface-raised))', borderColor: '#FF6B78', boxShadow: 'inset 3px 0 0 #FF6B78' },
+  info: { backgroundColor: 'rgb(var(--clpr-surface-raised))', borderColor: '#9FD8FF', boxShadow: 'inset 3px 0 0 #9FD8FF' },
 };
 
 const defaultIcons = {
@@ -67,21 +76,22 @@ export const Toast: React.FC<ToastProps> = ({
   id,
   variant = 'info',
   message,
+  action,
   duration = 3000,
   onDismiss,
 }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       onDismiss(id);
-    }, duration);
+    }, action ? Math.max(duration, 5000) : duration);
 
     return () => clearTimeout(timer);
-  }, [id, duration, onDismiss]);
+  }, [id, duration, action, onDismiss]);
 
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg min-w-[300px] max-w-md border',
+        'flex items-center gap-3 rounded-none px-4 py-3 min-w-[300px] max-w-md border',
         'transition-all duration-200',
         variantClasses[variant]
       )}
@@ -97,6 +107,17 @@ export const Toast: React.FC<ToastProps> = ({
       <div className="flex-1 text-sm font-medium">
         {message}
       </div>
+      {action && (
+        <button
+          onClick={() => {
+            action.onClick();
+            onDismiss(id);
+          }}
+          className="flex-shrink-0 text-sm font-bold underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
+        >
+          {action.label}
+        </button>
+      )}
       <button
         onClick={() => onDismiss(id)}
         className="flex-shrink-0 hover:opacity-70 transition-opacity cursor-pointer"

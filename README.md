@@ -1,46 +1,40 @@
-# Clpr
+# clpr
 
-> A full-stack Twitch clip curation platform that showcases product-minded engineering across web, mobile, backend, search, and deployment.
+![clpr: Somebody clipped it. Clip-stack artwork in purple on dark ink.](https://git.subcult.tv/api/v1/repos/subculture-collective/clpr/raw/docs/assets/readme/banner.png?ref=fb7e563fccd2a4617185a5765c68dc5a0f75ea9a)
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+**Somebody clipped it. It's probably in here.**
 
-Clpr is a portfolio-ready software project built to help users discover, organize, and share standout Twitch clips. It demonstrates the ability to design and ship a complete product experience: scalable APIs, responsive web UI, mobile apps, search, payments, and production-oriented infrastructure.
+clpr sorts Twitch clips by creator, topic and tag. Search for the one you half
+remember, save clips into playlists, and send a playlist to the people who
+missed the stream.
 
-## What this project demonstrates
+[Explore clpr](https://clpr.tv) · [Product overview](https://subcult.tv/products/clpr) · [Report a bug or suggest a feature](https://git.subcult.tv/subculture-collective/clpr/issues)
 
-- **Full-stack product development**: End-to-end delivery across backend, frontend, mobile, and infrastructure
-- **Modern backend engineering**: Go services, PostgreSQL, Redis, JWT auth, and Twitch OAuth integration
-- **Rich client experiences**: React + TypeScript web app and React Native mobile app with shared product concepts
-- **Search and discovery**: Hybrid keyword/vector search with OpenSearch for fast, relevant clip discovery
-- **Production awareness**: Docker-based environments, CI/CD workflows, monitoring, deployment automation, and secrets management
-- **Monetization and platform thinking**: Premium features, subscription billing, and cross-device user workflows
+![clpr home and clip discovery](https://subcult.tv/screenshots/clpr-home-1440.webp)
 
-## Key highlights
+## What it does
 
-- Built a community-driven platform with clip submission, curation, voting, comments, and collections
-- Implemented a modern search experience using Go, OpenSearch, and natural-language-friendly query patterns
-- Developed multi-platform clients using **React 19**, **TypeScript**, **Tailwind CSS**, **React Native**, and **Expo**
-- Integrated real-world platform concerns such as **Stripe billing**, **email delivery**, observability, and deployment automation
-- Structured the codebase for ongoing development with documentation, testing workflows, and containerized local setup
+- **Browse and search:** find Twitch clips by creator, topic, tag or Twitch category.
+- **Playlists:** save clips into playlists and share them.
+- **Submit:** send in an existing Twitch clip that isn't on clpr yet.
+- **Vote and comment:** upvotes and comments move clips in the feed. Reporting
+  and moderation tools cover the rest.
 
-## Tech stack
+## Available today
 
-- **Backend:** Go, Gin, PostgreSQL, Redis, OpenSearch
-- **Web:** React, TypeScript, Vite, Tailwind CSS, React Router, TanStack Query
-- **Mobile:** React Native, Expo
-- **Infrastructure:** Docker, GitHub Actions, Caddy, Vault, Prometheus, Grafana
+clpr is available as a responsive web application at [clpr.tv](https://clpr.tv).
+Native mobile apps are planned. Stream clip extraction, live feeds, watch parties,
+and media mirroring remain outside the current release. The
+[launch feature inventory](docs/LAUNCH_FEATURE_INVENTORY.md) records the supported scope.
 
-## Why it matters
+## Build with us
 
-This project reflects the kind of work employers look for in a software engineer: building user-facing features, integrating external services, working across multiple layers of a system, and thinking beyond code to reliability, deployment, and maintainability.
+Want to run your own instance or improve the clip hunt? Start with the [development guide](DEVELOPMENT.md) for configuration,
+local services, and verification, or the [contributor guide](docs/contributing.md)
+to work on a change.
 
-## Explore more
+- [Backend setup](backend/README.md)
+- [API reference](docs/openapi/README.md)
+- [Operations runbooks](docs/operations/runbooks/README.md)
 
-- [Architecture overview](docs/ARCHITECTURE.md)
-- [Quickstart documentation](docs/QUICKSTART.md)
-- [Backend overview](backend/README.md)
-- [Project documentation index](docs/index.md)
-
-## License
-
-Released under the [MIT License](LICENSE).
+Built by [Subcult](https://subcult.tv). Licensed under [MIT](LICENSE).

@@ -8,6 +8,7 @@ import {
     Alert,
     Modal,
 } from '../../components';
+import { CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -45,8 +46,8 @@ export function AdminWebhookDLQPage() {
             setError(null);
             const response = await getWebhookDLQItems(page, 20);
             setItems(response.items || []);
-            setTotalPages(response.pagination.total_pages);
-            setTotal(response.pagination.total);
+            setTotalPages(Math.max(0, response.pagination?.total_pages ?? 0));
+            setTotal(Math.max(0, response.pagination?.total ?? 0));
         } catch (err: unknown) {
             const error = err as { response?: { data?: { error?: string } } };
             setError(error.response?.data?.error || 'Failed to load DLQ items');
@@ -197,14 +198,14 @@ export function AdminWebhookDLQPage() {
                             </p>
                             <p className='text-2xl font-bold'>{total}</p>
                         </div>
-                        <div>
+                        {totalPages > 0 && <div>
                             <p className='text-sm text-muted-foreground'>
                                 Current Page
                             </p>
                             <p className='text-2xl font-bold'>
                                 {page} / {totalPages}
                             </p>
-                        </div>
+                        </div>}
                     </div>
                 </div>
             </Card>
@@ -219,7 +220,8 @@ export function AdminWebhookDLQPage() {
                     <div className='p-8 text-center'>
                         <p className='text-muted-foreground'>
                             No failed webhook deliveries found. All deliveries
-                            are being processed successfully! 🎉
+                            are being processed successfully!{' '}
+                            <CheckCircle className="inline" size={16} strokeWidth={1.75} />
                         </p>
                     </div>
                 </Card>
@@ -341,7 +343,7 @@ export function AdminWebhookDLQPage() {
                                                 </Button>
                                                 <Button
                                                     size='sm'
-                                                    variant='error'
+                                                    variant='danger'
                                                     onClick={() =>
                                                         openActionModal(
                                                             item,
@@ -387,7 +389,7 @@ export function AdminWebhookDLQPage() {
 
             {/* Action Confirmation Modal */}
             <Modal
-                isOpen={actionModalOpen}
+                open={actionModalOpen}
                 onClose={() => !isProcessing && setActionModalOpen(false)}
                 title={
                     actionType === 'replay'
@@ -443,7 +445,7 @@ export function AdminWebhookDLQPage() {
                         </Button>
                         <Button
                             variant={
-                                actionType === 'replay' ? 'primary' : 'error'
+                                actionType === 'replay' ? 'primary' : 'danger'
                             }
                             onClick={handleAction}
                             disabled={isProcessing}
@@ -462,7 +464,7 @@ export function AdminWebhookDLQPage() {
 
             {/* Payload View Modal */}
             <Modal
-                isOpen={payloadModalOpen}
+                open={payloadModalOpen}
                 onClose={() => setPayloadModalOpen(false)}
                 title='Webhook Payload'
             >

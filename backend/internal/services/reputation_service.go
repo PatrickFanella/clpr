@@ -3,10 +3,11 @@ package services
 import (
 	"context"
 	"fmt"
+	"sort"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/repository"
 	"github.com/google/uuid"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/internal/repository"
 )
 
 // ReputationService handles reputation-related business logic
@@ -106,6 +107,13 @@ func (s *ReputationService) AwardBadge(ctx context.Context, userID uuid.UUID, ba
 // RemoveBadge removes a badge from a user
 func (s *ReputationService) RemoveBadge(ctx context.Context, userID uuid.UUID, badgeID string) error {
 	return s.reputationRepo.RemoveBadge(ctx, userID, badgeID)
+}
+
+func (s *ReputationService) ApplyAdminBadgeMutation(ctx context.Context, userID, actorID uuid.UUID, badgeID string, award bool) error {
+	if !IsValidBadge(badgeID) {
+		return fmt.Errorf("invalid badge ID: %s", badgeID)
+	}
+	return s.reputationRepo.ApplyAdminBadgeMutation(ctx, userID, actorID, badgeID, award)
 }
 
 // UpdateUserStats updates user statistics and recalculates scores
@@ -227,18 +235,18 @@ var badgeDefinitions = map[string]models.Badge{
 	"influencer": {
 		ID:          "influencer",
 		Name:        "Influencer",
-		Description: "Earned 10,000+ karma",
+		Description: "Earned 10,000+ uppies",
 		Icon:        "⭐",
 		Category:    "achievement",
-		Requirement: "10,000 karma",
+		Requirement: "10,000 uppies",
 	},
 	"trusted_user": {
 		ID:          "trusted_user",
 		Name:        "Trusted User",
-		Description: "Earned 1,000+ karma",
+		Description: "Earned 1,000+ uppies",
 		Icon:        "✅",
 		Category:    "achievement",
-		Requirement: "1,000 karma",
+		Requirement: "1,000 uppies",
 	},
 	"conversationalist": {
 		ID:          "conversationalist",
@@ -323,6 +331,7 @@ func GetAllBadgeDefinitions() []models.Badge {
 	for _, badge := range badgeDefinitions {
 		badges = append(badges, badge)
 	}
+	sort.Slice(badges, func(i, j int) bool { return badges[i].ID < badges[j].ID })
 	return badges
 }
 
@@ -340,7 +349,7 @@ func CanUserPerformAction(karma int, action string) bool {
 	case "report_content":
 		return karma >= 50
 	case "submit_clips":
-		return karma >= 100
+		return true
 	case "nominate_featured":
 		return karma >= 500
 	default:

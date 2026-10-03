@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
-import { Container, Spinner, ClipCard, Button } from '../components';
+import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { Gamepad2 } from 'lucide-react';
+import { Container, Spinner, Button, CategoryIcon, SEO, ResourceUnavailable } from '../components';
+import { ClipGridCard } from '../components/clip';
 import { categoryApi } from '../lib/category-api';
+import { isNotFoundError } from '../lib/error-utils';
 import type { Category } from '../types/category';
 import type { GameWithStats } from '../types/game';
 import type { Clip } from '../types/clip';
@@ -12,53 +15,102 @@ type CategoryTimeframe = 'hour' | 'day' | 'week' | 'month' | 'year' | 'all';
 
 export function CategoryPage() {
     const { categorySlug } = useParams<{ categorySlug: string }>();
+    const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const [category, setCategory] = useState<Category | null>(null);
     const [games, setGames] = useState<GameWithStats[]>([]);
     const [clips, setClips] = useState<Clip[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [clipsLoading, setClipsLoading] = useState(false);
+    const [loadState, setLoadState] = useState<'ok' | 'missing' | 'error'>('ok');
+    const [reloadCount, setReloadCount] = useState(0);
 
     const sort = (searchParams.get('sort') as CategorySort | null) || 'hot';
     const timeframe = searchParams.get('timeframe') as CategoryTimeframe | null;
     const page = parseInt(searchParams.get('page') || '1', 10);
     const [hasMore, setHasMore] = useState(false);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            if (!categorySlug) return;
+    const legacyTopicRedirects: Record<string, string> = {
+        news: 'news-politics', politics: 'news-politics', irl: 'irl-travel',
+        drama: 'culture-drama', music: 'music-performance', creative: 'creative-making',
+        esports: 'gaming', highlights: 'gaming', fails: 'reactions-commentary',
+        variety: 'reactions-commentary', 'just-chatting': 'reactions-commentary',
+    };
+    const canonicalSlug = categorySlug ? legacyTopicRedirects[categorySlug] : undefined;
 
+    // Category details and related games only change with the slug, so
+    // sorting or paging refetches the clips alone.
+    useEffect(() => {
+        if (!categorySlug || canonicalSlug) return;
+        let cancelled = false;
+
+        const fetchCategory = async () => {
             try {
                 setLoading(true);
-                setError(null);
-
-                // Fetch category details and games in parallel
-                const [categoryData, gamesData, clipsData] = await Promise.all([
+                setLoadState('ok');
+                const [categoryData, gamesData] = await Promise.all([
                     categoryApi.getCategory(categorySlug),
                     categoryApi.getCategoryGames(categorySlug, { limit: 10 }),
-                    categoryApi.getCategoryClips(categorySlug, {
-                        page,
-                        limit: 20,
-                        sort,
-                        timeframe: timeframe || undefined,
-                    }),
                 ]);
-
+                if (cancelled) return;
                 setCategory(categoryData.category);
                 setGames(gamesData.games || []);
-                setClips(clipsData.clips || []);
-                setHasMore(clipsData.has_more);
             } catch (err) {
-                console.error('Failed to fetch category data:', err);
-                setError('Failed to load category');
+                if (cancelled) return;
+                setCategory(null);
+                if (isNotFoundError(err)) {
+                    setLoadState('missing');
+                } else {
+                    console.error('Failed to fetch category data:', err);
+                    setLoadState('error');
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
 
-        fetchData();
-    }, [categorySlug, sort, timeframe, page]);
+        fetchCategory();
+        return () => {
+            cancelled = true;
+        };
+    }, [categorySlug, canonicalSlug, reloadCount]);
+
+    useEffect(() => {
+        if (!categorySlug || canonicalSlug) return;
+        let cancelled = false;
+
+        const fetchClips = async () => {
+            try {
+                setClipsLoading(true);
+                const clipsData = await categoryApi.getCategoryClips(categorySlug, {
+                    page,
+                    limit: 20,
+                    sort,
+                    timeframe: timeframe || undefined,
+                });
+                if (cancelled) return;
+                setClips(clipsData.clips || []);
+                setHasMore(clipsData.has_more);
+            } catch (err) {
+                if (cancelled) return;
+                setClips([]);
+                setHasMore(false);
+                if (!isNotFoundError(err)) console.error('Failed to fetch category clips:', err);
+            } finally {
+                if (!cancelled) setClipsLoading(false);
+            }
+        };
+
+        fetchClips();
+        return () => {
+            cancelled = true;
+        };
+    }, [categorySlug, canonicalSlug, sort, timeframe, page, reloadCount]);
+
+    if (canonicalSlug) {
+        return <Navigate replace to={`/topics/${canonicalSlug}${location.search}`} />;
+    }
 
     const handleSortChange = (newSort: string) => {
         setSearchParams({ sort: newSort, ...(timeframe && { timeframe }) });
@@ -82,24 +134,44 @@ export function CategoryPage() {
         );
     }
 
-    if (error || !category) {
+    if (loadState === 'error') {
         return (
             <Container className='py-8'>
-                <div className='text-center text-muted-foreground py-12'>
-                    <p className='text-lg'>{error || 'Category not found'}</p>
-                </div>
+                <ResourceUnavailable
+                    kind='error'
+                    title="We couldn't load this topic"
+                    description='Check your connection and try again.'
+                    onRetry={() => setReloadCount(count => count + 1)}
+                    links={[{ label: 'Browse topics', href: '/topics' }]}
+                />
+            </Container>
+        );
+    }
+
+    if (!category) {
+        return (
+            <Container className='py-8'>
+                <ResourceUnavailable
+                    kind='not-found'
+                    title="This topic isn't here"
+                    description="It may have been renamed or merged into another topic."
+                    links={[
+                        { label: 'Browse topics', href: '/topics' },
+                        { label: 'Back to the feed', href: '/' },
+                    ]}
+                />
             </Container>
         );
     }
 
     return (
+        <>
+        <SEO title={category.name} description={category.description ?? `Browse clips about ${category.name}.`} canonicalUrl={`/topics/${category.slug}`} />
         <Container className='py-8'>
             {/* Category Header */}
             <div className='mb-8'>
                 <div className='flex items-center gap-3 mb-2'>
-                    {category.icon && (
-                        <span className='text-4xl'>{category.icon}</span>
-                    )}
+                    <CategoryIcon icon={category.icon} size='lg' />
                     <h1 className='text-4xl font-bold'>{category.name}</h1>
                 </div>
                 {category.description && (
@@ -109,15 +181,15 @@ export function CategoryPage() {
                 )}
             </div>
 
-            {/* Featured Games */}
+            {/* Related Twitch Categories */}
             {games.length > 0 && (
                 <div className='mb-8'>
-                    <h2 className='text-2xl font-bold mb-4'>Popular Games</h2>
+                    <h2 className='text-2xl font-bold mb-4'>Related Twitch Categories</h2>
                     <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4'>
                         {games.map(game => (
                             <Link
                                 key={game.id}
-                                to={`/game/${game.twitch_game_id}`}
+                                to={`/twitch-category/${game.twitch_game_id}`}
                                 className='group'
                             >
                                 <div className='aspect-3/4 relative rounded-lg overflow-hidden shadow-lg transition-transform group-hover:scale-105'>
@@ -130,15 +202,15 @@ export function CategoryPage() {
                                             className='w-full h-full object-cover'
                                         />
                                     ) : (
-                                        <div className='w-full h-full bg-gray-700 flex items-center justify-center'>
-                                            <span className='text-4xl'>🎮</span>
+                                        <div className='w-full h-full bg-surface flex items-center justify-center'>
+                                            <Gamepad2 size={16} strokeWidth={1.75} />
                                         </div>
                                     )}
-                                    <div className='absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-2'>
+                                    <div className='absolute bottom-0 left-0 right-0 bg-black/75 p-2'>
                                         <h3 className='text-sm font-semibold text-white truncate'>
                                             {game.name}
                                         </h3>
-                                        <p className='text-xs text-gray-300'>
+                                        <p className='text-xs text-foreground'>
                                             {game.clip_count} clips
                                         </p>
                                     </div>
@@ -150,9 +222,9 @@ export function CategoryPage() {
             )}
 
             {/* Sort and Filter Controls */}
-            <div className='mb-6 flex gap-4 items-center'>
+            <div className='mb-6 flex flex-wrap gap-4 items-center'>
                 <h2 className='text-2xl font-bold'>Recent Clips</h2>
-                <div className='ml-auto flex gap-4'>
+                <div className='ml-auto flex flex-wrap gap-4'>
                     <div>
                         <label className='text-sm font-medium mr-2'>
                             Sort by:
@@ -193,7 +265,11 @@ export function CategoryPage() {
             </div>
 
             {/* Clips Grid */}
-            {clips.length === 0 ? (
+            {clipsLoading ? (
+                <div className='flex items-center justify-center min-h-[240px]'>
+                    <Spinner size='lg' />
+                </div>
+            ) : clips.length === 0 ? (
                 <div className='text-center text-muted-foreground py-12'>
                     <p className='text-lg'>No clips found in this category</p>
                 </div>
@@ -201,7 +277,7 @@ export function CategoryPage() {
                 <>
                     <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8'>
                         {clips.map(clip => (
-                            <ClipCard key={clip.id} clip={clip} />
+                            <ClipGridCard key={clip.id} clip={clip} />
                         ))}
                     </div>
 
@@ -225,5 +301,6 @@ export function CategoryPage() {
                 </>
             )}
         </Container>
+        </>
     );
 }

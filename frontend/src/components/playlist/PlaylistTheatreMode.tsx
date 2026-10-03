@@ -6,11 +6,16 @@ import {
     X,
     GripVertical,
     SkipForward,
+    SkipBack,
     Minimize2,
+    Maximize2,
     ChevronLeft,
     Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui';
+import { Tab } from '@/components/ui/Tab';
+import { CommentSection } from '@/components/comment/CommentSection';
+import type { ReactNode } from 'react';
 import type { Clip } from '@/types/clip';
 
 export interface PlaylistItem {
@@ -29,165 +34,172 @@ interface PlaylistTheatreModeProps {
     onItemRemove?: (itemId: string) => void;
     onReorder?: (itemId: string, newPosition: number) => void;
     onClipUpdated?: (clipId: string) => void;
+    onReachEnd?: () => void;
     onClose?: () => void;
     isQueue?: boolean; // True for queue, false for playlist
     contained?: boolean; // True for embedded mode, false for full-screen
     className?: string;
+    pendingLabel?: string;
+    commentsLabel?: string;
+    extraSidebarTab?: {
+        id: string;
+        label: string;
+        content: ReactNode;
+        count?: number;
+    };
+}
+
+function AutoAdvanceCountdown({
+    duration,
+    paused,
+    onPausedChange,
+    onComplete,
+}: {
+    duration: number;
+    paused: boolean;
+    onPausedChange: (paused: boolean) => void;
+    onComplete: () => void;
+}) {
+    const [countdown, setCountdown] = useState<number | null>(() =>
+        Math.ceil(duration + 3),
+    );
+
+    useEffect(() => {
+        if (paused || countdown === null) return;
+
+        const timeout = window.setTimeout(() => {
+            if (countdown <= 1) {
+                setCountdown(null);
+                onComplete();
+                return;
+            }
+            setCountdown(countdown - 1);
+        }, 1000);
+
+        return () => window.clearTimeout(timeout);
+    }, [countdown, onComplete, paused]);
+
+    useEffect(() => {
+        const handleVisibility = () => {
+            if (document.hidden) onPausedChange(true);
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () =>
+            document.removeEventListener('visibilitychange', handleVisibility);
+    }, [onPausedChange]);
+
+    if (countdown === null) return null;
+
+    return (
+        <div className='w-full px-4 py-1.5 flex items-center justify-center gap-3 bg-surface/80 text-[12px]'>
+            {paused ? (
+                <>
+                    <span className='text-text-secondary'>
+                        Auto-advance paused
+                    </span>
+                    <button
+                        onClick={() => onPausedChange(false)}
+                        className='text-cta hover:text-cta-hover transition-colors cursor-pointer font-medium'
+                    >
+                        Resume
+                    </button>
+                    <button
+                        onClick={() => setCountdown(null)}
+                        className='text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer'
+                    >
+                        Cancel
+                    </button>
+                </>
+            ) : (
+                <>
+                    <span className='text-text-secondary'>
+                        Next clip in {countdown}s
+                    </span>
+                    <button
+                        onClick={() => onPausedChange(true)}
+                        className='text-cta hover:text-cta-hover transition-colors cursor-pointer font-medium'
+                    >
+                        Pause
+                    </button>
+                    <button
+                        onClick={() => {
+                            setCountdown(null);
+                            onComplete();
+                        }}
+                        className='text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer'
+                    >
+                        Skip now
+                    </button>
+                </>
+            )}
+        </div>
+    );
 }
 
 export function PlaylistTheatreMode({
-    title,
+    title: _title,
     items,
     currentItemId,
     onItemClick,
     onItemRemove,
     onReorder,
-    onClipUpdated,
+    onClipUpdated: _onClipUpdated,
+    onReachEnd,
     onClose,
     isQueue = false,
     contained = false,
     className,
+    pendingLabel,
+    commentsLabel,
+    extraSidebarTab,
 }: PlaylistTheatreModeProps) {
     const [draggedId, setDraggedId] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
     const [showSidebar, setShowSidebar] = useState(true);
-    const [backfillState, setBackfillState] = useState<
-        Record<string, 'idle' | 'requesting' | 'queued' | 'error'>
-    >({});
-    const [processingStatus, setProcessingStatus] = useState<
-        Record<string, string>
-    >({});
-
+    const [selectedTab, setSelectedTab] = useState<
+        'queue' | 'chat' | 'extra'
+    >(
+        'queue',
+    );
+    const activeTab =
+        selectedTab === 'extra' && !extraSidebarTab ? 'queue' : selectedTab;
+    const pendingTabLabel = pendingLabel ?? (isQueue ? 'Queue' : 'Playlist');
+    const commentsTabLabel = commentsLabel ?? 'Comments';
     // Find current item and clip
     const currentItem = useMemo(
         () => items.find(item => item.id === currentItemId),
         [items, currentItemId],
     );
     const currentClip = currentItem?.clip;
-    const currentBackfillStatus =
-        currentClip ? backfillState[currentClip.id] : undefined;
-    const currentProcessingStatus =
-        currentClip ? processingStatus[currentClip.id] : undefined;
 
-    const requestBackfill = useCallback(
-        async (clip: Clip) => {
-            const existingStatus = backfillState[clip.id];
-            if (
-                existingStatus === 'requesting' ||
-                existingStatus === 'queued'
-            ) {
-                return;
-            }
-
-            setBackfillState(prev => ({ ...prev, [clip.id]: 'requesting' }));
-
-            try {
-                const res = await fetch(`/api/v1/clips/${clip.id}/backfill`, {
-                    method: 'POST',
-                    credentials: 'include',
-                });
-
-                if (!res.ok) {
-                    throw new Error('backfill_failed');
-                }
-
-                const payload = await res.json();
-                const status = payload?.data?.status || 'queued';
-
-                setBackfillState(prev => ({ ...prev, [clip.id]: 'queued' }));
-                setProcessingStatus(prev => ({ ...prev, [clip.id]: status }));
-            } catch {
-                setBackfillState(prev => ({ ...prev, [clip.id]: 'error' }));
-                setProcessingStatus(prev => ({
-                    ...prev,
-                    [clip.id]: 'unknown',
-                }));
-            }
-        },
-        [backfillState],
-    );
-
-    const fetchProcessingStatus = useCallback(async (clipId: string) => {
-        try {
-            const res = await fetch(
-                `/api/v1/clips/${clipId}/processing-status`,
-                {
-                    credentials: 'include',
-                },
-            );
-
-            if (!res.ok) {
-                throw new Error('status_failed');
-            }
-
-            const payload = await res.json();
-            const status = payload?.data?.status || 'unknown';
-            setProcessingStatus(prev => ({ ...prev, [clipId]: status }));
-            return status as string;
-        } catch {
-            setProcessingStatus(prev => ({ ...prev, [clipId]: 'unknown' }));
-            return 'unknown';
-        }
-    }, []);
-
-    useEffect(() => {
-        if (!currentClip || currentClip.video_url) return;
-
-        const status = backfillState[currentClip.id];
-        if (!status || status === 'idle') {
-            requestBackfill(currentClip);
-        }
-    }, [currentClip, backfillState, requestBackfill]);
-
-    useEffect(() => {
-        if (!currentClip || currentClip.video_url) return;
-
-        let isActive = true;
-        let intervalId: ReturnType<typeof setInterval> | undefined;
-
-        const poll = async () => {
-            const status = await fetchProcessingStatus(currentClip.id);
-            if (!isActive) return;
-
-            if (status === 'completed' || status === 'ready') {
-                if (intervalId) {
-                    clearInterval(intervalId);
-                }
-                onClipUpdated?.(currentClip.id);
-            }
-        };
-
-        poll();
-        intervalId = setInterval(poll, 5000);
-
-        return () => {
-            isActive = false;
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
-        };
-    }, [currentClip, fetchProcessingStatus, onClipUpdated]);
-
-    // Auto-advance to next unplayed clip (HLS only)
+    // Auto-advance to the next clip when current one finishes
     const handleClipEnd = useCallback(() => {
         const currentIndex = items.findIndex(item => item.id === currentItemId);
         if (currentIndex === -1) return;
 
-        // Find next unplayed item
-        const nextItem = items
-            .slice(currentIndex + 1)
-            .find(item => !item.played_at);
-
+        const nextItem = items[currentIndex + 1];
         if (nextItem) {
             onItemClick(nextItem);
+        } else {
+            onReachEnd?.();
         }
-    }, [items, currentItemId, onItemClick]);
+    }, [items, currentItemId, onItemClick, onReachEnd]);
 
     // Skip to next clip
     const handleSkipNext = useCallback(() => {
         const currentIndex = items.findIndex(item => item.id === currentItemId);
         if (currentIndex < items.length - 1) {
             onItemClick(items[currentIndex + 1]);
+        } else if (currentIndex === items.length - 1) {
+            onReachEnd?.();
+        }
+    }, [items, currentItemId, onItemClick, onReachEnd]);
+
+    // Skip to previous clip
+    const handleSkipPrev = useCallback(() => {
+        const currentIndex = items.findIndex(item => item.id === currentItemId);
+        if (currentIndex > 0) {
+            onItemClick(items[currentIndex - 1]);
         }
     }, [items, currentItemId, onItemClick]);
 
@@ -239,22 +251,57 @@ export function PlaylistTheatreMode({
                 e.preventDefault();
                 handleSkipNext();
             }
+            if (e.key === 'ArrowUp' || e.key === 'p') {
+                e.preventDefault();
+                handleSkipPrev();
+            }
             if (e.key === 's') {
                 e.preventDefault();
                 setShowSidebar(prev => !prev);
+            }
+            if (e.key === 'c') {
+                e.preventDefault();
+                setSelectedTab('chat');
+            }
+            if (e.key === 'q') {
+                e.preventDefault();
+                setSelectedTab('queue');
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handleSkipNext]);
+    }, [handleSkipNext, handleSkipPrev]);
+
+    const [countdownControl, setCountdownControl] = useState<{
+        clipId: string;
+        paused: boolean;
+    } | null>(null);
+    const countdownPaused =
+        countdownControl && countdownControl.clipId === currentClip?.id
+            ? countdownControl.paused
+            : false;
+    const setCountdownPaused = useCallback(
+        (paused: boolean) => {
+            if (!currentClip) return;
+            setCountdownControl({ clipId: currentClip.id, paused });
+        },
+        [currentClip],
+    );
+    const isIframeClip =
+        currentClip && !currentClip.video_url && !!currentClip.duration;
+    const hasNextClip = (() => {
+        const idx = items.findIndex(item => item.id === currentItemId);
+        return idx >= 0 && idx < items.length - 1;
+    })();
 
     return (
+        // Full-screen mode stops above the consent banner so it never sits on the player.
         <div
             className={cn(
                 contained ?
-                    'relative w-full bg-neutral-950 rounded-xl overflow-hidden border border-neutral-800'
-                :   'fixed inset-0 z-50 bg-black',
+                    'relative w-full bg-background rounded-xl overflow-hidden border border-border'
+                :   'fixed inset-x-0 top-0 bottom-[var(--consent-banner-height,0px)] z-50 bg-black',
                 className,
             )}
         >
@@ -266,57 +313,9 @@ export function PlaylistTheatreMode({
                 )}
             >
                 {/* Video player area */}
-                <div
-                    className={cn(
-                        'flex-1 flex flex-col items-center justify-center transition-all',
-                        showSidebar ? 'pr-0' : 'pr-0',
-                    )}
-                >
-                    {/* Top bar */}
-                    <div className='absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4'>
-                        <div className='flex items-center justify-between'>
-                            <div className='flex items-center gap-3'>
-                                {onClose && (
-                                    <button
-                                        onClick={onClose}
-                                        className='p-2 hover:bg-white/10 rounded-lg transition-colors'
-                                        aria-label='Exit theatre mode'
-                                    >
-                                        <Minimize2 className='h-5 w-5 text-white' />
-                                    </button>
-                                )}
-                                <div>
-                                    <h1 className='text-white text-lg font-semibold'>
-                                        {title}
-                                    </h1>
-                                    {currentClip && (
-                                        <p className='text-white/60 text-sm'>
-                                            {currentClip.title}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={() => setShowSidebar(prev => !prev)}
-                                className='p-2 hover:bg-white/10 rounded-lg transition-colors text-white'
-                                aria-label={
-                                    showSidebar ? 'Hide playlist' : (
-                                        'Show playlist'
-                                    )
-                                }
-                            >
-                                <ChevronLeft
-                                    className={`h-5 w-5 transition-transform ${
-                                        !showSidebar ? 'rotate-180' : ''
-                                    }`}
-                                />
-                            </button>
-                        </div>
-                    </div>
-
+                <div className='flex-1 flex flex-col items-center justify-center transition-all'>
                     {/* Video player */}
-                    <div className='w-full flex-1 flex items-center justify-center overflow-hidden relative'>
+                    <div className='w-full flex-1 flex items-center justify-center overflow-hidden'>
                         {currentClip ?
                             currentClip.video_url ?
                                 <TheatreMode
@@ -329,11 +328,15 @@ export function PlaylistTheatreMode({
                                     clipId={currentClip.id}
                                     title={currentClip.title}
                                     embedUrl={currentClip.embed_url}
+                                    twitchClipId={currentClip.twitch_clip_id}
                                     fit='height'
                                     className='max-h-full'
+                                    onEnded={handleClipEnd}
+                                    onPlay={() => setCountdownPaused(false)}
+                                    onPause={() => setCountdownPaused(true)}
                                 />
 
-                        :   <div className='text-center text-white/60'>
+                        :   <div className='text-center text-text-secondary'>
                                 <p className='text-lg'>No clip selected</p>
                                 <p className='text-sm mt-2'>
                                     Select a clip from the{' '}
@@ -342,166 +345,134 @@ export function PlaylistTheatreMode({
                                 </p>
                             </div>
                         }
-
-                        {currentClip && !currentClip.video_url && (
-                            <div className='absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-xl bg-black/80 border border-neutral-700 rounded-xl p-4 text-white/90 backdrop-blur-sm'>
-                                <div className='space-y-2'>
-                                    <p className='text-sm font-semibold'>
-                                        This clip isn’t processed for theatre
-                                        mode yet.
-                                    </p>
-                                    <p className='text-xs text-white/70'>
-                                        We’ve queued it for processing so it can
-                                        autoplay with the rest of the playlist.
-                                    </p>
-                                    {currentProcessingStatus && (
-                                        <p className='text-[11px] text-white/60'>
-                                            Status:{' '}
-                                            <span className='text-white/80 capitalize'>
-                                                {String(
-                                                    currentProcessingStatus,
-                                                ).replace('_', ' ')}
-                                            </span>
-                                        </p>
-                                    )}
-                                </div>
-                                <div className='mt-3 flex flex-wrap gap-2'>
-                                    <Button
-                                        variant='secondary'
-                                        size='sm'
-                                        onClick={() =>
-                                            currentClip &&
-                                            requestBackfill(currentClip)
-                                        }
-                                        disabled={
-                                            currentBackfillStatus ===
-                                                'requesting' ||
-                                            currentBackfillStatus === 'queued'
-                                        }
-                                    >
-                                        {(
-                                            currentBackfillStatus ===
-                                            'requesting'
-                                        ) ?
-                                            'Requesting…'
-                                        : currentBackfillStatus === 'queued' ?
-                                            'Queued'
-                                        :   'Request processing'}
-                                    </Button>
-                                    <Button
-                                        variant='primary'
-                                        size='sm'
-                                        onClick={handleSkipNext}
-                                        disabled={
-                                            items.findIndex(
-                                                item =>
-                                                    item.id === currentItemId,
-                                            ) ===
-                                            items.length - 1
-                                        }
-                                    >
-                                        Next clip
-                                    </Button>
-                                </div>
-                                {currentBackfillStatus === 'error' && (
-                                    <p className='mt-2 text-xs text-error-300'>
-                                        Failed to queue processing. Try again in
-                                        a moment.
-                                    </p>
-                                )}
-                            </div>
-                        )}
                     </div>
 
-                    {/* Bottom controls */}
-                    <div className='absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4'>
-                        <div className='flex items-center justify-between'>
-                            <div className='text-white/80 text-sm'>
-                                {items.findIndex(
-                                    item => item.id === currentItemId,
-                                ) + 1}{' '}
-                                / {items.length}
-                            </div>
-                            <Button
-                                variant='ghost'
-                                size='sm'
-                                onClick={handleSkipNext}
-                                disabled={
-                                    items.findIndex(
-                                        item => item.id === currentItemId,
-                                    ) ===
-                                    items.length - 1
-                                }
-                                className='text-white hover:bg-white/10'
-                            >
-                                <SkipForward className='h-4 w-4 mr-1' />
-                                Next
-                            </Button>
-                        </div>
-                    </div>
+                    {isIframeClip && hasNextClip && (
+                        <AutoAdvanceCountdown
+                            key={currentClip.id}
+                            duration={currentClip.duration!}
+                            paused={countdownPaused}
+                            onPausedChange={setCountdownPaused}
+                            onComplete={handleClipEnd}
+                        />
+                    )}
                 </div>
+
+                {/* Sidebar toggle when hidden. It takes its own column because
+                    Twitch forbids drawing controls over the player. */}
+                {!showSidebar && (
+                    <div className='shrink-0 p-2 border-l border-border'>
+                        <button
+                            onClick={() => setShowSidebar(true)}
+                            className='p-2 bg-surface/80 hover:bg-surface-hover border border-border rounded-lg transition-colors cursor-pointer'
+                            aria-label={`Show ${pendingTabLabel.toLowerCase()}`}
+                        >
+                            <ChevronLeft className='h-5 w-5 text-text-primary' />
+                        </button>
+                    </div>
+                )}
 
                 {/* Playlist/Queue sidebar */}
                 {showSidebar && (
                     <div
                         className={cn(
-                            'h-full bg-neutral-900 border-l border-neutral-800 flex flex-col',
+                            'h-full bg-surface border-l border-border flex flex-col',
                             contained ? 'w-80' : 'w-96',
                         )}
                     >
                         {/* Sidebar header */}
-                        <div className='p-4 border-b border-neutral-800'>
+                        <div className='px-4 py-2.5 border-b border-border'>
                             <div className='flex items-center justify-between'>
-                                <div>
-                                    <h2 className='text-white font-semibold'>
-                                        {isQueue ? 'Queue' : 'Playlist'}
-                                    </h2>
-                                    <p className='text-white/60 text-sm'>
+                                <div className='flex items-center gap-2'>
+                                    <p className='text-text-secondary text-xs'>
+                                        <span className='font-medium text-text-primary'>
+                                            {items.findIndex(
+                                                item => item.id === currentItemId,
+                                            ) + 1}
+                                        </span>
+                                        {' / '}
                                         {items.length}{' '}
                                         {items.length === 1 ? 'clip' : 'clips'}
                                     </p>
                                 </div>
+                                <button
+                                    onClick={() => setShowSidebar(false)}
+                                    className='p-1.5 hover:bg-surface-hover rounded-lg transition-colors cursor-pointer'
+                                    aria-label='Hide sidebar'
+                                >
+                                    <ChevronLeft className='h-4 w-4 text-text-primary rotate-180' />
+                                </button>
                             </div>
                         </div>
 
-                        {/* Scrollable items list */}
-                        <div className='flex-1 overflow-y-auto'>
-                            {items.map((item, idx) => {
-                                const isCurrentItem = item.id === currentItemId;
-                                const isPlayed = !!item.played_at;
+                        <Tab
+                            tabs={[
+                                { id: 'queue', label: pendingTabLabel },
+                                {
+                                    id: 'chat',
+                                    label: commentsTabLabel,
+                                    badge: currentClip?.comment_count,
+                                },
+                                ...(
+                                    extraSidebarTab
+                                        ? [
+                                              {
+                                                  id: 'extra',
+                                                  label: extraSidebarTab.label,
+                                                  badge: extraSidebarTab.count,
+                                              },
+                                          ]
+                                        : []
+                                ),
+                            ]}
+                            activeTab={activeTab}
+                            onTabChange={id =>
+                                setSelectedTab(
+                                    id as 'queue' | 'chat' | 'extra',
+                                )
+                            }
+                        />
 
-                                return (
-                                    <div
-                                        key={item.id}
-                                        draggable={!!onReorder}
-                                        onDragStart={() =>
-                                            handleDragStart(item.id)
-                                        }
-                                        onDragOver={e =>
-                                            handleDragOver(e, item.id)
-                                        }
-                                        onDragLeave={handleDragLeave}
-                                        onDrop={e => handleDrop(e, item.id)}
-                                        className={cn(
-                                            'group relative border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors',
-                                            isCurrentItem &&
-                                                'bg-primary-500/20',
-                                            draggedId === item.id &&
-                                                'opacity-50',
-                                            dragOverId === item.id &&
-                                                'border-t-2 border-primary-500',
-                                        )}
-                                    >
-                                        <div className='flex gap-2 p-3'>
-                                            {/* Drag handle and number */}
-                                            <div className='flex items-center gap-2 text-white/40'>
-                                                {onReorder && (
-                                                    <GripVertical className='h-4 w-4 cursor-grab active:cursor-grabbing' />
-                                                )}
-                                                <span className='text-xs font-mono w-6 text-right'>
-                                                    {idx + 1}
-                                                </span>
-                                            </div>
+                        {/* Scrollable items list */}
+                        {activeTab === 'queue' && (
+                            <div className='flex-1 overflow-y-auto'>
+                                {items.map((item, idx) => {
+                                    const isCurrentItem =
+                                        item.id === currentItemId;
+                                    const isPlayed = !!item.played_at;
+
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            draggable={!!onReorder}
+                                            onDragStart={() =>
+                                                handleDragStart(item.id)
+                                            }
+                                            onDragOver={e =>
+                                                handleDragOver(e, item.id)
+                                            }
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={e => handleDrop(e, item.id)}
+                                            className={cn(
+                                                'group relative border-b border-border hover:bg-surface-hover transition-colors',
+                                                isCurrentItem &&
+                                                    'bg-primary-500/20',
+                                                draggedId === item.id &&
+                                                    'opacity-50',
+                                                dragOverId === item.id &&
+                                                    'border-t-2 border-primary-500',
+                                            )}
+                                        >
+                                            <div className='flex gap-2 p-3'>
+                                                {/* Drag handle and number */}
+                                                <div className='flex items-center gap-2 text-text-tertiary'>
+                                                    {onReorder && (
+                                                        <GripVertical className='h-4 w-4 cursor-grab active:cursor-grabbing' />
+                                                    )}
+                                                    <span className='text-xs font-mono w-6 text-right'>
+                                                        {idx + 1}
+                                                    </span>
+                                                </div>
 
                                             {/* Thumbnail */}
                                             <button
@@ -550,7 +521,7 @@ export function PlaylistTheatreMode({
                                                             'text-sm font-medium line-clamp-2',
                                                             isCurrentItem ?
                                                                 'text-primary-400'
-                                                            :   'text-white',
+                                                            :   'text-text-primary',
                                                             isPlayed &&
                                                                 'opacity-60',
                                                         )}
@@ -558,7 +529,7 @@ export function PlaylistTheatreMode({
                                                         {item.clip?.title ||
                                                             'Unknown Clip'}
                                                     </p>
-                                                    <p className='text-xs text-white/60 mt-0.5'>
+                                                    <p className='text-xs text-text-secondary mt-0.5'>
                                                         {
                                                             item.clip
                                                                 ?.broadcaster_name
@@ -566,7 +537,7 @@ export function PlaylistTheatreMode({
                                                     </p>
                                                 </button>
                                                 {isPlayed && (
-                                                    <div className='flex items-center gap-1 text-xs text-white/40 mt-1'>
+                                                    <div className='flex items-center gap-1 text-xs text-text-tertiary mt-1'>
                                                         <Check className='h-3 w-3' />
                                                         Watched
                                                     </div>
@@ -586,33 +557,124 @@ export function PlaylistTheatreMode({
                                                 </button>
                                             )}
                                         </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {items.length === 0 && (
+                                    <div className='text-center py-12 text-text-tertiary'>
+                                        <p>
+                                            No clips in{' '}
+                                            {pendingTabLabel.toLowerCase()}
+                                        </p>
                                     </div>
-                                );
-                            })}
+                                )}
+                            </div>
+                        )}
 
-                            {items.length === 0 && (
-                                <div className='text-center py-12 text-white/40'>
-                                    <p>
-                                        No clips in{' '}
-                                        {isQueue ? 'queue' : 'playlist'}
-                                    </p>
+                        {activeTab === 'extra' && extraSidebarTab && (
+                            <div
+                                className='flex-1 overflow-y-auto'
+                                data-sidebar-tab-id={extraSidebarTab.id}
+                            >
+                                {extraSidebarTab.content}
+                            </div>
+                        )}
+
+                        {activeTab === 'chat' && currentClip && (
+                            <div className="flex-1 overflow-y-auto">
+                                <CommentSection
+                                    clipId={currentClip.id}
+                                    className="p-3"
+                                />
+                            </div>
+                        )}
+                        {activeTab === 'chat' && !currentClip && (
+                            <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">
+                                Select a clip to see {commentsTabLabel.toLowerCase()}
+                            </div>
+                        )}
+
+                        {/* Controls + keyboard shortcuts */}
+                        <div className='border-t border-border bg-background/50'>
+                            {/* Prev / Next / Fullscreen buttons with inline key hints */}
+                            <div className='flex items-center justify-between px-3 py-2'>
+                                <div className='flex items-center gap-1'>
+                                    <Button
+                                        variant='ghost'
+                                        size='sm'
+                                        onClick={handleSkipPrev}
+                                        disabled={
+                                            items.findIndex(
+                                                item => item.id === currentItemId,
+                                            ) === 0
+                                        }
+                                        className='text-text-primary hover:bg-surface-hover'
+                                    >
+                                        <SkipBack className='h-4 w-4 mr-1' />
+                                        Prev
+                                        <kbd className='ml-1.5 px-1 py-0.5 text-[10px] bg-surface-raised rounded text-text-tertiary'>
+                                            P
+                                        </kbd>
+                                    </Button>
+                                    <Button
+                                        variant='ghost'
+                                        size='sm'
+                                        onClick={handleSkipNext}
+                                        disabled={
+                                            items.findIndex(
+                                                item => item.id === currentItemId,
+                                            ) ===
+                                            items.length - 1
+                                        }
+                                        className='text-text-primary hover:bg-surface-hover'
+                                    >
+                                        <SkipForward className='h-4 w-4 mr-1' />
+                                        Next
+                                        <kbd className='ml-1.5 px-1 py-0.5 text-[10px] bg-surface-raised rounded text-text-tertiary'>
+                                            N
+                                        </kbd>
+                                    </Button>
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Keyboard shortcuts hint */}
-                        <div className='p-3 border-t border-neutral-800 bg-neutral-950/50'>
-                            <p className='text-xs text-white/40'>
-                                <kbd className='px-1.5 py-0.5 bg-neutral-800 rounded text-white/60'>
-                                    N
-                                </kbd>{' '}
-                                Next clip
-                                {' • '}
-                                <kbd className='px-1.5 py-0.5 bg-neutral-800 rounded text-white/60'>
-                                    S
-                                </kbd>{' '}
-                                Toggle sidebar
-                            </p>
+                                {onClose && (
+                                    <Button
+                                        variant='ghost'
+                                        size='sm'
+                                        onClick={onClose}
+                                        className='text-text-primary hover:bg-surface-hover'
+                                    >
+                                        {contained ?
+                                            <>
+                                                <Maximize2 className='h-4 w-4 mr-1' />
+                                                Full
+                                            </>
+                                        :   <>
+                                                <Minimize2 className='h-4 w-4 mr-1' />
+                                                Exit
+                                            </>
+                                        }
+                                    </Button>
+                                )}
+                            </div>
+                            {/* Key hints */}
+                            <div className='px-3 pb-2'>
+                                <p className='text-xs text-text-tertiary'>
+                                    <kbd className='px-1.5 py-0.5 bg-surface-raised rounded text-text-secondary'>
+                                        S
+                                    </kbd>{' '}
+                                    Sidebar
+                                    {' • '}
+                                    <kbd className='px-1.5 py-0.5 bg-surface-raised rounded text-text-secondary'>
+                                        Q
+                                    </kbd>{' '}
+                                    {pendingTabLabel}
+                                    {' • '}
+                                    <kbd className='px-1.5 py-0.5 bg-surface-raised rounded text-text-secondary'>
+                                        C
+                                    </kbd>{' '}
+                                    {commentsTabLabel}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 )}

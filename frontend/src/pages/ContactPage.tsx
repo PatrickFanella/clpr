@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Container, Card, CardBody, Button, Input, TextArea, Alert } from '../components';
+import { Container, Card, CardBody, Button, Input, TextArea, Alert, SEO } from '../components';
 import { useAuth } from '../context/AuthContext';
 import { submitContactMessage, type ContactMessageRequest } from '../lib/contact-api';
 
@@ -52,20 +52,20 @@ export function ContactPage() {
   };
 
   return (
-    <Container className="py-8 max-w-3xl">
+    <><SEO title='Contact' description='Contact the clpr team about support, safety, privacy, or feedback.' canonicalUrl='/contact' /><Container className="py-8 max-w-3xl">
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-4">Contact Us</h1>
         <p className="text-muted-foreground">
-          Have a question, feedback, or need help? We're here to assist you.
+          Questions, bugs, feedback or a problem with your account: send it here.
         </p>
       </div>
 
       {submitSuccess && (
         <Alert variant="success" className="mb-6">
           <div>
-            <p className="font-semibold">Message sent successfully!</p>
+            <p className="font-semibold">Message sent successfully</p>
             <p className="text-sm mt-1">
-              We've received your message and will get back to you as soon as possible.
+              We got it and will reply as soon as we can.
             </p>
           </div>
         </Alert>
@@ -153,7 +153,7 @@ export function ContactPage() {
               <p className="text-sm text-muted-foreground">
                 <strong className="text-foreground">Privacy Notice:</strong> By submitting this form, 
                 you agree to our{' '}
-                <Link to="/privacy" className="text-primary hover:underline">
+                <Link to="/privacy" className="text-link underline underline-offset-2">
                   Privacy Policy
                 </Link>
                 . We will only use your contact information to respond to your inquiry and will not 
@@ -201,7 +201,7 @@ export function ContactPage() {
               <h3 className="font-medium text-foreground mb-1">Community Guidelines</h3>
               <p className="text-sm text-muted-foreground">
                 Review our{' '}
-                <Link to="/community-rules" className="text-primary hover:underline">
+                <Link to="/community-rules" className="text-link underline underline-offset-2">
                   Community Rules
                 </Link>{' '}
                 for information on acceptable behavior and content standards.
@@ -214,24 +214,10 @@ export function ContactPage() {
                 for faster moderation.
               </p>
             </div>
-            <div>
-              <h3 className="font-medium text-foreground mb-1">GitHub Issues</h3>
-              <p className="text-sm text-muted-foreground">
-                For bug reports or feature requests, you can also open an issue on our{' '}
-                <a
-                  href="https://github.com/subculture-collective/clipper/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  GitHub repository
-                </a>
-                .
-              </p>
-            </div>
+            <div><h3 className="font-medium text-foreground mb-1">Email support</h3><p className="text-sm text-muted-foreground">For account, bug, or feature questions, email <a href="mailto:support@clpr.tv" className="text-link underline underline-offset-2">support@clpr.tv</a>.</p></div>
           </div>
         </CardBody>
       </Card>
-    </Container>
+    </Container></>
   );
 }

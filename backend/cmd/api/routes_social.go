@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/middleware"
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/internal/middleware"
 )
 
 func registerSocialRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra *Infrastructure) {
@@ -35,18 +35,18 @@ func registerSocialRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infr
 			// Message history endpoint
 			channels.GET("/:id/messages", h.WebSocket.GetMessageHistory)
 
-			// Moderation endpoints (require moderator role)
-			channels.POST("/:id/ban", middleware.RequireRole("admin", "moderator"), middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Chat.BanUser)
-			channels.DELETE("/:id/ban/:user_id", middleware.RequireRole("admin", "moderator"), middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Chat.UnbanUser)
-			channels.POST("/:id/mute", middleware.RequireRole("admin", "moderator"), middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Chat.MuteUser)
-			channels.POST("/:id/timeout", middleware.RequireRole("admin", "moderator"), middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Chat.TimeoutUser)
-			channels.GET("/:id/moderation-log", middleware.RequireRole("admin", "moderator"), h.Chat.GetModerationLog)
+			// Moderation endpoints enforce owner/admin/moderator membership in the handler.
+			channels.POST("/:id/ban", middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Chat.BanUser)
+			channels.DELETE("/:id/ban/:user_id", middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Chat.UnbanUser)
+			channels.POST("/:id/mute", middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Chat.MuteUser)
+			channels.POST("/:id/timeout", middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Chat.TimeoutUser)
+			channels.GET("/:id/moderation-log", h.Chat.GetModerationLog)
 			channels.GET("/:id/check-ban", h.Chat.CheckUserBan)
 		}
 
 		// Chat message routes
 		messages := chat.Group("/messages")
-		messages.Use(middleware.AuthMiddleware(svcs.Auth), middleware.RequireRole("admin", "moderator"))
+		messages.Use(middleware.AuthMiddleware(svcs.Auth))
 		{
 			messages.DELETE("/:id", middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Chat.DeleteMessage)
 		}
@@ -63,10 +63,10 @@ func registerSocialRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infr
 		communities.GET("", h.Community.ListCommunities)
 		communities.GET("/search", middleware.RateLimitMiddleware(infra.Redis, 60, time.Minute), h.Community.SearchCommunities)
 		communities.GET("/:id", middleware.OptionalAuthMiddleware(svcs.Auth), h.Community.GetCommunity)
-		communities.GET("/:id/members", h.Community.GetMembers)
-		communities.GET("/:id/feed", h.Community.GetCommunityFeed)
-		communities.GET("/:id/discussions", h.Community.ListDiscussions)
-		communities.GET("/:id/discussions/:discussionId", h.Community.GetDiscussion)
+		communities.GET("/:id/members", middleware.OptionalAuthMiddleware(svcs.Auth), h.Community.GetMembers)
+		communities.GET("/:id/feed", middleware.OptionalAuthMiddleware(svcs.Auth), h.Community.GetCommunityFeed)
+		communities.GET("/:id/discussions", middleware.OptionalAuthMiddleware(svcs.Auth), h.Community.ListDiscussions)
+		communities.GET("/:id/discussions/:discussionId", middleware.OptionalAuthMiddleware(svcs.Auth), h.Community.GetDiscussion)
 
 		// Protected community endpoints (require authentication)
 		communities.POST("", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 5, time.Hour), h.Community.CreateCommunity)
@@ -97,10 +97,11 @@ func registerSocialRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infr
 	playlists := v1.Group("/playlists")
 	{
 		// Public playlist endpoints
-		playlists.GET("/public", h.Playlist.ListPublicPlaylists)
-		playlists.GET("/featured", h.Playlist.ListFeaturedPlaylists)
-		playlists.GET("/today", h.Playlist.GetPlaylistOfTheDay)
+		playlists.GET("/public", middleware.OptionalAuthMiddleware(svcs.Auth), h.Playlist.ListPublicPlaylists)
+		playlists.GET("/featured", middleware.OptionalAuthMiddleware(svcs.Auth), publicCache(infra), h.Playlist.ListFeaturedPlaylists)
+		playlists.GET("/today", middleware.OptionalAuthMiddleware(svcs.Auth), h.Playlist.GetPlaylistOfTheDay)
 		playlists.GET("/share/:token", middleware.OptionalAuthMiddleware(svcs.Auth), h.Playlist.GetPlaylistByShareToken)
+		playlists.GET("/bookmarks", middleware.AuthMiddleware(svcs.Auth), h.Playlist.ListBookmarkedPlaylists)
 		playlists.GET("/:id", middleware.OptionalAuthMiddleware(svcs.Auth), h.Playlist.GetPlaylist)
 
 		// Protected playlist endpoints (require authentication)
@@ -118,6 +119,8 @@ func registerSocialRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infr
 		// Playlist likes (social engagement)
 		playlists.POST("/:id/like", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Playlist.LikePlaylist)
 		playlists.DELETE("/:id/like", middleware.AuthMiddleware(svcs.Auth), h.Playlist.UnlikePlaylist)
+		playlists.POST("/:id/bookmark", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Playlist.BookmarkPlaylist)
+		playlists.DELETE("/:id/bookmark", middleware.AuthMiddleware(svcs.Auth), h.Playlist.UnbookmarkPlaylist)
 
 		// Playlist sharing and collaboration
 		playlists.GET("/:id/share-link", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 10, time.Hour), h.Playlist.GetShareLink)
@@ -146,7 +149,7 @@ func registerSocialRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infr
 		forum.GET("/threads", h.Forum.ListThreads)
 		forum.GET("/threads/:id", h.Forum.GetThread)
 		forum.GET("/search", middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Forum.SearchThreads)
-		forum.GET("/replies/:id/votes", h.Forum.GetReplyVotes)
+		forum.GET("/replies/:id/votes", middleware.OptionalAuthMiddleware(svcs.Auth), h.Forum.GetReplyVotes)
 		forum.GET("/users/:id/reputation", h.Forum.GetUserReputation)
 		forum.GET("/analytics", middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Forum.GetForumAnalytics)
 		forum.GET("/popular", middleware.RateLimitMiddleware(infra.Redis, 30, time.Minute), h.Forum.GetPopularDiscussions)
@@ -158,11 +161,12 @@ func registerSocialRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infr
 		forum.PATCH("/replies/:id", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 20, time.Minute), h.Forum.UpdateReply)
 		forum.DELETE("/replies/:id", middleware.AuthMiddleware(svcs.Auth), h.Forum.DeleteReply)
 		forum.POST("/replies/:id/vote", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 50, time.Minute), h.Forum.VoteOnReply)
+		forum.POST("/flag", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 10, time.Minute), h.ForumModeration.FlagContent)
 	}
 
-	// Watch party routes
-	watchParties := v1.Group("/watch-parties")
-	{
+	// Watch parties remain outside the launch API unless explicitly enabled.
+	if infra.Config.FeatureFlags.WatchParties {
+		watchParties := v1.Group("/watch-parties")
 		// NOTE: Keep static routes like "/history" registered before parameterized
 		// routes such as "/:id". If "/history" is moved below "/:id", requests to
 		// "/watch-parties/history" could be incorrectly handled by the "/:id" route.
@@ -214,8 +218,8 @@ func registerSocialRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infr
 
 		// WebSocket endpoint for real-time sync (authenticated)
 		watchParties.GET("/:id/ws", middleware.AuthMiddleware(svcs.Auth), h.WatchParty.WatchPartyWebSocket)
-	}
 
-	// User watch party stats route (needs to be outside watchParties group to avoid conflict)
-	v1.GET("/users/:id/watch-party-stats", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 20, time.Hour), h.WatchParty.GetUserWatchPartyStats)
+		// User watch party stats route must remain outside the grouped wildcard routes.
+		v1.GET("/users/:id/watch-party-stats", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 20, time.Hour), h.WatchParty.GetUserWatchPartyStats)
+	}
 }

@@ -232,7 +232,7 @@ export function WebhookSubscriptionsPage() {
                             integrate with your own applications.{' '}
                             <Link
                                 to="/docs"
-                                className="text-primary-500 hover:underline"
+                                className="text-link hover:underline"
                             >
                                 Learn more
                             </Link>
@@ -259,7 +259,7 @@ export function WebhookSubscriptionsPage() {
                                                             Active
                                                         </span>
                                                     ) : (
-                                                        <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">
+                                                        <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded">
                                                             Inactive
                                                         </span>
                                                     )}
@@ -283,7 +283,7 @@ export function WebhookSubscriptionsPage() {
                                                         (event) => (
                                                             <span
                                                                 key={event}
-                                                                className="px-2 py-1 text-xs bg-primary-100 text-primary-700 rounded"
+                                                                className="px-2 py-1 text-xs bg-primary-100 text-link rounded"
                                                             >
                                                                 {event}
                                                             </span>
@@ -709,7 +709,7 @@ function DeliveriesModal({
             pending: 'bg-warning-100 text-warning-700',
             failed: 'bg-error-100 text-error-700',
         };
-        return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-700';
+        return colors[status as keyof typeof colors] || 'bg-muted text-muted-foreground';
     };
 
     return (

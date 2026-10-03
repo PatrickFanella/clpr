@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { useConvertQueueToPlaylist } from '@/hooks/useQueue';
 import { useToast } from '@/context/ToastContext';
-import { ListChecks, X } from 'lucide-react';
 
 interface ConvertToPlaylistDialogProps {
     isOpen: boolean;
@@ -54,28 +54,8 @@ export function ConvertToPlaylistDialog({
         }
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm'>
-            <div className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6'>
-                {/* Header */}
-                <div className='flex items-center justify-between mb-6'>
-                    <div className='flex items-center gap-2'>
-                        <ListChecks className='h-5 w-5 text-primary-600' />
-                        <h2 className='text-xl font-bold'>
-                            Convert Queue to Playlist
-                        </h2>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className='p-1 hover:bg-muted rounded-lg transition-colors'
-                        aria-label='Close dialog'
-                    >
-                        <X className='h-5 w-5' />
-                    </button>
-                </div>
-
+        <Modal open={isOpen} onClose={onClose} title='Convert Queue to Playlist' size='md'>
                 {/* Form */}
                 <form onSubmit={handleSubmit} className='space-y-4'>
                     {/* Title */}
@@ -127,7 +107,7 @@ export function ConvertToPlaylistDialog({
                                 onChange={e =>
                                     setOnlyUnplayed(e.target.checked)
                                 }
-                                className='mt-0.5 w-4 h-4 text-primary-600 border-border rounded focus:ring-primary-500'
+                                className='mt-0.5 w-4 h-4 text-link border-border rounded focus:ring-primary-500'
                             />
                             <div className='flex-1'>
                                 <span className='text-sm font-medium'>
@@ -144,7 +124,7 @@ export function ConvertToPlaylistDialog({
                                 type='checkbox'
                                 checked={clearQueue}
                                 onChange={e => setClearQueue(e.target.checked)}
-                                className='mt-0.5 w-4 h-4 text-primary-600 border-border rounded focus:ring-primary-500'
+                                className='mt-0.5 w-4 h-4 text-link border-border rounded focus:ring-primary-500'
                             />
                             <div className='flex-1'>
                                 <span className='text-sm font-medium'>
@@ -190,7 +170,6 @@ export function ConvertToPlaylistDialog({
                         </Button>
                     </div>
                 </form>
-            </div>
-        </div>
+        </Modal>
     );
 }

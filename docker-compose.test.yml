@@ -1,26 +1,26 @@
 services:
     postgres-test:
         image: pgvector/pgvector:pg17
-        container_name: clipper-postgres-test
+        container_name: 'clpr-postgres-test-${TEST_RUN_SLOT:-local}'
         environment:
-            POSTGRES_USER: clipper
-            POSTGRES_PASSWORD: clipper_password
-            POSTGRES_DB: clipper_test
+            POSTGRES_USER: clpr
+            POSTGRES_PASSWORD: clpr_password
+            POSTGRES_DB: clpr_test
         ports:
-            - '5437:5432'
+            - '${TEST_DATABASE_PORT:-5437}:5432'
         tmpfs:
             - /var/lib/postgresql/data
         healthcheck:
-            test: ['CMD-SHELL', 'pg_isready -U clipper -d clipper_test']
+            test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U clpr -d clpr_test']
             interval: 5s
             timeout: 3s
             retries: 5
 
     redis-test:
         image: redis:7-alpine
-        container_name: clipper-redis-test
+        container_name: 'clpr-redis-test-${TEST_RUN_SLOT:-local}'
         ports:
-            - '6380:6379'
+            - '${TEST_REDIS_PORT:-6380}:6379'
         tmpfs:
             - /data
         command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru
@@ -32,7 +32,7 @@ services:
 
     opensearch-test:
         image: opensearchproject/opensearch:2.11.1
-        container_name: clipper-opensearch-test
+        container_name: 'clpr-opensearch-test-${TEST_RUN_SLOT:-local}'
         environment:
             - discovery.type=single-node
             - 'OPENSEARCH_JAVA_OPTS=-Xms256m -Xmx256m'
@@ -40,8 +40,8 @@ services:
             - 'DISABLE_INSTALL_DEMO_CONFIG=true'
             - 'bootstrap.system_call_filter=false'
         ports:
-            - '9201:9200'
-            - '9601:9600'
+            - '${TEST_OPENSEARCH_PORT:-9201}:9200'
+            - '${TEST_OPENSEARCH_METRICS_PORT:-9601}:9600'
         volumes:
             - opensearch-test-data:/usr/share/opensearch/data
         healthcheck:
@@ -56,3 +56,11 @@ services:
 
 volumes:
     opensearch-test-data:
+
+# Hosted jobs publish every dependency on a run-scoped host port, so they can
+# reuse one user-defined network instead of allocating a subnet per project.
+# Unique container names, volumes, projects, and ports preserve run isolation.
+networks:
+    default:
+        name: clpr-hosted-tests
+        external: true

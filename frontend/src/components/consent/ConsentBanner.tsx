@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useConsent } from '../../context/ConsentContext';
 import { Button } from '../ui/Button';
 import { Toggle } from '../ui/Toggle';
 import { cn } from '../../lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { useOverlapsTwitchPlayer } from '../../hooks/useTwitchPlayerLayer';
+
+/** AppLayout renders this element at the top of the page for the in-page banner. */
+export const CONSENT_BANNER_SLOT_ID = 'consent-banner-slot';
 
 export interface ConsentBannerProps {
   /** Additional CSS classes */
@@ -12,7 +17,9 @@ export interface ConsentBannerProps {
 
 /**
  * Consent banner component for GDPR/privacy compliance
- * Shows a banner at the bottom of the screen for users to manage their consent preferences
+ * Shows a banner at the bottom of the screen for users to manage their consent preferences.
+ * Twitch forbids covering its players, so when the overlay would sit on one the
+ * banner moves into the page flow above the header for the rest of that page.
  */
 export function ConsentBanner({ className }: ConsentBannerProps) {
   const {
@@ -32,38 +39,106 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
     advertising: consent.advertising,
   });
 
-  // Update pending preferences when consent changes (e.g., from settings page)
+  const bannerRef = useRef<HTMLDivElement | null>(null);
+  const { pathname } = useLocation();
+  const [inlinePath, setInlinePath] = useState<string | null>(null);
+  const slot = typeof document === 'undefined' ? null : document.getElementById(CONSENT_BANNER_SLOT_ID);
+  const inline = inlinePath === pathname && slot !== null;
+  const [coversPlayer, watchOverlap] = useOverlapsTwitchPlayer(showConsentBanner && !inline);
+  const setBannerNode = useCallback((node: HTMLDivElement | null) => {
+    bannerRef.current = node;
+    watchOverlap(node);
+  }, [watchOverlap]);
+
+  // Adjusted during render so the overlay never paints over the player before moving.
+  if (coversPlayer && inlinePath !== pathname) setInlinePath(pathname);
+  const detailsTitleRef = useRef<HTMLHeadingElement>(null);
+  const customizeRef = useRef<HTMLButtonElement>(null);
+  const wasDetailed = useRef(false);
+
   useEffect(() => {
-    queueMicrotask(() => {
-      setPendingPreferences({
-        functional: consent.functional,
-        analytics: consent.analytics,
-        advertising: consent.advertising,
+    if (showDetails) detailsTitleRef.current?.focus();
+    else if (wasDetailed.current) customizeRef.current?.focus();
+    wasDetailed.current = showDetails;
+  }, [showDetails]);
+
+  useEffect(() => {
+    const banner = bannerRef.current;
+    // The in-page banner takes its own space; only the overlay reserves room.
+    if (!showConsentBanner || inline || !banner) return;
+    const previousPadding = document.body.style.paddingBottom;
+    const previousBannerHeight = document.documentElement.style.getPropertyValue('--consent-banner-height');
+    const previousScrollPadding = document.documentElement.style.scrollPaddingBottom;
+    let focusFrame = 0;
+    const reserveSpace = () => {
+      const rect = banner.getBoundingClientRect();
+      document.documentElement.style.setProperty('--consent-banner-height', `${rect.height}px`);
+      document.body.style.paddingBottom = `${rect.height}px`;
+      document.documentElement.style.scrollPaddingBottom = `${window.innerHeight - rect.top + 16}px`;
+    };
+    const revealFocus = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || banner.contains(target)) return;
+      cancelAnimationFrame(focusFrame);
+      focusFrame = requestAnimationFrame(() => {
+        const rect = target.getBoundingClientRect();
+        const overlay = banner.getBoundingClientRect();
+        if (rect.bottom > overlay.top && rect.top < overlay.bottom) {
+          window.scrollBy({ top: rect.bottom - overlay.top + 16, behavior: 'instant' });
+        }
       });
-    });
-  }, [consent.functional, consent.analytics, consent.advertising]);
+    };
+    reserveSpace();
+    const observer = new ResizeObserver(reserveSpace);
+    observer.observe(banner);
+    window.addEventListener('resize', reserveSpace);
+    document.addEventListener('focusin', revealFocus);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(focusFrame);
+      window.removeEventListener('resize', reserveSpace);
+      document.removeEventListener('focusin', revealFocus);
+      if (previousBannerHeight) document.documentElement.style.setProperty('--consent-banner-height', previousBannerHeight);
+      else document.documentElement.style.removeProperty('--consent-banner-height');
+      document.body.style.paddingBottom = previousPadding;
+      document.documentElement.style.scrollPaddingBottom = previousScrollPadding;
+    };
+  }, [showConsentBanner, inline]);
+
+  const finish = (save: () => void) => {
+    save();
+    requestAnimationFrame(() => document.getElementById('main-content')?.focus({ preventScroll: true }));
+  };
 
   if (!showConsentBanner) {
     return null;
   }
 
   const handleSavePreferences = () => {
-    updateConsent(pendingPreferences);
+    finish(() => updateConsent(pendingPreferences));
   };
 
-  return (
+  const banner = (
     <div
+      ref={setBannerNode}
+      data-placement={inline ? 'inline' : 'overlay'}
       className={cn(
-        'fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border shadow-lg',
-        'animate-in slide-in-from-bottom duration-300',
+        inline
+          ? 'relative w-full bg-background border-b border-border'
+          : 'fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 z-50 max-h-[70dvh] overflow-y-auto bg-background border-t border-border shadow-2xl md:bottom-0 animate-in slide-in-from-bottom duration-300',
         className
       )}
-      role="dialog"
-      aria-modal="true"
+      role="region"
       aria-labelledby="consent-banner-title"
-      aria-describedby="consent-banner-description"
+      aria-describedby={showDetails ? undefined : "consent-banner-description"}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && showDetails) {
+          event.preventDefault();
+          setShowDetails(false);
+        }
+      }}
     >
-      <div className="max-w-6xl mx-auto p-4 md:p-6">
+      <div className="max-w-6xl mx-auto p-3 pb-[calc(.75rem+env(safe-area-inset-bottom))] md:p-6">
         {doNotTrack && (
           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-200">
@@ -75,24 +150,30 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
 
         {!showDetails ? (
           // Simple view
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-3 md:gap-4">
             <div className="flex-1">
-              <h2 id="consent-banner-title" className="text-lg font-semibold mb-1">
+              <h2 id="consent-banner-title" className="text-base md:text-lg font-semibold mb-1">
                 Privacy & Cookie Preferences
               </h2>
-              <p id="consent-banner-description" className="text-sm text-muted-foreground">
-                We use cookies and similar technologies to personalize ads, analyze traffic,
-                and improve your experience. You can customize your preferences or accept/reject all.{' '}
-                <Link to="/privacy" className="text-primary-500 hover:underline">
-                  Learn more in our Privacy Policy
+              <p id="consent-banner-description" className="text-xs md:text-sm text-muted-foreground">
+                <span className='md:hidden'>Choose whether clpr may use optional cookies for analytics and personalization. </span>
+                <span className='hidden md:inline'>We use cookies and similar technologies to personalize ads, analyze traffic,
+                and improve your experience. You can customize your preferences or accept/reject all. </span>
+                <Link to="/privacy" className="font-semibold text-violet-300 underline underline-offset-2">
+                  Privacy Policy
                 </Link>
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 w-full md:w-auto">
+            <div className="grid grid-cols-3 gap-2 w-full md:flex md:w-auto">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowDetails(true)}
+                ref={customizeRef}
+                aria-expanded={showDetails}
+                onClick={() => {
+                  setPendingPreferences({ functional: consent.functional, analytics: consent.analytics, advertising: consent.advertising });
+                  setShowDetails(true);
+                }}
                 className="flex-1 md:flex-none"
               >
                 Customize
@@ -100,15 +181,15 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={rejectAll}
-                className="flex-1 md:flex-none"
+                onClick={() => finish(rejectAll)}
+                className="flex-1 border-violet-400 text-violet-300 md:flex-none"
               >
                 Reject All
               </Button>
               <Button
                 variant="primary"
                 size="sm"
-                onClick={acceptAll}
+                onClick={() => finish(acceptAll)}
                 className="flex-1 md:flex-none"
               >
                 Accept All
@@ -119,12 +200,12 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
           // Detailed view
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 id="consent-banner-title" className="text-lg font-semibold">
+              <h2 ref={detailsTitleRef} tabIndex={-1} id="consent-banner-title" className="text-lg font-semibold">
                 Customize Privacy Preferences
               </h2>
               <button
                 onClick={() => setShowDetails(false)}
-                className="text-muted-foreground hover:text-foreground"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                 aria-label="Close detailed preferences"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -138,7 +219,7 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
               <div className="p-4 bg-muted/50 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-medium">Essential</h3>
-                  <span className="text-xs bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 px-2 py-1 rounded">
+                  <span className="text-xs bg-primary-100 dark:bg-primary-900 text-link dark:text-primary-300 px-2 py-1 rounded">
                     Always Active
                   </span>
                 </div>
@@ -158,7 +239,7 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
                       ...prev,
                       functional: e.target.checked
                     }))}
-                    disabled={doNotTrack}
+                    aria-label="Functional cookies"
                     aria-describedby="functional-description"
                   />
                 </div>
@@ -179,6 +260,7 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
                       analytics: e.target.checked
                     }))}
                     disabled={doNotTrack}
+                    aria-label="Analytics cookies"
                     aria-describedby="analytics-description"
                   />
                 </div>
@@ -199,6 +281,7 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
                       advertising: e.target.checked
                     }))}
                     disabled={doNotTrack}
+                    aria-label="Advertising cookies"
                     aria-describedby="advertising-description"
                   />
                 </div>
@@ -213,14 +296,15 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={rejectAll}
+                onClick={() => finish(rejectAll)}
+                className='border-violet-400 text-violet-300'
               >
                 Reject All
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={acceptAll}
+                onClick={() => finish(acceptAll)}
               >
                 Accept All
               </Button>
@@ -235,11 +319,11 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
 
             <p className="text-xs text-muted-foreground text-center">
               You can change these preferences at any time in{' '}
-              <Link to="/settings" className="text-primary-500 hover:underline">
+              <Link to="/settings" className="text-link underline underline-offset-2">
                 Settings
               </Link>
               {' '}or{' '}
-              <Link to="/privacy" className="text-primary-500 hover:underline">
+              <Link to="/privacy" className="text-link underline underline-offset-2">
                 Privacy Policy
               </Link>
             </p>
@@ -248,4 +332,6 @@ export function ConsentBanner({ className }: ConsentBannerProps) {
       </div>
     </div>
   );
+
+  return inline && slot ? createPortal(banner, slot) : banner;
 }

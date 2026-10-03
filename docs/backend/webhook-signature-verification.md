@@ -727,7 +727,7 @@ Set up monitoring for:
 Periodically rotate your webhook secrets for better security. The API provides a secret rotation endpoint:
 
 ```bash
-curl -X POST https://api.clipper.example/api/v1/webhooks/{id}/regenerate-secret \
+curl -X POST https://api.clpr.example/api/v1/webhooks/{id}/regenerate-secret \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -790,7 +790,7 @@ app.post('/webhook', express.text({ type: 'application/json' }), (req, res) => {
 
 ## Additional Resources
 
-- [Main Webhook Documentation](./WEBHOOK_SUBSCRIPTION_MANAGEMENT.md)
+- Main Webhook Documentation
 - [HMAC-SHA256 Specification (RFC 2104)](https://tools.ietf.org/html/rfc2104)
 - [Webhook Security Best Practices](https://webhooks.fyi/security/overview)
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/subculture-collective/clipper/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
 )
 
 // TestEmailServiceCreation tests that the email service can be created
@@ -440,7 +440,7 @@ func TestPrepareWelcomeEmail(t *testing.T) {
 	assert.Contains(t, htmlBody, "Welcome to clpr")
 	assert.Contains(t, htmlBody, "TestUser")
 	assert.Contains(t, htmlBody, "Explore Clips")
-	assert.Contains(t, htmlBody, "Getting Started")
+	assert.Contains(t, htmlBody, "Getting started")
 	assert.Contains(t, htmlBody, "Unsubscribe")
 
 	// Check text content
@@ -541,14 +541,14 @@ func TestPrepareSubmissionApprovedEmail(t *testing.T) {
 	htmlBody, textBody := service.prepareSubmissionApprovedEmail(data)
 
 	// Check HTML content
-	assert.Contains(t, htmlBody, "Your Clip Has Been Approved")
+	assert.Contains(t, htmlBody, "Your clip is live")
 	assert.Contains(t, htmlBody, "Amazing Gameplay")
-	assert.Contains(t, htmlBody, "Stats Snapshot")
+	assert.Contains(t, htmlBody, "Stats so far")
 	assert.Contains(t, htmlBody, "1000")
 	assert.Contains(t, htmlBody, "50")
 
 	// Check text content
-	assert.Contains(t, textBody, "Your Clip Has Been Approved")
+	assert.Contains(t, textBody, "Your clip is live")
 	assert.Contains(t, textBody, "Amazing Gameplay")
 	assert.Contains(t, textBody, "Views: 1000")
 }
@@ -581,7 +581,7 @@ func TestPrepareSubmissionRejectedEmail(t *testing.T) {
 	assert.Contains(t, htmlBody, "Submission Status Update")
 	assert.Contains(t, htmlBody, "Test Clip")
 	assert.Contains(t, htmlBody, "Does not meet quality standards")
-	assert.Contains(t, htmlBody, "Resubmission Tips")
+	assert.Contains(t, htmlBody, "Before you resubmit")
 
 	// Check text content
 	assert.Contains(t, textBody, "Submission Status Update")
@@ -614,15 +614,15 @@ func TestPrepareClipTrendingEmail(t *testing.T) {
 	htmlBody, textBody := service.prepareClipTrendingEmail(data)
 
 	// Check HTML content
-	assert.Contains(t, htmlBody, "Your Clip is Trending")
+	assert.Contains(t, htmlBody, "Your clip is trending")
 	assert.Contains(t, htmlBody, "Viral Clip")
-	assert.Contains(t, htmlBody, "Current Stats")
+	assert.Contains(t, htmlBody, "Current stats")
 	assert.Contains(t, htmlBody, "50000")
 	assert.Contains(t, htmlBody, "500")
 	assert.Contains(t, htmlBody, "100")
 
 	// Check text content
-	assert.Contains(t, textBody, "Your Clip is Trending")
+	assert.Contains(t, textBody, "Your clip is trending")
 	assert.Contains(t, textBody, "Viral Clip")
 }
 
@@ -790,7 +790,7 @@ func TestPrepareEmailContentWithNewTemplates(t *testing.T) {
 	}{
 		{
 			notificationType: "welcome",
-			expectedSubject:  "Welcome to clpr! 🎬",
+			expectedSubject:  "Welcome to clpr",
 			data: map[string]interface{}{
 				"Username": "TestUser",
 			},
@@ -813,7 +813,7 @@ func TestPrepareEmailContentWithNewTemplates(t *testing.T) {
 		},
 		{
 			notificationType: models.NotificationTypeSubmissionApproved,
-			expectedSubject:  "Your Clip Submission Has Been Approved! 🎉",
+			expectedSubject:  "Your clip is live on clpr",
 			data: map[string]interface{}{
 				"ClipTitle": "Test Clip",
 				"ClipURL":   "http://test.com/clip",
@@ -823,7 +823,7 @@ func TestPrepareEmailContentWithNewTemplates(t *testing.T) {
 		},
 		{
 			notificationType: models.NotificationTypeContentTrending,
-			expectedSubject:  "🔥 Your Clip is Trending!",
+			expectedSubject:  "Your clip is trending on clpr",
 			data: map[string]interface{}{
 				"ClipTitle":    "Trending Clip",
 				"ClipURL":      "http://test.com/clip",

@@ -46,24 +46,16 @@ make test-setup
 
 ## Backend Integration Tests
 
-Test CDN failover behavior at the API level:
+The API-level CDN failover suite (`backend/tests/integration/cdn/`) was removed
+in February 2026, so the backend behaviors listed below have no maintained
+automated test. CDN URL generation and cache headers are covered by unit tests:
 
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Run all CDN failover tests
-go test -v -tags=integration ./tests/integration/cdn/...
-
-# Run specific test
-go test -v -tags=integration ./tests/integration/cdn/... -run TestCDNFailover_StaticAssets
-
-# Run with coverage
-go test -v -tags=integration ./tests/integration/cdn/... -coverprofile=coverage.out
-go tool cover -html=coverage.out
+go test -v ./internal/services -run 'CDN|Provider'
 ```
 
-**What's tested:**
+**Behaviors the removed suite covered:**
 - Static asset failover (images, thumbnails)
 - HLS playlist failover
 - HLS segment failover
@@ -232,7 +224,7 @@ curl 'http://prometheus:9090/api/v1/alerts' | jq '.data.alerts[] | select(.label
 docker ps | grep postgres
 
 # Check database is ready
-pg_isready -h localhost -p 5437 -U clipper
+pg_isready -h localhost -p 5437 -U clpr
 
 # Restart database
 docker compose -f docker-compose.test.yml restart postgres
@@ -259,14 +251,13 @@ curl http://localhost:8080/health
 
 ## Related Documentation
 
-- [CDN Failover Runbook](docs/operations/CDN_FAILOVER_RUNBOOK.md) - Operational procedures
-- [Testing Guide](docs/testing/TESTING.md) - Full testing documentation
-- [Backend HLS Implementation](docs/archive/BACKEND_HLS_IMPLEMENTATION.md) - HLS streaming details
+- [CDN Failover Runbook](../operations/CDN_FAILOVER_RUNBOOK.md) - Operational procedures
+- [Testing Guide](./TESTING.md) - Full testing documentation
 
 ## Support
 
 If you encounter issues:
-1. Check the [CDN Failover Runbook](docs/operations/CDN_FAILOVER_RUNBOOK.md)
+1. Check the [CDN Failover Runbook](../operations/CDN_FAILOVER_RUNBOOK.md)
 2. Review test logs for error details
 3. Verify test infrastructure is running
 4. Check that environment variables are set correctly

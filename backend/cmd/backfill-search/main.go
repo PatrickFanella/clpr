@@ -7,11 +7,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/subculture-collective/clipper/config"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/internal/services"
-	"github.com/subculture-collective/clipper/pkg/database"
-	opensearchpkg "github.com/subculture-collective/clipper/pkg/opensearch"
+	"git.subcult.tv/subculture-collective/clpr/config"
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/services"
+	"git.subcult.tv/subculture-collective/clpr/pkg/database"
+	opensearchpkg "git.subcult.tv/subculture-collective/clpr/pkg/opensearch"
 )
 
 func main() {
@@ -89,7 +89,7 @@ func backfillClips(ctx context.Context, db *database.DB, indexer *services.Searc
 			       game_id, game_name, language, thumbnail_url, duration,
 			       view_count, created_at, imported_at, vote_score,
 			       comment_count, favorite_count, is_featured, is_nsfw,
-			       is_removed, removed_reason
+			       is_removed, removed_reason, submitted_by_user_id, is_hidden, dmca_removed
 			FROM clips
 			WHERE is_removed = false
 			ORDER BY id
@@ -111,6 +111,7 @@ func backfillClips(ctx context.Context, db *database.DB, indexer *services.Searc
 				&clip.ThumbnailURL, &clip.Duration, &clip.ViewCount, &clip.CreatedAt,
 				&clip.ImportedAt, &clip.VoteScore, &clip.CommentCount, &clip.FavoriteCount,
 				&clip.IsFeatured, &clip.IsNSFW, &clip.IsRemoved, &clip.RemovedReason,
+				&clip.SubmittedByUserID, &clip.IsHidden, &clip.DMCARemoved,
 			)
 			if err != nil {
 				rows.Close()
@@ -145,7 +146,7 @@ func backfillUsers(ctx context.Context, db *database.DB, indexer *services.Searc
 
 	for {
 		query := `
-			SELECT id, twitch_id, username, display_name, email, avatar_url,
+			SELECT id, twitch_id, username, COALESCE(display_name, username), email, avatar_url,
 			       bio, karma_points, role, is_banned, created_at, updated_at, last_login_at
 			FROM users
 			WHERE is_banned = false
@@ -253,11 +254,12 @@ func backfillGames(ctx context.Context, db *database.DB, indexer *services.Searc
 
 	for {
 		query := `
-			SELECT game_id, game_name, COUNT(*) as clip_count
-			FROM clips
-			WHERE game_id IS NOT NULL AND game_name IS NOT NULL AND is_removed = false
-			GROUP BY game_id, game_name
-			ORDER BY game_id
+			SELECT c.game_id, COALESCE(c.game_name,g.name), COUNT(*) as clip_count
+			FROM clips c LEFT JOIN games g ON g.twitch_game_id=c.game_id
+			WHERE c.game_id IS NOT NULL AND COALESCE(c.game_name,g.name) IS NOT NULL
+			  AND NOT c.is_removed AND NOT c.is_hidden AND NOT c.dmca_removed
+			GROUP BY c.game_id, COALESCE(c.game_name,g.name)
+			ORDER BY c.game_id
 			LIMIT $1 OFFSET $2
 		`
 

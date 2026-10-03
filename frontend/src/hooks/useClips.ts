@@ -13,22 +13,7 @@ import {
     useQueryClient,
 } from '@tanstack/react-query';
 
-// Hook for infinite scrolling clip feed
-export const useClipFeed = (filters?: ClipFeedFilters) => {
-    return useInfiniteQuery({
-        queryKey: ['clips', filters],
-        // Use page-based pagination to align with tests and mocks
-        queryFn: ({ pageParam = 1 }) =>
-            clipApi.fetchClips({ pageParam, filters } as unknown as {
-                pageParam: number;
-                filters?: ClipFeedFilters;
-            }),
-        getNextPageParam: lastPage => {
-            return lastPage.has_more ? (lastPage.page ?? 1) + 1 : undefined;
-        },
-        initialPageParam: 1,
-    });
-};
+export { useClipFeed } from './useClipFeed';
 
 // Hook for infinite scrolling scraped clips feed
 export const useScrapedClipsFeed = (filters?: ClipFeedFilters) => {
@@ -83,13 +68,12 @@ export const useClipVote = () => {
         updater: (clip: Clip) => Clip,
     ) => {
         queryClient.setQueriesData({ queryKey: ['clips'] }, (old: unknown) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const oldData = old as any;
+            const oldData = old as { pages?: ClipFeedResponse[] } | null | undefined;
             if (!oldData?.pages) return oldData;
 
             return {
                 ...oldData,
-                pages: oldData.pages.map((page: ClipFeedResponse) => ({
+                pages: oldData.pages.map(page => ({
                     ...page,
                     clips: page.clips.map((clip: Clip) =>
                         clip.id === clipId ? updater(clip) : clip,
@@ -246,13 +230,12 @@ export const useClipFavorite = () => {
             queryClient.setQueriesData(
                 { queryKey: ['clips'] },
                 (old: unknown) => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const oldData = old as any;
+                    const oldData = old as { pages?: ClipFeedResponse[] } | null | undefined;
                     if (!oldData?.pages) return oldData;
 
                     return {
                         ...oldData,
-                        pages: oldData.pages.map((page: ClipFeedResponse) => ({
+                        pages: oldData.pages.map(page => ({
                             ...page,
                             clips: page.clips.map((clip: Clip) => {
                                 if (clip.id === payload.clip_id) {
@@ -276,13 +259,12 @@ export const useClipFavorite = () => {
             queryClient.setQueriesData(
                 { queryKey: ['favorites'] },
                 (old: unknown) => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const oldData = old as any;
+                    const oldData = old as { pages?: { clips: Clip[] }[] } | null | undefined;
                     if (!oldData?.pages) return oldData;
 
                     return {
                         ...oldData,
-                        pages: oldData.pages.map((page: ClipFeedResponse) => ({
+                        pages: oldData.pages.map(page => ({
                             ...page,
                             clips: page.clips.filter(
                                 (clip: Clip) => clip.id !== payload.clip_id,

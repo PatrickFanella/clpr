@@ -1,236 +1,363 @@
-import { Badge } from '@/components/ui';
-import { formatTimestamp, cn } from '@/lib/utils';
-import type { Playlist, PlaylistWithClips } from '@/types/playlist';
-import { Link, useNavigate } from 'react-router-dom';
-import { Heart, Lock, Users, Globe, Share2, Eye, Play } from 'lucide-react';
-import { PlaylistThumbnail } from './PlaylistThumbnail';
+import apiClient from "@/lib/api";
+
+import { Badge } from "@/components/ui";
+import { formatRelativeTimestamp, cn } from "@/lib/utils";
+import type { Playlist, PlaylistWithClips } from "@/types/playlist";
+import {
+	useBookmarkPlaylist,
+	useLikePlaylist,
+	useUnlikePlaylist,
+	useUnbookmarkPlaylist,
+} from "@/hooks/usePlaylist";
+import { useIsAuthenticated, useToast } from "@/hooks";
+import { Link } from "react-router-dom";
+import {
+	Heart,
+	Lock,
+	Users,
+	Globe,
+	Bookmark,
+	MessageSquare,
+} from "lucide-react";
+import { ShareButton } from "../clip/ShareButton";
+import { PlaylistThumbnail } from "./PlaylistThumbnail";
 
 interface PlaylistCardProps {
-    playlist: (Playlist & { clip_count?: number }) | PlaylistWithClips;
-    onShare?: (playlistId: string) => void;
+	playlist: (Playlist & { clip_count?: number }) | PlaylistWithClips;
 }
 
-export function PlaylistCard({ playlist, onShare }: PlaylistCardProps) {
-    const navigate = useNavigate();
+export function PlaylistCard({ playlist }: PlaylistCardProps) {
+	const statusBadges: Array<{ label: string; className: string }> = [];
+	const visibilityIconClass = "h-2.5 w-2.5";
+	const createdAt = formatRelativeTimestamp(playlist.created_at);
+	const isAuthenticated = useIsAuthenticated();
+	const toast = useToast();
+	const likeMutation = useLikePlaylist();
+	const unlikeMutation = useUnlikePlaylist();
+	const bookmarkMutation = useBookmarkPlaylist();
+	const unbookmarkMutation = useUnbookmarkPlaylist();
+	const isLiked = Boolean(playlist.is_liked);
+	const likeCount = playlist.like_count;
+	const isBookmarked = Boolean(playlist.is_bookmarked);
+	const bookmarkCount = playlist.bookmark_count;
 
-    const getVisibilityIcon = () => {
-        switch (playlist.visibility) {
-            case 'private':
-                return <Lock className='h-3 w-3' />;
-            case 'public':
-                return <Globe className='h-3 w-3' />;
-            case 'unlisted':
-                return <Users className='h-3 w-3' />;
-            default:
-                return null;
-        }
-    };
+	if (playlist.has_processing_clips) {
+		statusBadges.push({
+			label: "Processing…",
+			className:
+				"shrink-0 border border-amber-400/40 bg-amber-500/12 text-[11px] text-amber-100 shadow-xs",
+		});
+	}
 
-    const getVisibilityLabel = () => {
-        switch (playlist.visibility) {
-            case 'private':
-                return 'Private';
-            case 'public':
-                return 'Public';
-            case 'unlisted':
-                return 'Unlisted';
-            default:
-                return '';
-        }
-    };
+	const getVisibilityIcon = () => {
+		switch (playlist.visibility) {
+			case "private":
+				return <Lock className={visibilityIconClass} />;
+			case "public":
+				return <Globe className={visibilityIconClass} />;
+			case "unlisted":
+				return <Users className={visibilityIconClass} />;
+			default:
+				return null;
+		}
+	};
 
-    const handleShareClick = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (onShare) {
-            onShare(playlist.id);
-        }
-    };
+	const getVisibilityLabel = () => {
+		switch (playlist.visibility) {
+			case "private":
+				return "Private";
+			case "public":
+				return "Public";
+			case "unlisted":
+				return "Unlisted";
+			default:
+				return "";
+		}
+	};
 
-    const handleTheatreClick = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        navigate(`/playlists/${playlist.id}/theatre`);
-    };
+	const trackShare = async (
+		platform: "link" | "twitter" | "facebook" | "reddit" | "bluesky",
+	) => {
+		const trackedPlatform =
+			platform === "twitter" || platform === "facebook" ? platform : "link";
 
-    const clipsData =
-        (
-            'clips' in playlist &&
-            Array.isArray(playlist.clips) &&
-            playlist.clips.length > 0
-        ) ?
-            playlist.clips
-        : (
-            'preview_clips' in playlist &&
-            Array.isArray(playlist.preview_clips) &&
-            playlist.preview_clips.length > 0
-        ) ?
-            playlist.preview_clips
-        :   null;
-    const previewClips = clipsData ? clipsData.slice(0, 4) : [];
-    const hasClips = previewClips.length > 0;
+		try {
+			await apiClient.post(`/playlists/${playlist.id}/track-share`, {
+				platform: trackedPlatform,
+				referrer: window.location.href,
+			});
+		} catch (error) {
+			console.error("Failed to track share:", error);
+		}
+	};
 
-    return (
-        <Link
-            to={`/playlists/${playlist.id}`}
-            className='block bg-card border border-border rounded-xl hover:shadow-lg transition-all hover:border-primary-500/30 overflow-hidden group'
-        >
-            {/* Mosaic or Cover Image */}
-            {hasClips && previewClips.length > 0 ?
-                <div className='grid grid-cols-2 gap-1 p-2 relative group/mosaic'>
-                    {previewClips.map((clip, idx) => (
-                        <div
-                            key={clip.id}
-                            className={cn(
-                                'aspect-video rounded-lg overflow-hidden bg-accent',
-                                previewClips.length === 1 && 'col-span-2',
-                                previewClips.length === 3 &&
-                                    idx === 0 &&
-                                    'col-span-2',
-                            )}
-                        >
-                            {clip.thumbnail_url ?
-                                <img
-                                    src={clip.thumbnail_url}
-                                    alt={clip.title}
-                                    className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-300'
-                                    loading='lazy'
-                                />
-                            :   <div className='w-full h-full bg-linear-to-br from-accent to-accent/50' />
-                            }
-                        </div>
-                    ))}
-                    {/* Theatre Mode Button Overlay */}
-                    <button
-                        onClick={handleTheatreClick}
-                        className='absolute inset-0 bg-black/60 opacity-0 group-hover/mosaic:opacity-100 transition-opacity flex items-center justify-center'
-                        aria-label='Play in theatre mode'
-                    >
-                        <div className='bg-primary-500 hover:bg-primary-600 rounded-full p-4 transition-colors'>
-                            <Play className='h-8 w-8 text-white fill-white' />
-                        </div>
-                    </button>
-                </div>
-            :   <div className='aspect-video overflow-hidden relative group/cover'>
-                    {playlist.cover_url ?
-                        <img
-                            src={playlist.cover_url}
-                            alt={playlist.title}
-                            className='w-full h-full object-cover'
-                        />
-                    :   <PlaylistThumbnail
-                            clips={
-                                'clips' in playlist ? playlist.clips : undefined
-                            }
-                            className='w-full h-full'
-                        />
-                    }
-                    {/* Theatre Mode Button Overlay */}
-                    {playlist.clip_count !== undefined &&
-                        playlist.clip_count > 0 && (
-                            <button
-                                onClick={handleTheatreClick}
-                                className='absolute inset-0 bg-black/60 opacity-0 group-hover/cover:opacity-100 transition-opacity flex items-center justify-center'
-                                aria-label='Play in theatre mode'
-                            >
-                                <div className='bg-primary-500 hover:bg-primary-600 rounded-full p-4 transition-colors'>
-                                    <Play className='h-8 w-8 text-white fill-white' />
-                                </div>
-                            </button>
-                        )}
-                </div>
-            }
+	const handleLikeClick = async (e: React.MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
 
-            {/* Content */}
-            <div className='p-4'>
-                {/* Title */}
-                <h3 className='text-lg font-semibold text-foreground mb-1 line-clamp-1 group-hover:text-primary-500 transition-colors'>
-                    {playlist.title}
-                </h3>
+		if (!isAuthenticated) {
+			toast.info("Please log in to like playlists");
+			return;
+		}
 
-                {/* Description */}
-                {playlist.description && (
-                    <p className='text-sm text-muted-foreground mb-3 line-clamp-2'>
-                        {playlist.description}
-                    </p>
-                )}
+		try {
+			if (isLiked) {
+				await unlikeMutation.mutateAsync(playlist.id);
+				toast.success("Playlist unliked");
+			} else {
+				await likeMutation.mutateAsync(playlist.id);
+				toast.success("Playlist liked");
+			}
+		} catch {
+			toast.error("Failed to update playlist like");
+		}
+	};
 
-                {/* Metadata */}
-                <div className='flex items-center justify-between text-xs text-muted-foreground mb-2'>
-                    <div className='flex items-center gap-3'>
-                        {/* Clip Count */}
-                        {playlist.clip_count !== undefined && (
-                            <span>{playlist.clip_count} clips</span>
-                        )}
+	const handleBookmarkClick = async (e: React.MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
 
-                        {/* Like Count */}
-                        <div className='flex items-center gap-1'>
-                            <Heart className='h-3 w-3' />
-                            <span>{playlist.like_count}</span>
-                        </div>
+		if (!isAuthenticated) {
+			toast.info("Please log in to bookmark playlists");
+			return;
+		}
 
-                        {/* View Count */}
-                        {playlist.view_count > 0 && (
-                            <div className='flex items-center gap-1'>
-                                <Eye className='h-3 w-3' />
-                                <span>{playlist.view_count}</span>
-                            </div>
-                        )}
-                    </div>
+		try {
+			if (isBookmarked) {
+				await unbookmarkMutation.mutateAsync(playlist.id);
+				toast.success("Bookmark removed", {
+					action: {
+						label: "Undo",
+						onClick: () => bookmarkMutation.mutate(playlist.id),
+					},
+				});
+			} else {
+				await bookmarkMutation.mutateAsync(playlist.id);
+				toast.success("Playlist bookmarked");
+			}
+		} catch {
+			toast.error("Failed to update playlist bookmark");
+		}
+	};
 
-                    {/* Visibility Badge */}
-                    <Badge
-                        variant='secondary'
-                        className='flex items-center gap-1'
-                    >
-                        {getVisibilityIcon()}
-                        <span>{getVisibilityLabel()}</span>
-                    </Badge>
-                </div>
+	const clipsData =
+		"clips" in playlist &&
+		Array.isArray(playlist.clips) &&
+		playlist.clips.length > 0
+			? playlist.clips
+			: "preview_clips" in playlist &&
+			  Array.isArray(playlist.preview_clips) &&
+			  playlist.preview_clips.length > 0
+			? playlist.preview_clips
+			: null;
+	const previewClips = clipsData ? clipsData.slice(0, 4) : [];
+	const hasClips = previewClips.length > 0;
+	const getPreviewTileClass = (count: number, idx: number) =>
+		cn(
+			"h-full w-full rounded-lg overflow-hidden bg-accent",
+			count === 1 && "col-span-2 row-span-2",
+			count === 2 && "row-span-2",
+			count === 3 && idx === 0 && "col-span-2",
+		);
 
-                {playlist.has_processing_clips && (
-                    <div className='mb-2'>
-                        <Badge
-                            variant='secondary'
-                            className='text-[10px] uppercase tracking-wide border-amber-500/40 text-amber-300/80'
-                        >
-                            Processing…
-                        </Badge>
-                    </div>
-                )}
+	return (
+		<>
+			<Link
+				to={`/playlists/${playlist.id}`}
+				className="group flex h-full flex-col rounded-xl border border-border bg-card p-3 transition-all hover:border-primary-500/30 hover:shadow-lg"
+			>
+				{/* Mosaic or Cover Image */}
+				{hasClips && previewClips.length > 0 ? (
+					<div className="relative aspect-video shrink-0 overflow-hidden rounded-lg mb-3">
+						<div className="grid h-full grid-cols-2 grid-rows-2 gap-1">
+							{previewClips.map((clip, idx) => (
+								<div
+									key={clip.id}
+									className={getPreviewTileClass(previewClips.length, idx)}
+								>
+									{clip.thumbnail_url ? (
+										<img
+											src={clip.thumbnail_url}
+											alt={clip.title}
+											className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+											loading="lazy"
+										/>
+									) : (
+										<div className="w-full h-full bg-surface-raised" />
+									)}
+								</div>
+							))}
+						</div>
+					</div>
+				) : (
+					<div className="relative aspect-video shrink-0 overflow-hidden rounded-lg mb-3">
+						{playlist.cover_url ? (
+							<img
+								src={playlist.cover_url}
+								alt={playlist.title}
+								className="w-full h-full object-cover"
+							/>
+						) : (
+							<PlaylistThumbnail
+								clips={"clips" in playlist ? playlist.clips : undefined}
+								className="w-full h-full"
+							/>
+						)}
+					</div>
+				)}
 
-                {playlist.script_id && (
-                    <div className='mb-2'>
-                        <Badge
-                            variant='secondary'
-                            className='text-[10px] uppercase tracking-wide border-purple-500/40 text-purple-300/80'
-                        >
-                            Scripted
-                        </Badge>
-                    </div>
-                )}
+				{/* Title */}
+				<h3 className="text-base font-semibold text-foreground mb-1 line-clamp-1 group-hover:text-link transition-colors leading-snug">
+					{playlist.title}
+				</h3>
 
-                {/* Footer with Created At and Share Button */}
-                <div className='flex items-center justify-between'>
-                    <div
-                        className='text-xs text-muted-foreground'
-                        title={formatTimestamp(playlist.created_at).title}
-                    >
-                        Created {formatTimestamp(playlist.created_at).display}
-                    </div>
+				{/* Description */}
+				<div className="mb-2 min-h-10">
+					{playlist.description && (
+						<p className="text-sm text-muted-foreground line-clamp-2">
+							{playlist.description}
+						</p>
+					)}
+				</div>
 
-                    {/* Share Button - only show for public/unlisted playlists or if onShare is provided */}
-                    {onShare && playlist.visibility !== 'private' && (
-                        <button
-                            onClick={handleShareClick}
-                            className='p-1.5 text-muted-foreground hover:text-primary-500 hover:bg-accent rounded transition-colors opacity-0 group-hover:opacity-100'
-                            title='Share playlist'
-                        >
-                            <Share2 className='h-4 w-4' />
-                        </button>
-                    )}
-                </div>
-            </div>
-        </Link>
-    );
+				{/* Comment count + top comment preview */}
+				{(playlist.comment_count ?? 0) > 0 && (
+					<div className="mb-2 space-y-1">
+						<div className="flex items-center gap-1.5 text-text-secondary text-[12px]">
+							<MessageSquare size={14} />
+							<span>{playlist.comment_count} comments</span>
+						</div>
+						{playlist.top_comment && (
+							<div>
+								<p className="text-[12px] text-text-secondary italic line-clamp-1">
+									&ldquo;{playlist.top_comment.content}&rdquo;
+								</p>
+								<p className="text-[11px] text-text-tertiary">
+									&mdash; @{playlist.top_comment.username}
+								</p>
+							</div>
+						)}
+					</div>
+				)}
+
+				{/* Bottom section — pushed to bottom, aligned with thumbnail edges */}
+				<div className="mt-4 space-y-2">
+					<div className="-mb-1.5 flex min-h-6 items-start justify-between gap-2">
+						<div className="flex min-w-0 flex-wrap items-start gap-1.5">
+							{statusBadges.map((badge) => (
+								<Badge
+									key={badge.label}
+									variant="secondary"
+									size="sm"
+									className={badge.className}
+								>
+									{badge.label}
+								</Badge>
+							))}
+						</div>
+
+						{/* Public is the expected state in a directory; only exceptions are labelled. */}
+						{playlist.visibility !== "public" && (
+							<Badge
+								variant="secondary"
+								size="sm"
+								className="shrink-0 border border-border bg-background/90 text-[11px] text-foreground shadow-xs"
+							>
+								{getVisibilityIcon()}
+								<span>{getVisibilityLabel()}</span>
+							</Badge>
+						)}
+					</div>
+
+					<div className="-mb-3 flex flex-no-wrap items-center justify-between gap-1.5 text-xs text-muted-foreground">
+						<div className="flex flex-no-wrap items-center gap-x-1.5 gap-y-1">
+							{playlist.clip_count !== undefined && (
+								<span className="inline-flex items-center gap-1.5">
+									<span className="font-medium text-foreground/90">
+										{playlist.clip_count}
+									</span>
+									<span>clips</span>
+								</span>
+							)}
+
+							<button
+								type="button"
+								onClick={handleLikeClick}
+								disabled={likeMutation.isPending || unlikeMutation.isPending}
+								className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded px-2 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-link cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+								aria-label={isLiked ? "Unlike playlist" : "Like playlist"}
+								title={
+									isAuthenticated
+										? isLiked
+											? "Unlike playlist"
+											: "Like playlist"
+										: "Log in to like playlists"
+								}
+							>
+								<Heart
+									size={14}
+									className={cn(isLiked && "fill-current text-link")}
+								/>
+								{likeCount > 0 && (
+									<span className="font-medium text-foreground/90">
+										{likeCount}
+									</span>
+								)}
+							</button>
+
+							<button
+								type="button"
+								onClick={handleBookmarkClick}
+								disabled={
+									bookmarkMutation.isPending || unbookmarkMutation.isPending
+								}
+								className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded px-2 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-link cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+								aria-label={isBookmarked ? "Remove bookmark" : "Bookmark playlist"}
+								title={
+									isAuthenticated
+										? isBookmarked
+											? "Remove bookmark"
+											: "Bookmark playlist"
+										: "Log in to bookmark playlists"
+								}
+							>
+								<Bookmark
+									size={14}
+									className={cn(isBookmarked && "fill-current text-link")}
+								/>
+								{bookmarkCount > 0 && (
+									<span className="font-medium text-foreground/90">
+										{bookmarkCount}
+									</span>
+								)}
+							</button>
+
+							{playlist.visibility !== "private" && (
+								<ShareButton
+									shareUrl={`${window.location.origin}/playlists/${playlist.id}`}
+									shareTitle={
+										playlist.title ||
+										playlist.description ||
+										"Check out this playlist!"
+									}
+									onShare={trackShare}
+									showLabel={false}
+									buttonClassName="inline-flex min-h-0 items-center rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-link"
+									iconClassName="h-3.5 w-3.5"
+									preventLinkNavigation={true}
+								/>
+							)}
+						</div>
+
+						<div
+							className="shrink-0 whitespace-nowrap text-right text-xs text-muted-foreground"
+							title={createdAt.title}
+						>
+							{createdAt.display}
+						</div>
+					</div>
+				</div>
+			</Link>
+		</>
+	);
 }

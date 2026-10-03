@@ -1,182 +1,141 @@
-// TWITCH COMPLIANCE:
-// This component embeds Twitch clips using ONLY official Twitch embed URLs.
-// See: https://dev.twitch.tv/docs/embed/video-and-clips/
-// See: https://legal.twitch.com/legal/developer-agreement/
-// See: docs/compliance/twitch-embeds.md for full compliance documentation
-//
-// COMPLIANCE REQUIREMENTS:
-// - Uses official clips.twitch.tv/embed URL only (no custom players)
-// - Includes 'parent' parameter with actual domain (required by Twitch)
-// - HTTPS only (required by Twitch)
-// - No re-hosting, proxying, or downloading of video files
-// - No stripping of Twitch branding or attribution
-// - Respects creator's right to delete clips (graceful error handling)
-
-import { useState, useEffect } from 'react';
+// Twitch playback is deliberately controlled by the owning feed. Inactive clips
+// remain thumbnails so long feeds never accumulate off-screen iframes.
+// Twitch requires the player to be at least 400×300 and never covered by page
+// elements, so nothing is drawn over the iframe and small screens link out.
+import { useRef, useState } from 'react';
+import { ExternalLink, Play, RotateCw } from 'lucide-react';
 import { useVolumePreference } from '@/hooks';
+import { useTwitchEmbedFits } from '@/hooks/useTwitchEmbedFits';
+import { useRegisterTwitchPlayer } from '@/hooks/useTwitchPlayerLayer';
 import { MutedIcon } from '@/components/ui';
+import { ErrorEvents, trackEvent } from '@/lib/telemetry';
 
 interface TwitchEmbedProps {
   clipId: string;
+  active?: boolean;
   autoplay?: boolean;
   muted?: boolean;
   thumbnailUrl?: string;
   title?: string;
+  onActivate?: () => void;
 }
 
 export function TwitchEmbed({
   clipId,
+  active = false,
   autoplay = false,
   muted = true,
   thumbnailUrl,
-  title = 'Twitch Clip'
+  title = 'Twitch Clip',
+  onActivate,
 }: TwitchEmbedProps) {
-  const [isLoaded, setIsLoaded] = useState(autoplay);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const fits = useTwitchEmbedFits(boxRef);
   const [hasError, setHasError] = useState(false);
-  const [showMutedIndicator, setShowMutedIndicator] = useState(true);
-  const { embedMuted: volumePreferredMuted, hasSetPreference, setUnmutedPreference } = useVolumePreference();
+  const { embedMuted: volumePreferredMuted, hasSetPreference, setUnmutedPreference } =
+    useVolumePreference();
+  const embedMuted = active ? volumePreferredMuted : muted;
+  const parentDomain = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  const shouldAutoplay = active || autoplay;
+  const embedUrl = `https://clips.twitch.tv/embed?clip=${encodeURIComponent(clipId)}&parent=${encodeURIComponent(parentDomain)}&autoplay=${shouldAutoplay ? 'true' : 'false'}&muted=${embedMuted ? 'true' : 'false'}`;
+  const playing = active && fits === true && !hasError;
+  useRegisterTwitchPlayer(boxRef, playing);
 
-  // Determine mute state for embed:
-  // - Before loaded (thumbnail shown): use the prop default (typically muted=true)
-  // - After loaded (iframe shown): use user's volume preference from localStorage
-  // This ensures the iframe URL is generated with the correct mute parameter
-  const embedMuted = isLoaded ? volumePreferredMuted : muted;
+  const thumbnail = thumbnailUrl ? (
+    <img
+      src={thumbnailUrl}
+      alt=''
+      loading='lazy'
+      decoding='async'
+      className='absolute inset-0 h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-90 motion-reduce:transition-none'
+      width='1920'
+      height='1080'
+    />
+  ) : (
+    <span className='absolute inset-0 bg-surface-raised' />
+  );
 
-  // COMPLIANCE: Get the actual parent domain for Twitch embed
-  // Twitch requires the 'parent' parameter to match the actual domain hosting the embed
-  // This is a security measure to prevent unauthorized embedding
-  // See: https://dev.twitch.tv/docs/embed/video-and-clips/#embedded-experiences
-  const parentDomain = typeof window !== 'undefined'
-    ? window.location.hostname
-    : 'localhost';
-
-  // Auto-hide muted indicator after 3 seconds
-  useEffect(() => {
-    if (!embedMuted || hasSetPreference) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setShowMutedIndicator(false);
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [embedMuted, hasSetPreference]);
-
-  // COMPLIANCE: Official Twitch embed URL only
-  // MUST use https://clips.twitch.tv/embed (no custom players, no video re-hosting)
-  // Per Twitch Developer Agreement, we MUST NOT:
-  // - Re-host or proxy video files
-  // - Use unofficial embed methods
-  // - Strip Twitch branding or attribution
-  // - Download or cache video content
-  const embedUrl = `https://clips.twitch.tv/embed?clip=${clipId}&parent=${parentDomain}&autoplay=${isLoaded ? 'true' : 'false'}&muted=${embedMuted}`;
-
-  const handleLoadClick = () => {
-    setIsLoaded(true);
-  };
-
-  const handleError = () => {
-    setHasError(true);
-  };
-
-  if (hasError) {
-    return (
-      <div className="relative w-full pt-[56.25%] bg-neutral-900 rounded-lg flex items-center justify-center">
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
-          <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p className="text-sm text-center">This clip is no longer available</p>
-          <a
-            href={`https://clips.twitch.tv/${clipId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 text-primary-400 hover:text-primary-300 text-sm underline"
-          >
-            Try viewing on Twitch
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isLoaded) {
-    return (
-      <div
-        className="relative w-full pt-[56.25%] bg-black rounded-lg cursor-pointer group overflow-hidden"
-        onClick={handleLoadClick}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleLoadClick();
-          }
+  let content;
+  if (!active) {
+    content = (
+      <button
+        type='button'
+        onClick={() => {
+          setHasError(false);
+          onActivate?.();
         }}
-        aria-label="Load and play video"
+        className='absolute inset-0 block w-full group cursor-pointer'
+        aria-label={`Play ${title}`}
       >
-        {/* Thumbnail */}
-        {thumbnailUrl && (
-          <img
-            src={thumbnailUrl}
-            alt={title}
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105"
-            width="1920"
-            height="1080"
-          />
-        )}
-
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-black bg-opacity-40 group-hover:bg-opacity-60 transition-all flex items-center justify-center">
-          {/* Play button */}
-          <div className="w-16 h-16 bg-white bg-opacity-90 rounded-full flex items-center justify-center transform group-hover:scale-110 transition-transform">
-            <svg className="w-8 h-8 text-black ml-1" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+        {thumbnail}
+        <span className='absolute inset-0 bg-black/20' />
+        <span className='absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center bg-primary-400 text-background transition-colors group-hover:bg-primary-300'>
+          <Play size={28} fill='currentColor' className='translate-x-0.5' aria-hidden='true' />
+        </span>
+        <span className='absolute bottom-3 left-3 inline-flex items-center gap-1.5 bg-black/75 px-2.5 py-1 text-[11px] font-semibold md:hidden'>
+          <RotateCw size={13} aria-hidden='true' /> Landscape recommended
+        </span>
+      </button>
+    );
+  } else if (hasError || fits === false) {
+    content = (
+      <>
+        {!hasError && thumbnail}
+        <div className='absolute inset-0 grid place-items-center bg-black/70 p-5'>
+          <div className='text-center'>
+            <p className='font-semibold'>
+              {hasError
+                ? 'This clip is unavailable here.'
+                : 'Not enough room for the Twitch player.'}
+            </p>
+            <a
+              href={`https://clips.twitch.tv/${clipId}`}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-cyan-300 underline'
+            >
+              Watch on Twitch <ExternalLink size={16} aria-hidden='true' />
+            </a>
           </div>
         </div>
-
-        {/* Watch label */}
-        <div className="absolute bottom-4 left-4 bg-black bg-opacity-75 text-white px-3 py-1 rounded text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-          Click to play
-        </div>
-      </div>
+      </>
+    );
+  } else if (fits) {
+    content = (
+      <iframe
+        src={embedUrl}
+        className='absolute inset-0 h-full w-full border-0'
+        allowFullScreen
+        title={title}
+        onError={() => {
+          setHasError(true);
+          trackEvent(ErrorEvents.ERROR_OCCURRED, {
+            error_type: 'twitch_embed',
+            error_message: 'Twitch clip embed failed to load',
+            clip_id: clipId,
+          });
+        }}
+        allow='autoplay; fullscreen'
+      />
     );
   }
 
   return (
-    <div className="relative w-full pt-[56.25%] bg-black rounded-lg overflow-hidden">
-      <iframe
-        src={embedUrl}
-        className="absolute inset-0 w-full h-full"
-        allowFullScreen
-        title={title}
-        onError={handleError}
-        allow="autoplay; fullscreen"
-      />
-
-      {/* Muted indicator - shown when video is muted and user hasn't set a preference yet */}
-      {embedMuted && !hasSetPreference && showMutedIndicator && (
-        <div
-          className="absolute top-3 left-3 bg-black/70 hover:bg-black/90 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1 cursor-pointer transition-opacity duration-500 pointer-events-auto"
+    <div>
+      <div
+        ref={boxRef}
+        className='relative aspect-[4/3] md:aspect-video w-full overflow-hidden md:rounded-lg bg-neutral-950 text-white'
+      >
+        {content}
+      </div>
+      {playing && embedMuted && !hasSetPreference && (
+        <button
+          type='button'
           onClick={setUnmutedPreference}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              setUnmutedPreference();
-            }
-          }}
-          aria-label="Video is muted, click to enable sound on future videos"
-          title="Video starts muted for autoplay compatibility. Click to enable sound on future videos. (Reload this clip to hear it)"
+          className='mt-1 inline-flex min-h-11 items-center gap-1.5 px-3 md:px-0 text-xs font-semibold text-text-secondary hover:text-text-primary'
         >
-          <MutedIcon size="sm" />
-          <span>Muted</span>
-        </div>
+          <MutedIcon size='sm' /> Sound off · Turn on for future clips
+        </button>
       )}
     </div>
   );

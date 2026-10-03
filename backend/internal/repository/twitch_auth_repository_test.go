@@ -3,23 +3,21 @@ package repository
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/testutil"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/subculture-collective/clipper/internal/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupTwitchAuthTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 	t.Helper()
 
-	// Build connection string from environment or defaults
-	connString := os.Getenv("TEST_DATABASE_URL")
-	if connString == "" {
-		connString = "postgres://clipper:clipper_password@localhost:5437/clipper_test?sslmode=disable"
-	}
+	connString := testutil.DatabaseURL()
 
 	pool, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
@@ -187,6 +185,33 @@ func TestTwitchAuthRepository_GetTwitchAuth(t *testing.T) {
 	if retrieved != nil {
 		t.Error("Expected nil for non-existent user")
 	}
+}
+
+func TestTwitchAuthRepositoryGetsAuthorizationByBroadcasterID(t *testing.T) {
+	pool, cleanup := setupTwitchAuthTestDB(t)
+	if pool == nil {
+		return
+	}
+	defer cleanup()
+
+	repo := NewTwitchAuthRepository(pool)
+	ctx := context.Background()
+	userID := uuid.New()
+	insertTestUser(t, pool, userID)
+	broadcasterID := fmt.Sprintf("broadcaster_%s", userID.String()[:8])
+	require.NoError(t, repo.UpsertTwitchAuth(ctx, &models.TwitchAuth{
+		UserID: userID, TwitchUserID: broadcasterID, TwitchUsername: "authorized_streamer",
+		AccessToken: "authorized-token", RefreshToken: "refresh-token",
+		Scopes: "channel:bot channel:manage:clips", ExpiresAt: time.Now().Add(time.Hour),
+	}))
+	t.Cleanup(func() { _ = repo.DeleteTwitchAuth(ctx, userID) })
+
+	auth, err := repo.GetTwitchAuthByTwitchUserID(ctx, broadcasterID)
+
+	require.NoError(t, err)
+	require.NotNil(t, auth)
+	assert.Equal(t, "authorized-token", auth.AccessToken)
+	assert.Contains(t, auth.Scopes, "channel:manage:clips")
 }
 
 func TestTwitchAuthRepository_RefreshToken(t *testing.T) {

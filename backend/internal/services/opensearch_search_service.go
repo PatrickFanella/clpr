@@ -8,9 +8,9 @@ import (
 	"io"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/pkg/opensearch"
 	"github.com/opensearch-project/opensearch-go/v2/opensearchapi"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/pkg/opensearch"
 )
 
 // OpenSearchService handles search operations using OpenSearch
@@ -47,7 +47,7 @@ func (s *OpenSearchService) Search(ctx context.Context, req *models.SearchReques
 
 	response := &models.SearchResponse{
 		Query:   req.Query,
-		Results: models.SearchResultsByType{},
+		Results: models.EmptySearchResults(),
 		Counts:  models.SearchCounts{},
 		Meta: models.SearchMeta{
 			Page:  req.Page,
@@ -439,7 +439,10 @@ func (s *OpenSearchService) buildClipQuery(req *models.SearchRequest) map[string
 	must := []map[string]interface{}{}
 	filter := []map[string]interface{}{
 		{"term": map[string]interface{}{"is_removed": false}},
-		{"exists": map[string]interface{}{"field": "submitted_by_user_id"}},
+		{"bool": map[string]interface{}{"must_not": []map[string]interface{}{
+			{"term": map[string]interface{}{"is_hidden": true}},
+			{"term": map[string]interface{}{"dmca_removed": true}},
+		}}},
 	}
 
 	// Add text search if query is provided with language-specific fields

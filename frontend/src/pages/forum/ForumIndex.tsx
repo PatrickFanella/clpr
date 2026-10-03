@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Container, SEO } from '@/components';
 import {
   ThreadList,
   ForumSearch,
-  ForumFilters,
   SortSelector,
 } from '@/components/forum';
 import { forumApi } from '@/lib/forum-api';
+import { parseForumSort } from '@/lib/forum-sort';
 import { useAuth } from '@/context/AuthContext';
+import { FORUM_TOPICS } from './CreateThread';
+import { cn } from '@/lib/utils';
 import type { ForumSort, ForumFilters as ForumFiltersType } from '@/types/forum';
 
 export function ForumIndex() {
@@ -19,7 +21,7 @@ export function ForumIndex() {
   const navigate = useNavigate();
 
   // Get filters from URL params
-  const sortParam = (searchParams.get('sort') as ForumSort) || 'newest';
+  const sortParam = parseForumSort(searchParams.get('sort'));
   const gameIdParam = searchParams.get('game_id') || undefined;
   const tagsParam = searchParams.get('tags');
   const searchQuery = searchParams.get('q') || undefined;
@@ -33,10 +35,8 @@ export function ForumIndex() {
   // Fetch threads
   const { data, isLoading, error } = useQuery({
     queryKey: ['forum-threads', sort, filters, searchQuery],
+    enabled: !searchQuery,
     queryFn: async () => {
-      if (searchQuery) {
-        return forumApi.search({ q: searchQuery, page: 1, limit: 20 });
-      }
       return forumApi.listThreads({
         sort,
         game_id: filters.game_id,
@@ -70,11 +70,15 @@ export function ForumIndex() {
     setSort(newSort);
   };
 
-  const handleFilterChange = (newFilters: ForumFiltersType) => {
-    setFilters(newFilters);
-  };
+  const sortedThreads = useMemo(() => {
+    return [...(data?.threads ?? [])].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return 0;
+    });
+  }, [data?.threads]);
 
-  const threads = data?.threads || [];
+  if (searchQuery) return <Navigate to={'/forum/search?q=' + encodeURIComponent(searchQuery)} replace />;
 
   return (
     <>
@@ -90,15 +94,15 @@ export function ForumIndex() {
               <h1 className="text-3xl font-bold text-foreground">Forum Discussions</h1>
               <Link
                 to="/forum/analytics"
-                className="text-sm text-primary-500 hover:text-primary-600 transition-colors mt-1 inline-block"
+                className="text-sm text-primary-300 hover:text-primary-200 underline underline-offset-2 transition-colors motion-reduce:transition-none mt-1 inline-block"
               >
-                View Analytics →
+                Popular threads and contributors
               </Link>
             </div>
             {user && (
               <Link
                 to="/forum/new"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary-400 hover:bg-primary-300 text-background font-heading font-bold uppercase tracking-[0.06em] transition-colors"
               >
                 <Plus className="w-5 h-5" />
                 <span>Start Discussion</span>
@@ -109,15 +113,54 @@ export function ForumIndex() {
           {/* Search */}
           <ForumSearch onSearch={handleSearch} className="mb-4" />
 
-          {/* Filters and Sort */}
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-            <ForumFilters filters={filters} onFilterChange={handleFilterChange} />
+          {/* Topic filter buttons */}
+          <fieldset className="flex flex-wrap gap-2 mb-4">
+            <legend className="sr-only">Filter discussions by topic</legend>
+            <button
+              type="button"
+              onClick={() => setFilters({ ...filters, tags: [] })}
+              aria-pressed={!filters.tags || filters.tags.length === 0}
+              className={cn(
+                'min-h-[44px] px-3 py-1.5 text-sm font-medium border transition-colors motion-reduce:transition-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                (!filters.tags || filters.tags.length === 0)
+                  ? 'bg-brand text-background border-transparent'
+                  : 'text-text-secondary border-border hover:border-text-tertiary hover:text-text-primary',
+              )}
+            >
+              All
+            </button>
+            {FORUM_TOPICS.map((t) => {
+              const isActive = filters.tags?.includes(t.value);
+              return (
+                <button
+                  type="button"
+                  key={t.value}
+                  onClick={() => setFilters({
+                    ...filters,
+                    tags: isActive ? [] : [t.value],
+                  })}
+                  aria-pressed={isActive}
+                  className={cn(
+                    'min-h-[44px] px-3 py-1.5 text-sm font-medium border transition-colors motion-reduce:transition-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                    isActive
+                      ? 'bg-brand text-background border-transparent'
+                      : 'text-text-secondary border-border hover:border-text-tertiary hover:text-text-primary',
+                  )}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </fieldset>
+
+          {/* Sort */}
+          <div className="flex justify-end mb-6">
             <SortSelector value={sort} onChange={handleSortChange} />
           </div>
 
           {/* Error State */}
           {error && (
-            <div className="p-4 bg-error-900 border border-error-800 rounded-lg mb-6">
+            <div role="alert" className="p-4 bg-error-900 border border-error-800 rounded-lg mb-6">
               <p className="text-error-400">
                 Failed to load threads. Please try again later.
               </p>
@@ -125,17 +168,17 @@ export function ForumIndex() {
           )}
 
           {/* Thread List */}
-          <ThreadList threads={threads} loading={isLoading} />
+          <ThreadList threads={sortedThreads} loading={isLoading} />
 
           {/* Empty state for unauthenticated users */}
-          {!user && threads.length === 0 && !isLoading && (
+          {!user && !error && sortedThreads.length === 0 && !isLoading && (
             <div className="text-center py-12 bg-card rounded-lg border border-border mt-6">
               <p className="text-muted-foreground text-lg mb-4">
                 Join the conversation
               </p>
               <Link
                 to="/login"
-                className="inline-block px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors"
+                className="inline-block px-6 py-2 bg-primary-400 hover:bg-primary-300 text-background font-heading font-bold uppercase tracking-[0.06em] transition-colors"
               >
                 Sign in to post
               </Link>

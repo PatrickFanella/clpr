@@ -1,21 +1,24 @@
 package main
 
 import (
+	"git.subcult.tv/subculture-collective/clpr/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/subculture-collective/clipper/internal/repository"
 )
 
 // Repositories holds all database repository instances.
 type Repositories struct {
+	Engagement            *repository.EngagementRepository
 	User                  *repository.UserRepository
 	RefreshToken          *repository.RefreshTokenRepository
 	UserSettings          *repository.UserSettingsRepository
 	AccountDeletion       *repository.AccountDeletionRepository
 	Consent               *repository.ConsentRepository
 	Clip                  *repository.ClipRepository
+	ClipTopic             *repository.ClipTopicRepository
 	Comment               *repository.CommentRepository
 	Vote                  *repository.VoteRepository
 	Favorite              *repository.FavoriteRepository
+	CreatorModeration     *repository.CreatorModerationRepository
 	Tag                   *repository.TagRepository
 	Search                *repository.SearchRepository
 	Submission            *repository.SubmissionRepository
@@ -26,11 +29,8 @@ type Repositories struct {
 	Analytics             *repository.AnalyticsRepository
 	AuditLog              *repository.AuditLogRepository
 	Subscription          *repository.SubscriptionRepository
-	Webhook               *repository.WebhookRepository
 	OutboundWebhook       *repository.OutboundWebhookRepository
-	Dunning               *repository.DunningRepository
 	Contact               *repository.ContactRepository
-	Revenue               *repository.RevenueRepository
 	Ad                    *repository.AdRepository
 	Export                *repository.ExportRepository
 	Broadcaster           *repository.BroadcasterRepository
@@ -49,6 +49,7 @@ type Repositories struct {
 	PlaylistCuration      *repository.PlaylistCurationRepository
 	Queue                 *repository.QueueRepository
 	WatchHistory          *repository.WatchHistoryRepository
+	StreamerClipRoom      *repository.StreamerClipRoomRepository
 	Stream                *repository.StreamRepository
 	StreamFollow          *repository.StreamFollowRepository
 	WatchParty            *repository.WatchPartyRepository
@@ -62,15 +63,19 @@ type Repositories struct {
 
 func initRepositories(pool *pgxpool.Pool) *Repositories {
 	return &Repositories{
+		Engagement:            repository.NewEngagementRepository(pool),
 		User:                  repository.NewUserRepository(pool),
 		RefreshToken:          repository.NewRefreshTokenRepository(pool),
 		UserSettings:          repository.NewUserSettingsRepository(pool),
 		AccountDeletion:       repository.NewAccountDeletionRepository(pool),
+		Subscription:          repository.NewSubscriptionRepository(pool),
 		Consent:               repository.NewConsentRepository(pool),
 		Clip:                  repository.NewClipRepository(pool),
+		ClipTopic:             repository.NewClipTopicRepository(pool),
 		Comment:               repository.NewCommentRepository(pool),
 		Vote:                  repository.NewVoteRepository(pool),
 		Favorite:              repository.NewFavoriteRepository(pool),
+		CreatorModeration:     repository.NewCreatorModerationRepository(pool),
 		Tag:                   repository.NewTagRepository(pool),
 		Search:                repository.NewSearchRepository(pool),
 		Submission:            repository.NewSubmissionRepository(pool),
@@ -80,12 +85,8 @@ func initRepositories(pool *pgxpool.Pool) *Repositories {
 		EmailNotification:     repository.NewEmailNotificationRepository(pool),
 		Analytics:             repository.NewAnalyticsRepository(pool),
 		AuditLog:              repository.NewAuditLogRepository(pool),
-		Subscription:          repository.NewSubscriptionRepository(pool),
-		Webhook:               repository.NewWebhookRepository(pool),
 		OutboundWebhook:       repository.NewOutboundWebhookRepository(pool),
-		Dunning:               repository.NewDunningRepository(pool),
 		Contact:               repository.NewContactRepository(pool),
-		Revenue:               repository.NewRevenueRepository(pool),
 		Ad:                    repository.NewAdRepository(pool),
 		Export:                repository.NewExportRepository(pool),
 		Broadcaster:           repository.NewBroadcasterRepository(pool),
@@ -104,6 +105,7 @@ func initRepositories(pool *pgxpool.Pool) *Repositories {
 		PlaylistCuration:      repository.NewPlaylistCurationRepository(pool),
 		Queue:                 repository.NewQueueRepository(pool),
 		WatchHistory:          repository.NewWatchHistoryRepository(pool),
+		StreamerClipRoom:      repository.NewStreamerClipRoomRepository(pool),
 		Stream:                repository.NewStreamRepository(pool),
 		StreamFollow:          repository.NewStreamFollowRepository(pool),
 		WatchParty:            repository.NewWatchPartyRepository(pool),

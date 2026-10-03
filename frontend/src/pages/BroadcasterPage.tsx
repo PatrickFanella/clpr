@@ -2,8 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Container, SEO } from '../components';
-import { ClipCard } from '../components/clip';
-import { Button } from '../components/ui';
+import { ClipGridCard } from '../components/clip';
+import { Avatar, Button, ResourceUnavailable } from '../components/ui';
 import { Spinner } from '../components';
 import { LiveBadge } from '../components/broadcaster';
 import {
@@ -13,8 +13,10 @@ import {
     unfollowBroadcaster,
     fetchBroadcasterLiveStatus,
 } from '../lib/broadcaster-api';
+import { apiClient } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { isNotFoundError } from '../lib/error-utils';
 
 export function BroadcasterPage() {
     const { broadcasterId } = useParams<{ broadcasterId: string }>();
@@ -31,6 +33,7 @@ export function BroadcasterPage() {
         data: profile,
         isLoading: isLoadingProfile,
         error: profileError,
+        refetch: refetchProfile,
     } = useQuery({
         queryKey: ['broadcaster', broadcasterId],
         queryFn: () => fetchBroadcasterProfile(broadcasterId!),
@@ -57,6 +60,32 @@ export function BroadcasterPage() {
         enabled: !!broadcasterId,
     });
 
+    // Fetch broadcaster ranking data
+    const { data: rankingData } = useQuery({
+        queryKey: ['broadcaster-ranking', broadcasterId],
+        queryFn: async () => {
+            const res = await apiClient.get<{
+                success: boolean;
+                data: Array<{
+                    broadcaster_id: string;
+                    engagement_score: number;
+                }>;
+            }>('/broadcasters/rankings?limit=100');
+            const rankings = res.data?.data || [];
+            const idx = rankings.findIndex(
+                r => r.broadcaster_id === broadcasterId,
+            );
+            if (idx >= 0) {
+                return {
+                    rank: idx + 1,
+                    engagement_score: rankings[idx].engagement_score,
+                };
+            }
+            return null;
+        },
+        enabled: !!broadcasterId,
+    });
+
     // Follow mutation
     const followMutation = useMutation({
         mutationFn: () => followBroadcaster(broadcasterId!),
@@ -64,10 +93,10 @@ export function BroadcasterPage() {
             queryClient.invalidateQueries({
                 queryKey: ['broadcaster', broadcasterId],
             });
-            showToast('Successfully followed broadcaster', 'success');
+            showToast('Successfully followed creator', 'success');
         },
         onError: () => {
-            showToast('Failed to follow broadcaster', 'error');
+            showToast('Failed to follow creator', 'error');
         },
     });
 
@@ -78,16 +107,16 @@ export function BroadcasterPage() {
             queryClient.invalidateQueries({
                 queryKey: ['broadcaster', broadcasterId],
             });
-            showToast('Successfully unfollowed broadcaster', 'success');
+            showToast('Successfully unfollowed creator', 'success');
         },
         onError: () => {
-            showToast('Failed to unfollow broadcaster', 'error');
+            showToast('Failed to unfollow creator', 'error');
         },
     });
 
     const handleFollowToggle = () => {
         if (!isAuthenticated) {
-            showToast('Please log in to follow broadcasters', 'error');
+            showToast('Please log in to follow creators', 'error');
             return;
         }
 
@@ -109,44 +138,57 @@ export function BroadcasterPage() {
     }
 
     if (profileError || !profile) {
+        const notFound = !profileError || isNotFoundError(profileError);
         return (
-            <Container className='py-8'>
-                <div className='text-center text-muted-foreground py-12'>
-                    <h2 className='text-2xl font-bold mb-2'>
-                        Broadcaster Not Found
-                    </h2>
-                    <p>
-                        The broadcaster you're looking for doesn't exist or has
-                        no clips yet.
-                    </p>
-                </div>
-            </Container>
+            <>
+                <SEO title={notFound ? 'Creator not found' : 'Creator unavailable'} noindex />
+                <Container className='py-8'>
+                    {notFound ?
+                        <ResourceUnavailable
+                            kind='not-found'
+                            title="This creator isn't here"
+                            description="We don't have a creator page for this link yet."
+                            links={[
+                                { label: 'Browse creators', href: '/creators' },
+                                { label: 'Back to the feed', href: '/' },
+                            ]}
+                        />
+                    :   <ResourceUnavailable
+                            kind='error'
+                            title="We couldn't load this creator"
+                            description='Check your connection and try again.'
+                            onRetry={() => void refetchProfile()}
+                            links={[{ label: 'Back to the feed', href: '/' }]}
+                        />
+                    }
+                </Container>
+            </>
         );
     }
 
     return (
         <>
             <SEO
-                title={`${profile.display_name} - Broadcaster Profile`}
-                description={`View all clips featuring ${profile.display_name} on Clipper`}
+                title={`${profile.display_name} - Creator Profile`}
+                description={`View all clips featuring ${profile.display_name} on clpr`}
             />
             <Container className='py-8'>
                 {/* Broadcaster Profile Header */}
                 <div className='mb-8'>
                     <div className='flex flex-col md:flex-row items-start md:items-center gap-6 mb-6'>
                         {/* Avatar */}
-                        {profile.avatar_url && (
-                            <img
-                                src={profile.avatar_url}
-                                alt={`${profile.display_name} profile picture`}
-                                className='w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-primary'
-                            />
-                        )}
+                        <Avatar
+                            src={profile.avatar_url}
+                            alt=''
+                            fallback={profile.display_name}
+                            frameClassName='h-24 w-24 border-4 border-primary text-4xl md:h-32 md:w-32'
+                            className='shrink-0'
+                        />
 
                         {/* Info */}
-                        <div className='flex-1'>
-                            <div className='flex items-center gap-3 mb-2'>
-                                <h1 className='text-4xl font-bold'>
+                        <div className='min-w-0 flex-1'>
+                            <div className='flex flex-wrap items-center gap-3 mb-2'>
+                                <h1 className='min-w-0 break-words text-4xl font-bold'>
                                     {profile.display_name}
                                 </h1>
                                 <LiveBadge
@@ -165,7 +207,7 @@ export function BroadcasterPage() {
                                 />
                             </div>
                             {profile.bio && (
-                                <p className='text-muted-foreground mb-4'>
+                                <p className='text-muted-foreground mb-4 break-words'>
                                     {profile.bio}
                                 </p>
                             )}
@@ -204,6 +246,26 @@ export function BroadcasterPage() {
                                         Avg Score
                                     </span>
                                 </div>
+                                {rankingData && (
+                                    <>
+                                        <div>
+                                            <span className='font-semibold'>
+                                                {rankingData.engagement_score.toLocaleString()}
+                                            </span>
+                                            <span className='text-muted-foreground ml-1'>
+                                                Engagement Score
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <span className='font-semibold'>
+                                                #{rankingData.rank}
+                                            </span>
+                                            <span className='text-muted-foreground ml-1'>
+                                                Rank
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -245,9 +307,9 @@ export function BroadcasterPage() {
                 </div>
 
                 {/* Sort Controls */}
-                <div className='mb-6 flex items-center gap-4'>
+                <div className='mb-6 flex flex-wrap items-center gap-x-4 gap-y-2'>
                     <h2 className='text-2xl font-bold'>Clips</h2>
-                    <div className='flex gap-2'>
+                    <div className='flex flex-wrap gap-2'>
                         <Button
                             size='sm'
                             variant={
@@ -299,7 +361,7 @@ export function BroadcasterPage() {
                     <>
                         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8'>
                             {(clipsData.data ?? []).map(clip => (
-                                <ClipCard key={clip.id} clip={clip} />
+                                <ClipGridCard key={clip.id} clip={clip} />
                             ))}
                         </div>
 
@@ -331,7 +393,7 @@ export function BroadcasterPage() {
                         )}
                     </>
                 :   <div className='text-center text-muted-foreground py-12'>
-                        <p>No clips found for this broadcaster.</p>
+                        <p>No clips found for this creator.</p>
                     </div>
                 }
             </Container>

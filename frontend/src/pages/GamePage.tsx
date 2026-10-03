@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Container, Spinner, Button, ClipCard } from '../components';
-import { gameApi } from '../lib/game-api';
+import { Container, Spinner, Button, ResourceUnavailable } from '../components';
+import { ClipGridCard } from '../components/clip';
+import { twitchCategoryApi } from '../lib/game-api';
 import type { GameWithStats } from '../types/game';
 import type { Clip } from '../types/clip';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { isNotFoundError } from '../lib/error-utils';
 
 type GameSort = 'hot' | 'new' | 'top' | 'rising';
 type GameTimeframe = 'hour' | 'day' | 'week' | 'month' | 'year' | 'all';
@@ -21,7 +23,11 @@ export function GamePage() {
     const [loading, setLoading] = useState(true);
     const [clipsLoading, setClipsLoading] = useState(false);
     const [following, setFollowing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [loadFailed, setLoadFailed] = useState(false);
+    // The category has no details record. Clips may still be tracked for it.
+    const [gameMissing, setGameMissing] = useState(false);
+    const [clipsLoaded, setClipsLoaded] = useState(false);
+    const [reloadCount, setReloadCount] = useState(0);
 
     const sort = (searchParams.get('sort') as GameSort | null) || 'hot';
     const timeframe = searchParams.get('timeframe') as GameTimeframe | null;
@@ -34,20 +40,26 @@ export function GamePage() {
 
             try {
                 setLoading(true);
-                setError(null);
-                const data = await gameApi.getGame(gameId);
+                setLoadFailed(false);
+                setGameMissing(false);
+                const data = await twitchCategoryApi.getGame(gameId);
                 setGame(data.game);
                 setFollowing(data.game.is_following);
             } catch (err) {
-                console.error('Failed to fetch game:', err);
-                setError('Failed to load game details');
+                setGame(null);
+                if (isNotFoundError(err)) {
+                    setGameMissing(true);
+                } else {
+                    console.error('Failed to fetch game:', err);
+                    setLoadFailed(true);
+                }
             } finally {
                 setLoading(false);
             }
         };
 
         fetchGame();
-    }, [gameId]);
+    }, [gameId, reloadCount]);
 
     useEffect(() => {
         const fetchClips = async () => {
@@ -63,22 +75,25 @@ export function GamePage() {
                 } = { page, limit: 20, sort };
                 if (timeframe) params.timeframe = timeframe;
 
-                const data = await gameApi.getGameClips(gameId, params);
+                const data = await twitchCategoryApi.getGameClips(gameId, params);
                 setClips(data.clips || []);
                 setHasMore(data.has_more);
             } catch (err) {
-                console.error('Failed to fetch clips:', err);
+                setClips([]);
+                setHasMore(false);
+                if (!isNotFoundError(err)) console.error('Failed to fetch clips:', err);
             } finally {
                 setClipsLoading(false);
+                setClipsLoaded(true);
             }
         };
 
         fetchClips();
-    }, [gameId, sort, timeframe, page]);
+    }, [gameId, sort, timeframe, page, reloadCount]);
 
     const handleFollow = async () => {
         if (!user) {
-            showToast('Please sign in to follow games', 'error');
+            showToast('Please sign in to follow Twitch categories', 'error');
             return;
         }
 
@@ -86,9 +101,9 @@ export function GamePage() {
 
         try {
             if (following) {
-                await gameApi.unfollowGame(gameId);
+                await twitchCategoryApi.unfollowGame(gameId);
                 setFollowing(false);
-                showToast('Unfollowed game', 'success');
+                showToast('Unfollowed Twitch category', 'success');
                 if (game) {
                     setGame({
                         ...game,
@@ -96,9 +111,9 @@ export function GamePage() {
                     });
                 }
             } else {
-                await gameApi.followGame(gameId);
+                await twitchCategoryApi.followGame(gameId);
                 setFollowing(true);
-                showToast('Following game', 'success');
+                showToast('Following Twitch category', 'success');
                 if (game) {
                     setGame({
                         ...game,
@@ -124,7 +139,10 @@ export function GamePage() {
         }
     };
 
-    if (loading) {
+    // A missing category is only "not found" when no clips are tracked for it.
+    const decidingMissing = gameMissing && (!clipsLoaded || clipsLoading) && clips.length === 0;
+
+    if (loading || decidingMissing) {
         return (
             <Container className='py-8'>
                 <div className='flex items-center justify-center min-h-[400px]'>
@@ -134,20 +152,52 @@ export function GamePage() {
         );
     }
 
-    if (error || !game) {
+    if (loadFailed) {
         return (
             <Container className='py-8'>
-                <div className='text-center text-muted-foreground py-12'>
-                    <p className='text-lg'>{error || 'Game not found'}</p>
-                </div>
+                <ResourceUnavailable
+                    kind='error'
+                    title="We couldn't load this Twitch category"
+                    description='Check your connection and try again.'
+                    onRetry={() => setReloadCount(count => count + 1)}
+                    links={[{ label: 'Back to the feed', href: '/' }]}
+                />
+            </Container>
+        );
+    }
+
+    if (!game && clips.length === 0) {
+        return (
+            <Container className='py-8'>
+                <ResourceUnavailable
+                    kind='not-found'
+                    title="This Twitch category isn't here"
+                    description="clpr hasn't tracked any clips from this Twitch category yet."
+                    links={[
+                        { label: 'Browse topics', href: '/topics' },
+                        { label: 'Search clips', href: '/search' },
+                        { label: 'Back to the feed', href: '/' },
+                    ]}
+                />
             </Container>
         );
     }
 
     return (
         <Container className='py-8'>
-            {/* Game Header */}
-            <div className='mb-8'>
+            {/* Twitch Category Header */}
+            {!game ?
+                <div className='mb-8'>
+                    <p className='text-xs font-semibold uppercase tracking-wider text-primary-400 mb-1'>
+                        Twitch Category
+                    </p>
+                    <h1 className='text-4xl font-bold mb-2'>Tracked clips</h1>
+                    <p className='text-sm text-muted-foreground'>
+                        Details for this Twitch category aren't available yet.
+                        These are the clips clpr has tracked from it.
+                    </p>
+                </div>
+            :   <div className='mb-8'>
                 <div className='flex items-start gap-6'>
                     {game.box_art_url && (
                         <img
@@ -159,6 +209,9 @@ export function GamePage() {
                         />
                     )}
                     <div className='flex-1'>
+                        <p className='text-xs font-semibold uppercase tracking-wider text-primary-400 mb-1'>
+                            Twitch Category
+                        </p>
                         <h1 className='text-4xl font-bold mb-2'>{game.name}</h1>
                         <div className='flex items-center gap-4 text-sm text-muted-foreground mb-4'>
                             <span>{game.clip_count} clips</span>
@@ -176,9 +229,10 @@ export function GamePage() {
                     </div>
                 </div>
             </div>
+            }
 
             {/* Sort and Filter Controls */}
-            <div className='mb-6 flex gap-4 items-center'>
+            <div className='mb-6 flex flex-wrap gap-4 items-center'>
                 <div>
                     <label className='text-sm font-medium mr-2'>Sort by:</label>
                     <select
@@ -222,12 +276,12 @@ export function GamePage() {
                 </div>
             : clips.length === 0 ?
                 <div className='text-center text-muted-foreground py-12'>
-                    <p className='text-lg'>No clips found for this game</p>
+                    <p className='text-lg'>No clips found for this Twitch category</p>
                 </div>
             :   <>
                     <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8'>
                         {clips.map(clip => (
-                            <ClipCard key={clip.id} clip={clip} />
+                            <ClipGridCard key={clip.id} clip={clip} />
                         ))}
                     </div>
 

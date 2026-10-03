@@ -7,11 +7,11 @@ export function Footer() {
 
     return (
         <footer className='bg-background border-t border-border mt-auto'>
-            <div className='container mx-auto px-4 py-8'>
-                <div className='grid grid-cols-1 md:grid-cols-4 gap-8'>
+            <div className='page-container py-8'>
+                <div className='grid grid-cols-1 md:grid-cols-3 gap-8'>
                     {/* About Section */}
                     <div>
-                        <h3 className='font-semibold mb-4'>
+                        <h3 className='kicker mb-4'>
                             {t('footer.about')}
                         </h3>
                         <ul className='space-y-2'>
@@ -24,21 +24,27 @@ export function Footer() {
                                 </Link>
                             </li>
                             <li>
-                                <a
-                                    href='https://github.com/subculture-collective/clipper'
-                                    target='_blank'
-                                    rel='noopener noreferrer'
+                                <Link
+                                    to='/support'
                                     className='text-muted-foreground hover:text-foreground transition-colors'
                                 >
-                                    {t('footer.githubRepo')}
-                                </a>
+                                    Support clpr
+                                </Link>
+                            </li>
+                            <li>
+                                <Link
+                                    to='/contact'
+                                    className='text-muted-foreground hover:text-foreground transition-colors'
+                                >
+                                    {t('footer.contactUs')}
+                                </Link>
                             </li>
                         </ul>
                     </div>
 
                     {/* Legal Section */}
                     <div>
-                        <h3 className='font-semibold mb-4'>
+                        <h3 className='kicker mb-4'>
                             {t('footer.legal')}
                         </h3>
                         <ul className='space-y-2'>
@@ -71,7 +77,7 @@ export function Footer() {
 
                     {/* Community Section */}
                     <div>
-                        <h3 className='font-semibold mb-4'>
+                        <h3 className='kicker mb-4'>
                             {t('footer.community')}
                         </h3>
                         <ul className='space-y-2'>
@@ -105,31 +111,6 @@ export function Footer() {
                             </li>
                         </ul>
                     </div>
-
-                    {/* Resources Section */}
-                    <div>
-                        <h3 className='font-semibold mb-4'>
-                            {t('footer.resources')}
-                        </h3>
-                        <ul className='space-y-2'>
-                            {/* <li>
-                <Link
-                  to="/docs"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Documentation
-                </Link>
-              </li> */}
-                            <li>
-                                <Link
-                                    to='/contact'
-                                    className='text-muted-foreground hover:text-foreground transition-colors'
-                                >
-                                    {t('footer.contactUs')}
-                                </Link>
-                            </li>
-                        </ul>
-                    </div>
                 </div>
 
                 {/* Copyright */}
@@ -142,8 +123,7 @@ export function Footer() {
                             rel='noopener noreferrer'
                         >
                             subcult.tv
-                        </a>{' '}
-                        💜
+                        </a>
                     </p>
                 </div>
             </div>

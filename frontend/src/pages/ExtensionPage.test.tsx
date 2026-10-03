@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ExtensionPage } from './ExtensionPage';
 
 vi.mock('../components', () => ({
@@ -14,8 +14,8 @@ vi.mock('../components', () => ({
         <div>{children}</div>
     ),
     SEO: () => null,
-    Button: ({ children, variant }: { children: React.ReactNode; variant?: string; size?: string }) => (
-        <button data-variant={variant}>{children}</button>
+    Button: ({ children, variant, asChild }: { children: React.ReactNode; variant?: string; size?: string; asChild?: boolean }) => (
+        asChild ? <>{children}</> : <button data-variant={variant}>{children}</button>
     ),
 }));
 
@@ -31,28 +31,38 @@ describe('ExtensionPage', () => {
     it('renders the page heading', () => {
         renderPage();
         expect(
-            screen.getByRole('heading', { name: /clipper browser extension/i }),
+            screen.getByRole('heading', { name: /clpr browser extension/i }),
         ).toBeInTheDocument();
     });
 
-    it('renders Chrome and Firefox download links', () => {
-        renderPage();
-        expect(
-            screen.getByRole('link', { name: /get clipper for chrome/i }),
-        ).toBeInTheDocument();
-        expect(
-            screen.getByRole('link', { name: /get clipper for firefox/i }),
-        ).toBeInTheDocument();
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        vi.resetModules();
     });
 
-    it('renders the Features section', () => {
+    it('says the extension is unlisted instead of linking to a missing store page', () => {
+        renderPage();
+        expect(screen.getByTestId('extension-unlisted')).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /get clpr for/i })).not.toBeInTheDocument();
+    });
+
+    it('renders an install link only for a configured store listing', async () => {
+        vi.stubEnv('VITE_EXTENSION_FIREFOX_URL', 'https://addons.mozilla.org/firefox/addon/example');
+        vi.resetModules();
+        const { ExtensionPage: Configured } = await import('./ExtensionPage');
+        render(<MemoryRouter><Configured /></MemoryRouter>);
+        expect(screen.getByRole('link', { name: /get clpr for firefox/i })).toHaveAttribute('href', 'https://addons.mozilla.org/firefox/addon/example');
+        expect(screen.queryByRole('link', { name: /get clpr for chrome/i })).not.toBeInTheDocument();
+    });
+
+    it('renders the feature list', () => {
         renderPage();
         expect(
-            screen.getByRole('heading', { name: /features/i }),
+            screen.getByRole('heading', { name: /what it does/i }),
         ).toBeInTheDocument();
         expect(screen.getByText(/auto-detect clips/i)).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: /context menu/i, level: 3 })).toBeInTheDocument();
-        expect(screen.getByText(/one-click submit/i)).toBeInTheDocument();
+        expect(screen.getByText(/submit from the popup/i)).toBeInTheDocument();
     });
 
     it('renders the How it works section', () => {
@@ -72,13 +82,8 @@ describe('ExtensionPage', () => {
         expect(rows.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('renders the open source section with GitHub link', () => {
+    it('does not publish a repository link', () => {
         renderPage();
-        const githubLink = screen.getByRole('link', { name: /view on github/i });
-        expect(githubLink).toBeInTheDocument();
-        expect(githubLink).toHaveAttribute(
-            'href',
-            expect.stringContaining('github.com'),
-        );
+        expect(screen.queryByRole('link', { name: /view source/i })).not.toBeInTheDocument();
     });
 });

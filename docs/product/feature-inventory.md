@@ -1,22 +1,25 @@
 ---
 title: "Feature Inventory"
-summary: "> **Last Updated**: 2026-01-14"
+summary: "Maintained feature scope and verification map"
 tags: ["product"]
 area: "product"
-status: "stable"
+status: "draft"
 owner: "team-core"
 version: "1.0"
-last_reviewed: 2026-01-29
+last_reviewed: 2026-09-08
 ---
 
 # Feature Inventory & Verification Map
 
-> **Last Updated**: 2026-01-14  
-> **Sweep**: Feature Inventory & Verification Sweep II  
-> **Purpose**: Complete inventory of all features in the Clipper platform, documenting status, location, tests, typing, and documentation coverage.  
-> **Scope**: Covers Backend API, Frontend Web, Mobile App, Infrastructure, and Documentation features.  
-> **Exclusions**: `/vault/**` directory (secrets management)  
-> **Current Stats**: 61 Backend Handlers, 71 Backend Services, 80 Frontend Pages, 17 Mobile Screens, 15 CI/CD Workflows, 27 Deployment Scripts, 192 Backend Tests, 107 Frontend Tests
+> **Last Updated**: 2026-09-08
+>
+> **Sweep**: Free-account candidate scope and UI maintenance
+>
+> **Purpose**: Complete inventory of all features in the Clipper platform, documenting status, location, tests, typing, and documentation coverage.
+>
+> **Scope**: Covers the tracked backend API, frontend web app, infrastructure, and documentation. Native mobile material is planning documentation only.
+>
+> **Current evidence**: Maintained source, real-backend browser, release-evidence, and immutable-image workflows exist. Their passing results are revision-specific. Production promotion additionally requires reconciled provider obligations, fresh staging OAuth, review, and protected operational evidence. No buildable native mobile workspace is present.
 
 ---
 
@@ -30,7 +33,7 @@ last_reviewed: 2026-01-29
   - [4. Social Features](#4-social-features)
   - [5. Search & Discovery](#5-search--discovery)
   - [6. Content Moderation](#6-content-moderation)
-  - [7. Premium & Subscriptions](#7-premium--subscriptions)
+  - [7. Free accounts and legacy billing](#7-free-accounts-and-legacy-billing)
   - [8. Analytics & Metrics](#8-analytics--metrics)
   - [9. Live Streams & Watch Parties](#9-live-streams--watch-parties)
   - [10. Community & Forums](#10-community--forums)
@@ -44,16 +47,25 @@ last_reviewed: 2026-01-29
 
 ## Summary
 
-This inventory documents **270+ features** across the Clipper platform (updated 2026-01-14):
+This inventory is a pre-release catalog, not proof that every listed feature is
+release-ready. Status must be backed by registered routes, buildable clients,
+and executable tests. The production-readiness audit supersedes earlier raw
+counts that included planned or missing artifacts.
 
-- **Backend API**: 150+ endpoints across 61 handlers and 71 services
-- **Backend Tests**: 192 test files providing comprehensive coverage
-- **Frontend**: 80 pages and major components across web app
-- **Frontend Tests**: 107 test files (unit + integration + E2E)
-- **Mobile**: 17 screens/flows (React Native + Expo 52)
-- **Mobile Tests**: 8 test files with growing coverage
-- **Infrastructure**: 15 CI/CD workflows, 27 deployment scripts
-- **Documentation**: 300+ markdown files across /docs directory
+- **Backend**: Go API with package, race, vet, PostgreSQL integration,
+  migration, and engagement coverage checks in source convergence.
+- **Frontend**: React web app with production typecheck, lint, reachability,
+  ownership, critical coverage, build budgets, and three-engine browser gates.
+- **Mobile**: No tracked buildable application. Mobile documents describe a
+  possible future client and are not current product availability.
+- **Infrastructure**: Authoritative Gitea workflows cover operator preflight,
+  release gates, complete source convergence, immutable images, and release
+  readiness. Workflow availability does not prove branch-protection enforcement
+  or a passing result for a particular revision.
+- **Documentation**: Historical feature entries below describe implementation
+  scope and may still require evidence correction. A “complete” label does not
+  establish provider acceptance, enabled release scope, or production readiness.
+  Use revision-bound release evidence for those decisions.
 
 ### Status Legend
 
@@ -74,12 +86,12 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Status**: ✅ complete
 - **Backend**: `/api/v1/auth/twitch`, `/api/v1/auth/twitch/callback`
 - **Frontend**: `AuthCallbackPage.tsx`, `LoginPage.tsx`
-- **Mobile**: `app/auth/login.tsx`
+- **Planned mobile design**: `app/auth/login.tsx` (workspace absent)
 - **Handlers**: `auth_handler.go`, `twitch_oauth_handler.go`
 - **Services**: `auth_service.go`
 - **Tests**: ✅ Handler tests exist
 - **Typing**: ✅ TypeScript types defined
-- **Docs**: [Authentication Guide](../backend/authentication.md)
+- **Docs**: Authentication Guide
 - **Issue**: TBD
 
 **Features**:
@@ -104,7 +116,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Services**: `mfa_service.go`, `email_mfa.go`
 - **Tests**: ✅ Comprehensive unit tests
 - **Typing**: ✅ Full TypeScript coverage
-- **Docs**: [MFA Admin Guide](../MFA_ADMIN_GUIDE.md)
+- **Docs**: MFA Admin Guide
 - **Issue**: TBD
 
 **Features**:
@@ -127,7 +139,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Middleware**: `permission_middleware.go`, `authorization_test.go`
 - **Tests**: ✅ Extensive permission tests
 - **Typing**: ✅ Complete
-- **Docs**: [RBAC Documentation](../backend/rbac.md), [Authorization Status](../AUTHORIZATION_STATUS.md)
+- **Docs**: RBAC Documentation, Authorization Status
 - **Issue**: TBD
 
 **Features**:
@@ -147,7 +159,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Status**: ✅ complete
 - **Backend**: `/api/v1/clips/*`
 - **Frontend**: `ClipDetailPage.tsx`, clip components
-- **Mobile**: `app/clip/[id].tsx`
+- **Planned mobile design**: `app/clip/[id].tsx` (workspace absent)
 - **Handlers**: `clip_handler.go`
 - **Services**: `clip_service.go`
 - **Repository**: `clip_repository.go`
@@ -176,12 +188,12 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Status**: ✅ complete
 - **Backend**: `/api/v1/submissions/*`
 - **Frontend**: `SubmitClipPage.tsx`, `UserSubmissionsPage.tsx`
-- **Mobile**: `app/submit/index.tsx`
+- **Planned mobile design**: `app/submit/index.tsx` (workspace absent)
 - **Handlers**: `submission_handler.go`
 - **Services**: `submission_service.go`, `submission_abuse_detection.go`
 - **Tests**: 🟡 partial
 - **Typing**: ✅ Complete
-- **Docs**: [Clip Submission API Guide](../backend/clip-submission-api-guide.md)
+- **Docs**: Clip Submission API Guide
 - **Issue**: TBD
 
 **Features**:
@@ -209,7 +221,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Scheduler**: `clip_sync_scheduler.go`
 - **Tests**: ⚠️ broken (scheduler tests have known issues)
 - **Typing**: ✅ Complete
-- **Docs**: [Clip Scraper README](../../backend/scripts/README_SCRAPER.md), [Scraped Clips](scraped-clips.md)
+- **Docs**: [Clip Scraper README](../README_SCRAPER.md), [Scraped Clips](scraped-clips.md)
 - **Issue**: TBD
 
 **Features**:
@@ -217,7 +229,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - Broadcaster-targeted scraping
 - Scheduled sync jobs (every 15 minutes)
 - Clip claiming by creators
-- CDN mirroring support
+- CDN mirroring design (disabled; provider implementations are incomplete)
 - Metadata enrichment
 - Auto-tagging
 
@@ -257,7 +269,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Status**: ✅ complete
 - **Backend**: `/api/v1/clips/:id/favorite`, `/api/v1/favorites`
 - **Frontend**: `FavoritesPage.tsx`, favorite buttons
-- **Mobile**: `app/(tabs)/favorites.tsx`
+- **Planned mobile design**: `app/(tabs)/favorites.tsx` (workspace absent)
 - **Handlers**: `favorite_handler.go`
 - **Repository**: `favorite_repository.go`
 - **Tests**: ✅ Unit tests exist
@@ -284,12 +296,12 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Status**: ✅ complete
 - **Backend**: `/api/v1/users/:id`, `/api/v1/users/by-username/:username`
 - **Frontend**: `UserProfilePage.tsx`, `ProfilePage.tsx`
-- **Mobile**: `app/(tabs)/profile.tsx`, `app/profile/[id].tsx`, `app/profile/edit.tsx`
+- **Planned mobile design**: `app/(tabs)/profile.tsx`, `app/profile/[id].tsx`, `app/profile/edit.tsx` (workspace absent)
 - **Handlers**: `user_handler.go`, `admin_user_handler.go`
 - **Repository**: `user_repository.go`
 - **Tests**: 🟡 partial
 - **Typing**: ✅ Complete
-- **Docs**: [User Guide](../users/user-guide.md)
+- **Docs**: User Guide
 - **Issue**: TBD
 
 **Features**:
@@ -313,12 +325,12 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Status**: ✅ complete
 - **Backend**: `/api/v1/users/me/settings`
 - **Frontend**: `SettingsPage.tsx`, `NotificationPreferencesPage.tsx`, `CookieSettingsPage.tsx`
-- **Mobile**: `app/settings/index.tsx`
+- **Planned mobile design**: `app/settings/index.tsx` (workspace absent)
 - **Handlers**: `user_settings_handler.go`
 - **Services**: `user_settings_service.go`
 - **Tests**: ✅ Unit tests exist
 - **Typing**: ✅ Complete
-- **Docs**: [User Settings](user-settings.md)
+- **Docs**: User Settings
 - **Issue**: TBD
 
 **Features**:
@@ -344,7 +356,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Services**: `user_settings_service.go`, `account_type_service.go`
 - **Tests**: ✅ Unit tests exist
 - **Typing**: ✅ Complete
-- **Docs**: [GDPR Compliance](../gdpr-compliance.md)
+- **Docs**: [GDPR Compliance](../compliance/gdpr-compliance.md)
 - **Issue**: TBD
 
 **Features**:
@@ -371,7 +383,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Scheduler**: `reputation_scheduler.go`
 - **Tests**: ✅ Unit tests exist
 - **Typing**: ✅ Complete
-- **Docs**: [Reputation System](reputation-system.md)
+- **Docs**: Reputation System
 - **Issue**: TBD
 
 **Features**:
@@ -400,7 +412,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Repository**: `comment_repository.go`
 - **Tests**: ✅ Comprehensive tests including nested comments
 - **Typing**: ✅ Complete
-- **Docs**: [Comment API](../backend/comment-api.md), [Comments Feature](../features/comments.md)
+- **Docs**: Comment API, [Comments Feature](../features/comments.md)
 - **Issue**: TBD
 
 **Features**:
@@ -473,7 +485,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Repository**: `playlist_repository.go`
 - **Tests**: 🟡 partial
 - **Typing**: ✅ Complete
-- **Docs**: [Playlists Feature](../features/feature-playlists.md), [API Playlist Sharing](../API_PLAYLIST_SHARING.md)
+- **Docs**: [Playlists Feature](../features/feature-playlists.md), API Playlist Sharing
 - **Issue**: TBD
 
 **Features**:
@@ -499,13 +511,13 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Status**: ✅ complete (hybrid search)
 - **Backend**: `/api/v1/search`, `/api/v1/search/suggestions`, `/api/v1/search/scores`
 - **Frontend**: `SearchPage.tsx`
-- **Mobile**: `app/(tabs)/search.tsx`
+- **Planned mobile design**: `app/(tabs)/search.tsx` (workspace absent)
 - **Handlers**: `search_handler.go`
 - **Services**: `opensearch_search_service.go`, `hybrid_search_service.go`, `embedding_service.go`
 - **Repository**: `search_repository.go`
 - **Tests**: ✅ Unit tests exist
 - **Typing**: ✅ Complete
-- **Docs**: [Search Feature](../backend/search.md), [Semantic Search](../backend/semantic-search.md)
+- **Docs**: Search Feature, Semantic Search
 - **Issue**: TBD
 
 **Features**:
@@ -574,19 +586,24 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 
 ---
 
-### 7. Premium & Subscriptions
+### 7. Free accounts and legacy billing
 
-#### 7.1 Stripe Integration
+Accounts are free. Paid enrollment, plan changes, paid entitlements, and
+premium-specific rate multipliers are retired. Optional external support links
+remain. Ordinary abuse controls apply regardless of historical billing status.
 
-- **Status**: ✅ complete | **Backend**: `/api/v1/subscriptions/*`, webhook handling
-- **Features**: Checkout, portal, webhooks, dunning, revenue tracking, trials, refunds
-- **Gaps**: None identified
+Historical billing tables, migrations, receipts, and audit records are retained.
+The complete provider and database inventory found no outstanding obligations.
+The billing API, Stripe client, billing retry worker, dunning, and billing email
+runtime are removed. A read-only historical subscription adapter remains for
+personal-data exports. Outbound webhook subscriptions and SendGrid signature
+verification are unrelated and remain supported.
 
-#### 7.2 Entitlements System
-
-- **Status**: ✅ complete | **Middleware**: Entitlement checks
-- **Features**: Feature gating, grace periods, trials, premium badges
-- **Gaps**: Usage tracking for metered features
+Provider obligations must be established by a complete read-only inventory.
+Empty application tables alone do not establish that obligations are zero.
+Release evidence requires either verified zero obligations or verified legacy
+servicing. No automatic cancellation, refund, or customer outreach is part of
+candidate qualification.
 
 ---
 
@@ -610,16 +627,11 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 - **Features**: Feed tracking, view tracking, behavior analytics, batch processing
 - **Gaps**: Event schema docs, debugging tools
 
-#### 8.4 Abuse Detection Analytics
+#### 8.4 Abuse protection
 
-- **Status**: ✅ complete | **Backend**: `/api/v1/admin/abuse/metrics`
-- **Handlers**: `abuse_analytics_handler.go`
-- **Services**: `anomaly_scorer.go`, `abuse_auto_flagger.go`, `abuse_feature_extractor.go`
-- **Features**: Real-time abuse metrics, anomaly detection, auto-flagging stats, submission pattern analysis
-- **Tests**: ✅ Comprehensive unit tests for abuse detection services
-- **Typing**: ✅ Full Go type safety
-- **Docs**: Internal implementation docs
-- **Gaps**: Public-facing documentation, grafana dashboards
+Request rate limiting and submission abuse checks are maintained. The unused
+anomaly-scoring analytics implementation has been removed. See
+[abuse detection](../backend/ABUSE_DETECTION.md) for the active contract.
 
 ---
 
@@ -627,15 +639,15 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 
 #### 9.1 Live Stream Integration
 
-- **Status**: ✅ complete | **Backend**: `/api/v1/streams/*`, `/api/v1/broadcasters/:id/live-status`
-- **Features**: Status tracking, follow, notifications, clip creation, scheduled updates
-- **Gaps**: Stream embed, VOD integration
+- **Status**: 🟡 partial | **Backend**: `/api/v1/streams/*`, `/api/v1/broadcasters/:id/live-status`
+- **Features**: Status tracking, follow, notifications, scheduled updates
+- **Gaps**: Live-feed UI is hidden. Stream clip creation is disabled by default pending real VOD resolution and durable job-state acceptance tests.
 
 #### 9.2 Watch Parties
 
-- **Status**: ✅ complete | **Backend**: `/api/v1/watch-parties/*`
+- **Status**: 🟡 partial/disabled | **Backend**: `/api/v1/watch-parties/*` when `FEATURE_WATCH_PARTIES=true`
 - **Features**: Create parties, real-time sync, chat, reactions, analytics, discovery
-- **Gaps**: Screen sharing, voice chat
+- **Gaps**: Routes and navigation are disabled for launch; browser, privacy, authorization, and WebSocket resilience gates are incomplete.
 
 ---
 
@@ -643,15 +655,16 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 
 #### 10.1 Forum System
 
-- **Status**: ✅ complete | **Backend**: `/api/v1/forum/*`
+- **Status**: 🟡 partial | **Backend**: `/api/v1/forum/*` | **Frontend**: forum pages and components
+- **Launch limitation**: Forum-scoped user bans are unavailable. The previous administrative route changed the platform-wide account ban flag while the separate forum-ban records were not enforced, so it is excluded from release routing until scoped enforcement and unban lifecycle tests exist. Platform account bans remain available through administrator-only user management.
 - **Features**: Threads, replies, voting, search, analytics, moderation
 - **Gaps**: Categories, thread subscriptions
 
 #### 10.2 Communities
 
-- **Status**: ✅ complete | **Backend**: `/api/v1/communities/*`
-- **Features**: Create, join, roles, banning, feed, discussions
-- **Gaps**: Categories, discovery improvements
+- **Status**: 🟡 partial/backend-only | **Backend**: `/api/v1/communities/*`
+- **Features**: Public community creation/joining, roles, banning, visible clip feeds, discussions
+- **Gaps**: No product UI, categories, discovery improvements, or private-community invitation lifecycle. Creating a private community or switching a public community private is rejected for launch; legacy private records remain member-only.
 
 ---
 
@@ -703,11 +716,11 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 
 #### 13.1 CI/CD Pipelines
 
-- **Status**: ✅ complete | **Workflows**: 15 GitHub Actions workflows
-- **Features**: Testing (CI, Playwright, Mobile), deployment (staging, production), security scanning (CodeQL, secrets), performance (lighthouse, load tests), documentation checks, Docker builds
-- **Workflows**: ci.yml, codeql.yml, deploy-production.yml, deploy-staging.yml, docker.yml, docs.yml, frontend-env-policy.yml, lighthouse.yml, load-tests.yml, mobile-ci.yml, playwright.yml, recommendation-evaluation.yml, search-evaluation.yml, secrets-scanning.yml, sync-issue-labels.yml
-- **Tests**: Workflow configurations validated
-- **Gaps**: None identified
+- **Status**: 🟡 implemented; release acceptance depends on revision-specific results and operator evidence
+- **Authoritative workflows**: `.gitea/workflows/operator-preflight.yml`, `release-gates.yml`, `source-convergence.yml`, `immutable-candidate.yml`, and `release-readiness.yml`
+- **Features**: Source build/test/browser/security checks, documentation and OpenAPI validation, migrations, bundle budgets, scanned and signed immutable images, and operational evidence verification
+- **Tests**: Complete source convergence executes the maintained local-equivalent gates; hosted artifacts identify the tested revision. Separate operational qualification records load, restore, and rollback outcomes.
+- **Gaps**: Required-check enforcement and independent review must be established separately. Provider billing reconciliation, fresh staging OAuth, protected evidence hosting, and all final acceptance contracts remain prerequisites for promotion.
 
 #### 13.2 Deployment & Infrastructure
 
@@ -720,7 +733,7 @@ This inventory documents **270+ features** across the Clipper platform (updated 
 #### 13.3 Monitoring & Observability
 
 - **Status**: ✅ complete | **Backend**: Prometheus, Sentry, health endpoints, application logging
-- **Features**: Metrics, error tracking, health checks, profiling, structured logging, client-side log aggregation
+- **Features**: Metrics, error tracking, health checks, structured logging, client-side log aggregation; authenticated Go profiling is registered only in explicit development debug mode and is absent from release routers
 - **Handlers**: `monitoring_handler.go`, `application_log_handler.go`
 - **Tests**: ✅ Application log handler tests exist
 - **Endpoints**: `/api/v1/logs` (POST - client log ingestion), `/api/v1/logs/stats` (GET - log analytics)
@@ -880,24 +893,11 @@ For each feature category (25 categories above), create a GitHub issue using the
 
 ## Feature Status Summary
 
-| Category | Total Features | ✅ Complete | 🟡 Partial | ⚠️ Broken | 🔴 Stub |
-|----------|---------------|------------|-----------|----------|---------|
-| Authentication & Authorization | 3 | 3 | 0 | 0 | 0 |
-| Clip Management | 5 | 4 | 1 | 1 | 0 |
-| User Management & Profiles | 4 | 4 | 0 | 0 | 0 |
-| Social Features | 4 | 4 | 0 | 0 | 0 |
-| Search & Discovery | 4 | 3 | 1 | 0 | 0 |
-| Content Moderation | 4 | 4 | 0 | 0 | 0 |
-| Premium & Subscriptions | 2 | 2 | 0 | 0 | 0 |
-| Analytics & Metrics | 4 | 4 | 0 | 0 | 0 |
-| Live Streams & Watch Parties | 2 | 2 | 0 | 0 | 0 |
-| Community & Forums | 2 | 2 | 0 | 0 | 0 |
-| Webhooks & Integrations | 2 | 2 | 0 | 0 | 0 |
-| Admin & Moderation Tools | 4 | 4 | 0 | 0 | 0 |
-| Infrastructure & Operations | 23 | 23 | 0 | 0 | 0 |
-| **TOTAL** | **67** | **65** | **2** | **1** | **0** |
-
-**Overall Completion**: 97% features complete, 3% needing attention
+The former 97% completion summary was removed because it counted planned,
+disabled, placeholder, or unverified work as complete. A generated summary will
+replace it after route, client, documentation, and executable-test evidence can
+be joined in CI. Until then, the production-readiness gates—not a percentage in
+this document—are authoritative for launch decisions.
 
 **New Features Added Since 2024-12-24**:
 - Abuse Detection Analytics (Section 8.4)
@@ -910,7 +910,6 @@ For each feature category (25 categories above), create a GitHub issue using the
 
 The following areas are explicitly excluded from this inventory as per requirements:
 
-- `/vault/**` - Secrets management (security-sensitive)
 - Third-party dependencies (npm packages, Go modules) - tracked separately
 - Generated code (protobuf, OpenAPI clients) - auto-generated
 - Build artifacts (`dist/`, `bin/`, `node_modules/`) - not source code
@@ -936,11 +935,10 @@ This inventory should be updated:
 
 ## Related Documentation
 
-- [Product Roadmap](roadmap.md)
-- [Contributing Guide](../../CONTRIBUTING.md)
-- [Testing Strategy](../TESTING.md)
-- [Architecture Documentation](../backend/architecture.md)
-- [API Documentation](../backend/api.md)
+- Contributing Guide
+- [Testing Strategy](../testing/TESTING.md)
+- Architecture Documentation
+- API Documentation
 
 ---
 

@@ -1,7 +1,7 @@
 import { Container, Card, CardBody, SEO } from '../components';
 
 export function PrivacyPage() {
-  const lastUpdated = 'January 15, 2025';
+  const lastUpdated = 'August 11, 2026';
 
   return (
     <>
@@ -26,8 +26,7 @@ export function PrivacyPage() {
               carefully to understand our practices regarding your personal data.
             </p>
             <p className="text-muted-foreground">
-              By using clpr, you agree to the collection and use of information in accordance with this policy. 
-              If you do not agree with our policies and practices, please do not use our platform.
+              This policy describes our practices; it is not a request for blanket consent. Where consent is required, we will ask for it separately. You can control optional cookies through Cookie Settings.
             </p>
           </CardBody>
         </Card>
@@ -267,8 +266,7 @@ export function PrivacyPage() {
               <li><strong className="text-foreground">Withdraw Consent:</strong> Withdraw consent where we rely on it for processing</li>
             </ul>
             <p className="text-muted-foreground mt-4">
-              To exercise these rights, please contact us through our GitHub repository or settings page. 
-              We will respond to your request within 30 days.
+              To exercise these rights, use your account settings or email privacy@clpr.tv. We will respond within the period required by applicable law after verifying your request.
             </p>
           </CardBody>
         </Card>
@@ -282,12 +280,12 @@ export function PrivacyPage() {
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
               <li><strong className="text-foreground">Twitch:</strong> For authentication and clip data (see{' '}
-                <a href="https://www.twitch.tv/p/legal/privacy-notice/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                <a href="https://www.twitch.tv/p/legal/privacy-notice/" target="_blank" rel="noopener noreferrer" className="text-link underline underline-offset-2">
                   Twitch Privacy Policy
                 </a>)
               </li>
               <li><strong className="text-foreground">Error Tracking:</strong> Sentry (when enabled) for error monitoring</li>
-              <li><strong className="text-foreground">Payment Processing:</strong> Stripe for subscription payments (if applicable)</li>
+              <li><strong className="text-foreground">Optional Community Support:</strong> Patreon processes support independently under its own privacy policy. Supporting does not change your clpr account.</li>
             </ul>
             <p className="text-muted-foreground mt-4">
               We are not responsible for the privacy practices of these third parties. We encourage you to 
@@ -342,18 +340,7 @@ export function PrivacyPage() {
             </p>
             <ul className="space-y-2 text-muted-foreground ml-4">
               <li>
-                <strong className="text-foreground">GitHub:</strong>{' '}
-                <a
-                  href="https://github.com/subculture-collective/clipper/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Open an issue
-                </a>
-              </li>
-              <li>
-                <strong className="text-foreground">Email:</strong> privacy@clipper.com (for privacy-specific inquiries)
+                <strong className="text-foreground">Email:</strong>{' '}<a href="mailto:privacy@clpr.tv" className="text-link underline underline-offset-2">privacy@clpr.tv</a>
               </li>
             </ul>
           </CardBody>

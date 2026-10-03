@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Clipper – Share Twitch Clip</title>
+    <title>clpr – Share Twitch Clip</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -15,9 +15,9 @@
     <!-- ── Not-on-Twitch state ── -->
     <div id="view-no-clip" class="view hidden">
       <div class="empty-state">
-        <img src="../icons/icon-48.png" alt="Clipper logo" class="logo" />
-        <p class="empty-title">No Twitch clip detected</p>
-        <p class="empty-sub">Navigate to a Twitch clip page to share it.</p>
+        <img src="../icons/icon-48.png" alt="clpr logo" class="logo" />
+        <p class="empty-title">No clip on this page</p>
+        <p class="empty-sub">Open a Twitch clip, then click this again.</p>
         <a id="btn-open-twitch" href="https://twitch.tv" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
           Open Twitch
         </a>
@@ -27,8 +27,8 @@
     <!-- ── Login state ── -->
     <div id="view-login" class="view hidden">
       <div class="login-state">
-        <img src="../icons/icon-48.png" alt="Clipper logo" class="logo" />
-        <p class="login-title">Sign in to Clipper</p>
+        <img src="../icons/icon-48.png" alt="clpr logo" class="logo" />
+        <p class="login-title">Sign in to clpr</p>
         <p class="login-sub">Log in with your Twitch account to share clips.</p>
         <button id="btn-login" class="btn btn-primary">Login with Twitch</button>
       </div>
@@ -38,7 +38,7 @@
     <div id="view-form" class="view hidden">
       <header class="popup-header">
         <img src="../icons/icon-16.png" alt="" class="header-logo" />
-        <span class="header-title">Share to Clipper</span>
+        <span class="header-title">Share to clpr</span>
         <span id="user-badge" class="user-badge" title="Logged in"></span>
       </header>
 
@@ -71,7 +71,7 @@
           class="field-textarea"
           rows="3"
           maxlength="500"
-          placeholder="Why is this clip worth sharing?"
+          placeholder="What happens in it?"
         ></textarea>
 
         <!-- Tags -->
@@ -108,9 +108,9 @@
     <div id="view-success" class="view hidden">
       <div class="success-state">
         <div class="success-icon" aria-hidden="true">✓</div>
-        <p class="success-title">Clip submitted!</p>
-        <p class="success-sub">Your clip is pending review on Clipper.</p>
-        <button id="btn-view-clipper" class="btn btn-secondary">View on Clipper</button>
+        <p class="success-title">Clip submitted</p>
+        <p class="success-sub">Your clip is pending review on clpr.</p>
+        <button id="btn-view-clpr" class="btn btn-secondary">View on clpr</button>
         <button id="btn-share-another" class="btn btn-ghost">Share another</button>
       </div>
     </div>

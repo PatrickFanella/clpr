@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, useToast } from '@/hooks';
-import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import type { WatchHistoryEntry } from '@/types/watchHistory';
 
 type FilterType = 'all' | 'completed' | 'in-progress';
@@ -13,11 +14,6 @@ export function WatchHistoryPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const { isAuthenticated } = useAuth();
   const { showToast } = useToast();
-  const modalRef = useRef<HTMLDivElement>(null);
-  const clearButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Apply focus trap to modal when open
-  useFocusTrap(modalRef, showClearConfirm);
 
   // Fetch watch history
   useEffect(() => {
@@ -69,10 +65,6 @@ export function WatchHistoryPage() {
       setShowClearConfirm(false);
       showToast('Watch history cleared successfully', 'success');
 
-      // Return focus to the clear button
-      if (clearButtonRef.current) {
-        clearButtonRef.current.focus();
-      }
     } catch (error) {
       showToast('Error clearing watch history', 'error');
       console.error('Error clearing watch history:', error);
@@ -108,13 +100,13 @@ export function WatchHistoryPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="page-container py-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-4">Watch History</h1>
-          <p className="text-gray-400 mb-6">Sign in to view your watch history</p>
+          <p className="text-muted-foreground mb-6">Sign in to view your watch history</p>
           <Link
             to="/login"
-            className="inline-block px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            className="inline-block px-6 py-3 bg-primary-400 text-background rounded-lg hover:bg-primary-300 transition-colors"
           >
             Sign In
           </Link>
@@ -124,12 +116,12 @@ export function WatchHistoryPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="page-container py-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold">Watch History</h1>
         <button
-          ref={clearButtonRef}
+          type="button"
           onClick={() => setShowClearConfirm(true)}
           className="px-4 py-2 text-red-500 hover:text-red-400 transition-colors"
         >
@@ -138,13 +130,13 @@ export function WatchHistoryPage() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-700">
+      <div className="flex gap-2 mb-6 border-b border-border">
         <button
           onClick={() => setFilter('all')}
           className={`px-4 py-2 font-medium transition-colors ${
             filter === 'all'
               ? 'text-purple-500 border-b-2 border-purple-500'
-              : 'text-gray-400 hover:text-gray-300'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           All
@@ -154,7 +146,7 @@ export function WatchHistoryPage() {
           className={`px-4 py-2 font-medium transition-colors ${
             filter === 'in-progress'
               ? 'text-purple-500 border-b-2 border-purple-500'
-              : 'text-gray-400 hover:text-gray-300'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           In Progress
@@ -164,7 +156,7 @@ export function WatchHistoryPage() {
           className={`px-4 py-2 font-medium transition-colors ${
             filter === 'completed'
               ? 'text-purple-500 border-b-2 border-purple-500'
-              : 'text-gray-400 hover:text-gray-300'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           Completed
@@ -175,11 +167,11 @@ export function WatchHistoryPage() {
       {isLoading ? (
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-          <p className="mt-4 text-gray-400">Loading watch history...</p>
+          <p className="mt-4 text-muted-foreground">Loading watch history...</p>
         </div>
       ) : history.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-400">No watch history found</p>
+          <p className="text-muted-foreground">No watch history found</p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -190,48 +182,30 @@ export function WatchHistoryPage() {
       )}
 
       {/* Clear History Confirmation Modal */}
-      {showClearConfirm && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="clear-history-title"
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setShowClearConfirm(false);
-              if (clearButtonRef.current) {
-                clearButtonRef.current.focus();
-              }
-            }
-          }}
-        >
-          <div ref={modalRef} className="bg-gray-900 rounded-lg p-6 max-w-md w-full">
-            <h2 id="clear-history-title" className="text-xl font-bold mb-4">Clear Watch History?</h2>
-            <p className="text-gray-400 mb-6">
+      <Modal
+        open={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        title="Clear Watch History?"
+        size="md"
+      >
+            <p className="text-muted-foreground mb-6">
               This will permanently delete your entire watch history. This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowClearConfirm(false);
-                  if (clearButtonRef.current) {
-                    clearButtonRef.current.focus();
-                  }
-                }}
-                className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+              <Button
+                variant="outline"
+                onClick={() => setShowClearConfirm(false)}
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="danger"
                 onClick={handleClearHistory}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
               >
                 Clear History
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }
@@ -255,10 +229,10 @@ function WatchHistoryCard({ entry, formatTime, formatDate }: WatchHistoryCardPro
   return (
     <Link
       to={`/clips/${clip.id}`}
-      className="flex gap-4 bg-gray-900 p-4 rounded-lg hover:bg-gray-800 transition-colors"
+      className="flex gap-4 bg-background p-4 rounded-lg hover:bg-surface transition-colors"
     >
       {/* Thumbnail */}
-      <div className="relative flex-shrink-0 w-48 h-28 bg-gray-800 rounded overflow-hidden">
+      <div className="relative flex-shrink-0 w-48 h-28 bg-surface rounded overflow-hidden">
         {clip.thumbnail_url && (
           <img
             src={clip.thumbnail_url}
@@ -269,7 +243,7 @@ function WatchHistoryCard({ entry, formatTime, formatDate }: WatchHistoryCardPro
         )}
         {/* Progress Indicator */}
         <div
-          className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700"
+          className="absolute bottom-0 left-0 right-0 h-1 bg-surface"
           role="progressbar"
           aria-valuenow={Math.round(progressPercent)}
           aria-valuemin={0}
@@ -286,12 +260,12 @@ function WatchHistoryCard({ entry, formatTime, formatDate }: WatchHistoryCardPro
       {/* Content */}
       <div className="flex-1 min-w-0">
         <h3 className="font-semibold text-lg mb-1 truncate">{clip.title}</h3>
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-muted-foreground mb-2">
           {clip.broadcaster_name} • {clip.game_name}
         </p>
 
         {/* Progress Info */}
-        <div className="flex items-center gap-4 text-sm text-gray-400">
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
           {entry.completed ? (
             <span className="text-green-500 flex items-center gap-1">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">

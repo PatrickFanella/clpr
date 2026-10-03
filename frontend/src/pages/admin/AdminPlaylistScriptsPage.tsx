@@ -16,9 +16,9 @@ import { playlistScriptApi } from '@/lib/playlist-script-api';
 import { STRATEGY_META, SCHEDULE_LABELS } from '@/lib/playlist-script-utils';
 import {
     PlaylistScriptForm,
-    scriptToFormValues,
     type PlaylistScriptFormValues,
 } from '@/components/admin/PlaylistScriptForm';
+import { scriptToFormValues } from '@/lib/playlist-script-form';
 import type {
     PlaylistScript,
     CreatePlaylistScriptRequest,
@@ -312,7 +312,7 @@ export function AdminPlaylistScriptsPage() {
                                                     {script.last_generated_playlist_id && (
                                                         <Link
                                                             to={`/playlists/${script.last_generated_playlist_id}`}
-                                                            className='inline-flex items-center gap-1 text-xs text-primary-500 hover:underline mt-0.5'
+                                                            className='inline-flex items-center gap-1 text-xs text-link hover:underline mt-0.5'
                                                         >
                                                             View playlist{' '}
                                                             <ExternalLink className='w-3 h-3' />

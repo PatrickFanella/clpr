@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Clipper"
+    "name": "clpr"
   },
   "nav": {
     "hot": "Destacados",
@@ -82,16 +82,16 @@
   },
   "error": {
     "somethingWentWrong": "Algo salió mal",
-    "unexpectedError": "Lo sentimos, pero ocurrió algo inesperado. El error ha sido reportado y lo investigaremos.",
+    "unexpectedError": "Algo se rompió de nuestro lado. El error quedó registrado. Recarga la página para volver a intentarlo.",
     "devDetails": "Detalles del error (modo desarrollo):",
     "persistContact": "Si este problema persiste, por favor contacte a soporte:",
     "authFailed": "Autenticación fallida: {{error}}",
-    "notFound": "Página No Encontrada",
-    "notFoundDescription": "La página que buscas no existe o ha sido movida.",
+    "notFound": "Página no encontrada",
+    "notFoundDescription": "No hay nada en esta dirección. Puede que el enlace sea viejo o que la página se haya movido.",
     "notFoundCode": "404"
   },
   "login": {
-    "welcome": "Bienvenido a Clipper",
+    "welcome": "Bienvenido a clpr",
     "subtitle": "Inicia sesión para votar, comentar y guardar tus clips favoritos",
     "continueWithTwitch": "Continuar con Twitch",
     "termsAgreement": "Al continuar, aceptas nuestros Términos de Servicio y Política de Privacidad"
@@ -111,7 +111,6 @@
   "footer": {
     "about": "Acerca de",
     "aboutClpr": "Acerca de clpr",
-    "githubRepo": "Repositorio GitHub",
     "legal": "Legal",
     "privacyPolicy": "Política de Privacidad",
     "termsOfService": "Términos de Servicio",
@@ -127,7 +126,7 @@
   },
   "submit": {
     "title": "Enviar un Clip",
-    "subtitle": "Comparte tus mejores momentos de juego con la comunidad",
+    "subtitle": "Comparte momentos memorables de creadores de Twitch",
     "clipUrl": "URL del Clip de Twitch",
     "clipUrlPlaceholder": "https://clips.twitch.tv/...",
     "customTitle": "Título Personalizado (Opcional)",
@@ -156,7 +155,7 @@
     "accountRestricted": "Cuenta Restringida",
     "accountRestrictedDesc": "Tu cuenta ha sido restringida. Algunas funciones pueden no estar disponibles.",
     "reauthorize": "Reautorizar con Twitch",
-    "karma": "Karma",
+    "karma": "Uppies",
     "role": "Rol",
     "joined": "Registrado",
     "overview": "Resumen",
@@ -182,7 +181,7 @@
     "public": "Público",
     "private": "Privado",
     "followers": "Seguidores",
-    "showKarma": "Mostrar Karma Públicamente",
+    "showKarma": "Mostrar Uppies Públicamente",
     "advertising": "Publicidad y Privacidad",
     "functionalCookies": "Cookies Funcionales",
     "analyticsTracking": "Seguimiento Analítico",

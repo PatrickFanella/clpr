@@ -1,0 +1,110 @@
+groups:
+  - name: clpr-journey-slos
+    interval: 30s
+    rules:
+      - record: clpr:journey_availability:ratio5m
+        labels: {journey: authentication}
+        expr: sum(rate(http_requests_total{path=~"/api/v1/auth/.*",status!~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{path=~"/api/v1/auth/.*"}[5m])), 0.000001)
+      - record: clpr:journey_availability:ratio5m
+        labels: {journey: feed}
+        expr: sum(rate(http_requests_total{path=~"/api/v1/(feed|feeds)(/.*)?",status!~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{path=~"/api/v1/(feed|feeds)(/.*)?"}[5m])), 0.000001)
+      - record: clpr:journey_availability:ratio5m
+        labels: {journey: search}
+        expr: sum(rate(http_requests_total{path=~"/api/v1/search(/.*)?",status!~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{path=~"/api/v1/search(/.*)?"}[5m])), 0.000001)
+      - record: clpr:journey_availability:ratio5m
+        labels: {journey: playback}
+        expr: sum(rate(http_requests_total{path=~"/api/v1/clips/[^/]+",status!~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{path=~"/api/v1/clips/[^/]+"}[5m])), 0.000001)
+      - record: clpr:journey_availability:ratio5m
+        labels: {journey: submission}
+        expr: sum(rate(http_requests_total{path=~"/api/v1/submissions(/.*)?",status!~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{path=~"/api/v1/submissions(/.*)?"}[5m])), 0.000001)
+      - record: clpr:journey_availability:ratio5m
+        labels: {journey: checkout}
+        expr: sum(rate(http_requests_total{path=~"/api/v1/subscriptions/(checkout|portal)",status!~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{path=~"/api/v1/subscriptions/(checkout|portal)"}[5m])), 0.000001)
+      - record: clpr:journey_availability:ratio5m
+        labels: {journey: moderation}
+        expr: sum(rate(http_requests_total{path=~"/api/v1/(moderation|admin/moderation)(/.*)?",status!~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{path=~"/api/v1/(moderation|admin/moderation)(/.*)?"}[5m])), 0.000001)
+
+      - record: clpr:journey_latency_p95:seconds5m
+        labels: {journey: authentication}
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{path=~"/api/v1/auth/.*"}[5m])))
+      - record: clpr:journey_latency_p95:seconds5m
+        labels: {journey: feed}
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{path=~"/api/v1/(feed|feeds)(/.*)?"}[5m])))
+      - record: clpr:journey_latency_p95:seconds5m
+        labels: {journey: search}
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{path=~"/api/v1/search(/.*)?"}[5m])))
+      - record: clpr:journey_latency_p95:seconds5m
+        labels: {journey: playback}
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{path=~"/api/v1/clips/[^/]+"}[5m])))
+      - record: clpr:journey_latency_p95:seconds5m
+        labels: {journey: submission}
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{path=~"/api/v1/submissions(/.*)?"}[5m])))
+      - record: clpr:journey_latency_p95:seconds5m
+        labels: {journey: checkout}
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{path=~"/api/v1/subscriptions/(checkout|portal)"}[5m])))
+      - record: clpr:journey_latency_p95:seconds5m
+        labels: {journey: moderation}
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{path=~"/api/v1/(moderation|admin/moderation)(/.*)?"}[5m])))
+
+      - alert: ClprJourneyAvailabilityFastBurn
+        expr: clpr:journey_availability:ratio5m < 0.95
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: "clpr {{ $labels.journey }} availability is below 95%"
+          runbook_url: "docs/operations/playbooks/slo-breach-response.md#availability-breach"
+
+      - alert: ClprJourneyLatencyBreach
+        expr: (clpr:journey_latency_p95:seconds5m{journey=~"authentication|feed|playback"} > 1) or (clpr:journey_latency_p95:seconds5m{journey="search"} > 1.5) or (clpr:journey_latency_p95:seconds5m{journey=~"submission|moderation"} > 2) or (clpr:journey_latency_p95:seconds5m{journey="checkout"} > 3)
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: "clpr {{ $labels.journey }} p95 latency exceeds twice its SLO"
+          runbook_url: "docs/operations/playbooks/slo-breach-response.md#latency-breach"
+
+      - alert: ClprWebhookDeadLetterQueueNotEmpty
+        expr: webhook_dead_letter_queue_size > 0
+        for: 5m
+        labels: {severity: page, journey: checkout}
+        annotations:
+          summary: "Stripe/outbound webhook dead-letter queue is not empty"
+          runbook_url: "docs/operations/runbooks/webhook-dlq-replay-runbook.md"
+
+  - name: clpr-background-automation
+    interval: 30s
+    rules:
+      - alert: ClprTrendingScoreStale
+        expr: (time() - job_last_success_timestamp_seconds{job_name="trending_score_refresh"} > 7200) or absent(job_last_success_timestamp_seconds{job_name="trending_score_refresh"})
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: "clpr trending scores have not refreshed successfully for two hours"
+          runbook_url: "docs/operations/runbooks/background-jobs.md#job-not-running-stale"
+      - alert: ClprScoringRefreshRepeatedFailures
+        expr: increase(job_execution_total{job_name=~"trending_score_refresh|hot_score_refresh",status="failed"}[15m]) >= 2
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "clpr scoring automation is repeatedly failing"
+          runbook_url: "docs/operations/runbooks/background-jobs.md#job-failures"
+      - alert: ClprStructuralTagBacklogGrowing
+        expr: job_queue_size{job_name="auto_tag_processing"} > 100 and deriv(job_queue_size{job_name="auto_tag_processing"}[30m]) > 0
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "clpr structural tag backlog exceeds 100 clips"
+          runbook_url: "docs/operations/runbooks/background-jobs.md#job-not-running-stale"
+      - alert: ClprTagPromotionDetectionStale
+        expr: (time() - job_last_success_timestamp_seconds{job_name="tag_promotion_detection"} > 3600) or absent(job_last_success_timestamp_seconds{job_name="tag_promotion_detection"})
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "clpr tag promotion detection has not succeeded for one hour"
+          runbook_url: "docs/operations/runbooks/background-jobs.md#job-not-running-stale"
+      - alert: ClprHandlerBackgroundJobsDropped
+        expr: increase(handler_background_jobs_dropped_total[15m]) > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "clpr handler background work was dropped because its queue was full"
+          runbook_url: "docs/operations/runbooks/background-jobs.md#job-failures"

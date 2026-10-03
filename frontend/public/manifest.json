@@ -1,12 +1,12 @@
 {
-    "name": "clpr - Community-Driven Twitch Clip Curation",
+    "name": "clpr - Twitch clips by creator, topic and tag",
     "short_name": "clpr",
-    "description": "Discover, share, and vote on the best Twitch clips. Join our community to curate and enjoy the most entertaining moments from your favorite streamers.",
+    "description": "Twitch clips by creator, topic and tag. Playlists for the ones you keep sending people.",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
-    "background_color": "#ffffff",
-    "theme_color": "#6366f1",
+    "background_color": "#0e0c13",
+    "theme_color": "#0e0c13",
     "orientation": "portrait-primary",
     "share_target": {
         "action": "/submit",
@@ -20,31 +20,31 @@
     },
     "icons": [
         {
-            "src": "/icons/icon-72x72.png",
+            "src": "/icons/icon-72x72.png?v=20261002",
             "sizes": "72x72",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "/icons/icon-96x96.png",
+            "src": "/icons/icon-96x96.png?v=20261002",
             "sizes": "96x96",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "/icons/icon-128x128.png",
+            "src": "/icons/icon-128x128.png?v=20261002",
             "sizes": "128x128",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "/icons/icon-144x144.png",
+            "src": "/icons/icon-144x144.png?v=20261002",
             "sizes": "144x144",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "/icons/icon-152x152.png",
+            "src": "/icons/icon-152x152.png?v=20261002",
             "sizes": "152x152",
             "type": "image/png",
             "purpose": "any"
@@ -56,7 +56,7 @@
             "purpose": "any"
         },
         {
-            "src": "/icons/icon-384x384.png",
+            "src": "/icons/icon-384x384.png?v=20261002",
             "sizes": "384x384",
             "type": "image/png",
             "purpose": "any"
@@ -68,13 +68,13 @@
             "purpose": "any"
         },
         {
-            "src": "/icons/icon-192x192-maskable.png",
+            "src": "/icons/icon-192x192-maskable.png?v=20261002",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "maskable"
         },
         {
-            "src": "/icons/icon-512x512-maskable.png",
+            "src": "/icons/icon-512x512-maskable.png?v=20261002",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"

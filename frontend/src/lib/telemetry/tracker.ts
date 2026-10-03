@@ -17,8 +17,6 @@ export interface UserProperties {
   user_id: string;
   username?: string;
   email?: string;
-  is_premium?: boolean;
-  premium_tier?: string;
   signup_date?: string;
   is_verified?: boolean;
   [key: string]: string | number | boolean | undefined;
@@ -39,7 +37,7 @@ const ENV_TRUE = 'true';
 
 let config: AnalyticsConfig = {
   enabled: false,
-  debug: import.meta.env.VITE_ENABLE_DEBUG === ENV_TRUE || import.meta.env.DEV,
+  debug: import.meta.env.VITE_ENABLE_DEBUG === ENV_TRUE || (import.meta.env.DEV && import.meta.env.MODE !== 'test'),
 };
 
 /**
@@ -148,12 +146,8 @@ function getCommonProperties(): BaseEventProperties {
   }
   
   if (config.userProperties) {
-    if (config.userProperties.is_premium !== undefined) {
-      properties.is_premium = config.userProperties.is_premium;
-    }
-    if (config.userProperties.premium_tier) {
-      properties.premium_tier = config.userProperties.premium_tier;
-    }
+
+
     if (config.userProperties.signup_date) {
       properties.signup_date = config.userProperties.signup_date;
     }
@@ -293,7 +287,7 @@ export function trackPerformance(
   metricUnit: string = 'ms'
 ): void {
   // Determine the appropriate performance event based on metric name
-  let eventName = 'page_load_time'; // default
+  let eventName: EventName = 'page_load_time'; // default
   
   if (metricName.includes('api') || metricName.includes('response')) {
     eventName = 'api_response_time';

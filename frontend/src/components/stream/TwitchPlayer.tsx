@@ -11,35 +11,18 @@
 // - No custom video streaming or HLS parsing
 // - No re-hosting, proxying, or downloading of streams
 // - Respects Twitch's embed parameters and layout options
+// - Autoplays muted; nothing is drawn over the player (the live badge sits on the page)
+// - Links out to Twitch when there is less than the 400×300 minimum player size
 
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle, ExternalLink } from 'lucide-react';
+import { useTwitchEmbedFits } from '@/hooks/useTwitchEmbedFits';
+import { useRegisterTwitchPlayer } from '@/hooks/useTwitchPlayerLayer';
 import { fetchStreamStatus } from '../../lib/stream-api';
 import { StreamOfflineScreen } from './StreamOfflineScreen';
-import { LiveIndicator } from './LiveIndicator';
 
-// Declare Twitch type for the embed SDK
-declare global {
-  interface Window {
-    Twitch?: {
-      Embed: new (elementId: string, options: TwitchEmbedOptions) => TwitchEmbed;
-    };
-  }
-}
-
-export interface TwitchEmbedOptions {
-  width: string | number;
-  height: string | number;
-  channel: string;
-  layout: 'video' | 'video-with-chat';
-  autoplay: boolean;
-  muted: boolean;
-  parent: string[];
-}
-
-export interface TwitchEmbed {
-  destroy: () => void;
-}
+import type { TwitchEmbedInstance as TwitchEmbed } from '@/types/twitchEmbed';
 
 export interface TwitchPlayerProps {
   channel: string;
@@ -48,8 +31,6 @@ export interface TwitchPlayerProps {
 
 export function TwitchPlayer({ channel, showChat = false }: TwitchPlayerProps) {
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
-  const embedRef = useRef<HTMLDivElement>(null);
-  const embedInstanceRef = useRef<TwitchEmbed | null>(null);
 
   // Fetch stream status with auto-refresh every 60 seconds
   const {
@@ -100,51 +81,12 @@ export function TwitchPlayer({ channel, showChat = false }: TwitchPlayerProps) {
     // Don't remove script on unmount - it may be used by other instances
   }, []);
 
-  // Initialize Twitch Embed when script loads and stream is live
-  useEffect(() => {
-    if (!isScriptLoaded || !streamInfo?.is_live || !embedRef.current || !window.Twitch) {
-      return;
-    }
-
-    // Destroy existing embed if it exists
-    if (embedInstanceRef.current) {
-      embedInstanceRef.current.destroy();
-      embedInstanceRef.current = null;
-    }
-
-    // Get the parent domain for embed security
-    const parentDomain = window.location.hostname;
-
-    // Create new embed
-    try {
-      const embed = new window.Twitch.Embed(embedRef.current.id, {
-        width: '100%',
-        height: '100%',
-        channel: channel,
-        layout: showChat ? 'video-with-chat' : 'video',
-        autoplay: true,
-        muted: false,
-        parent: [parentDomain],
-      });
-      embedInstanceRef.current = embed;
-    } catch (error) {
-      console.error('Failed to initialize Twitch Embed:', error);
-    }
-
-    return () => {
-      if (embedInstanceRef.current) {
-        embedInstanceRef.current.destroy();
-        embedInstanceRef.current = null;
-      }
-    };
-  }, [channel, showChat, isScriptLoaded, streamInfo?.is_live]);
-
   if (isLoading) {
     return (
-      <div className="w-full aspect-video bg-gray-900 dark:bg-gray-950 flex items-center justify-center">
+      <div className="w-full aspect-video bg-surface flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-4"></div>
-          <p className="text-gray-400">Loading stream...</p>
+          <p className="text-muted-foreground">Loading stream...</p>
         </div>
       </div>
     );
@@ -152,9 +94,9 @@ export function TwitchPlayer({ channel, showChat = false }: TwitchPlayerProps) {
 
   if (error) {
     return (
-      <div className="w-full aspect-video bg-gray-900 dark:bg-gray-950 flex items-center justify-center">
+      <div className="w-full aspect-video bg-surface flex items-center justify-center">
         <div className="text-center text-red-500">
-          <p className="text-xl mb-2">⚠️</p>
+          <p className="text-xl mb-2"><AlertTriangle size={16} strokeWidth={1.75} className="inline" /></p>
           <p>Failed to load stream information</p>
         </div>
       </div>
@@ -165,14 +107,89 @@ export function TwitchPlayer({ channel, showChat = false }: TwitchPlayerProps) {
     return <StreamOfflineScreen channel={channel} streamInfo={streamInfo} />;
   }
 
+  return <LiveEmbed channel={channel} showChat={showChat} isScriptLoaded={isScriptLoaded} />;
+}
+
+interface LiveEmbedProps {
+  channel: string;
+  showChat: boolean;
+  isScriptLoaded: boolean;
+}
+
+// Mounted only while the channel is live so the size check measures the real box.
+function LiveEmbed({ channel, showChat, isScriptLoaded }: LiveEmbedProps) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const embedRef = useRef<HTMLDivElement>(null);
+  const embedInstanceRef = useRef<TwitchEmbed | null>(null);
+  const fits = useTwitchEmbedFits(boxRef);
+  useRegisterTwitchPlayer(boxRef, fits === true);
+
+  // Initialize Twitch Embed when the script is loaded and the box is large enough
+  useEffect(() => {
+    if (!isScriptLoaded || !fits || !embedRef.current || !window.Twitch) {
+      return;
+    }
+
+    const container = embedRef.current;
+    // Clear the previous iframe even when the SDK has no destroy method.
+    if (embedInstanceRef.current) {
+      embedInstanceRef.current.destroy?.();
+      container.replaceChildren();
+      embedInstanceRef.current = null;
+    }
+
+    // Get the parent domain for embed security
+    const parentDomain = window.location.hostname;
+
+    // Create new embed
+    try {
+      const embed = new window.Twitch.Embed(container.id, {
+        width: '100%',
+        height: '100%',
+        channel: channel,
+        layout: showChat ? 'video-with-chat' : 'video',
+        autoplay: true,
+        // Autoplay is always muted; viewers unmute with Twitch's own control.
+        muted: true,
+        parent: [parentDomain],
+      });
+      embedInstanceRef.current = embed;
+    } catch (error) {
+      console.error('Failed to initialize Twitch Embed:', error);
+    }
+
+    return () => {
+      if (embedInstanceRef.current) {
+        embedInstanceRef.current.destroy?.();
+        container.replaceChildren();
+        embedInstanceRef.current = null;
+      }
+    };
+  }, [channel, showChat, isScriptLoaded, fits]);
+
   return (
-    <div className="relative w-full aspect-video bg-black">
-      <div
-        id={`twitch-embed-${channel}`}
-        ref={embedRef}
-        className="w-full h-full"
-      />
-      <LiveIndicator viewerCount={streamInfo.viewer_count} />
+    <div ref={boxRef} className="relative w-full aspect-video bg-black">
+      {fits === false ? (
+        <div className="absolute inset-0 grid place-items-center p-4 text-center text-white">
+          <div>
+            <p className="text-sm font-semibold">Not enough room for the Twitch player.</p>
+            <a
+              href={`https://www.twitch.tv/${encodeURIComponent(channel)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-cyan-300 underline"
+            >
+              Watch on Twitch <ExternalLink size={16} aria-hidden="true" />
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div
+          id={`twitch-embed-${channel}`}
+          ref={embedRef}
+          className="w-full h-full"
+        />
+      )}
     </div>
   );
 }

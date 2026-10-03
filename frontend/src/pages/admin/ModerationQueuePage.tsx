@@ -19,6 +19,7 @@ import {
 } from '../../lib/submission-api';
 import type { ClipSubmissionWithUser } from '../../types/submission';
 import type { UserRole } from '../../lib/roles';
+import { ModerationEvents, trackEvent } from '../../lib/telemetry';
 
 export function ModerationQueuePage() {
     const { isAuthenticated, isModeratorOrAdmin } = useAuth();
@@ -71,6 +72,7 @@ export function ModerationQueuePage() {
     const handleApprove = async (submissionId: string) => {
         try {
             await approveSubmission(submissionId);
+            trackEvent(ModerationEvents.SUBMISSION_APPROVED, { submission_id: submissionId });
             setSuccess('Submission approved successfully!');
             loadSubmissions(); // Reload the list
         } catch (err: unknown) {
@@ -95,6 +97,7 @@ export function ModerationQueuePage() {
 
         try {
             await rejectSubmission(selectedSubmissionId, rejectionReason);
+            trackEvent(ModerationEvents.SUBMISSION_REJECTED, { submission_id: selectedSubmissionId });
             setSuccess('Submission rejected successfully!');
             setRejectModalOpen(false);
             setSelectedSubmissionId(null);
@@ -146,7 +149,7 @@ export function ModerationQueuePage() {
                 <Card className='p-4 mb-6'>
                     <div className='flex items-center justify-between'>
                         <div>
-                            <div className='text-2xl font-bold'>{total}</div>
+                            <div className='text-2xl font-bold'>{error && submissions.length === 0 ? '—' : total}</div>
                             <div className='text-muted-foreground text-sm'>
                                 Pending Submissions
                             </div>
@@ -167,7 +170,7 @@ export function ModerationQueuePage() {
                         <div className='flex justify-center py-12'>
                             <Spinner size='lg' />
                         </div>
-                    ) : !submissions || submissions.length === 0 ? (
+                    ) : submissions.length === 0 && !error ? (
                         <div className='py-12 text-center'>
                             <p className='text-muted-foreground'>
                                 No pending submissions to review.
@@ -178,6 +181,8 @@ export function ModerationQueuePage() {
                             {submissions.map((submission) => (
                                 <div
                                     key={submission.id}
+                                    role='article'
+                                    aria-label={submission.custom_title || submission.title || 'Untitled submission'}
                                     className='bg-background-secondary p-6 rounded-lg'
                                 >
                                     <div className='lg:flex-row flex flex-col gap-4'>
@@ -237,7 +242,7 @@ export function ModerationQueuePage() {
                                                                 submission.user
                                                                     .karma_points
                                                             }{' '}
-                                                            karma
+                                                            uppies
                                                         </Badge>
                                                         {submission.user.role !== 'user' && (
                                                             <UserRoleBadge role={submission.user.role as UserRole} size="sm" />
@@ -273,7 +278,7 @@ export function ModerationQueuePage() {
                                                     )}
                                                     {submission.game_name && (
                                                         <p>
-                                                            Game:{' '}
+                                                            Twitch category:{' '}
                                                             {
                                                                 submission.game_name
                                                             }
@@ -311,7 +316,7 @@ export function ModerationQueuePage() {
                                                                         key={
                                                                             tag
                                                                         }
-                                                                        className='bg-primary/10 text-primary px-2 py-1 text-xs rounded'
+                                                                        className='bg-primary/10 text-link px-2 py-1 text-xs rounded'
                                                                     >
                                                                         {tag}
                                                                     </span>

@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/repository"
+	redispkg "git.subcult.tv/subculture-collective/clpr/pkg/redis"
 	"github.com/google/uuid"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/internal/repository"
-	redispkg "github.com/subculture-collective/clipper/pkg/redis"
 )
 
 // ErrUnauthorized is returned when a user doesn't have permission to manage a clip
@@ -27,6 +27,7 @@ type ClipService struct {
 	redisClient         *redispkg.Client
 	auditLogRepo        *repository.AuditLogRepository
 	notificationService *NotificationService
+	creatorModeration   CreatorModerationChecker
 }
 
 // NewClipService creates a new ClipService
@@ -52,6 +53,26 @@ func NewClipService(
 		auditLogRepo:        auditLogRepo,
 		notificationService: notificationService,
 	}
+}
+
+// SetCreatorModerationService configures creator-scoped moderation checks.
+func (s *ClipService) SetCreatorModerationService(creatorModeration CreatorModerationChecker) {
+	s.creatorModeration = creatorModeration
+}
+
+func (s *ClipService) requireCreatorInteractionPermission(ctx context.Context, creatorAccountID *uuid.UUID, userID uuid.UUID) error {
+	if s.creatorModeration == nil || creatorAccountID == nil || *creatorAccountID == uuid.Nil || userID == uuid.Nil {
+		return nil
+	}
+
+	allowed, message, err := s.creatorModeration.CanInteract(ctx, *creatorAccountID, userID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &CreatorModerationError{Message: message}
+	}
+	return nil
 }
 
 // ClipWithUserData represents a clip with user-specific data
@@ -137,8 +158,9 @@ func (s *ClipService) GetClip(ctx context.Context, clipID uuid.UUID, userID *uui
 	}
 
 	// Increment view count and check for threshold notifications (async, don't block on errors)
+	detachedCtx := context.WithoutCancel(ctx)
 	go func() {
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		timeoutCtx, cancel := context.WithTimeout(detachedCtx, 10*time.Second)
 		defer cancel()
 
 		newViewCount, err := s.clipRepo.IncrementViewCount(timeoutCtx, clipID)
@@ -202,8 +224,9 @@ func (s *ClipService) GetClipByTwitchID(ctx context.Context, twitchClipID string
 	}
 
 	// Increment view count and check for threshold notifications (async, don't block on errors)
+	detachedCtx := context.WithoutCancel(ctx)
 	go func() {
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		timeoutCtx, cancel := context.WithTimeout(detachedCtx, 10*time.Second)
 		defer cancel()
 
 		newViewCount, err := s.clipRepo.IncrementViewCount(timeoutCtx, clip.ID)
@@ -363,6 +386,8 @@ func (s *ClipService) ListScrapedClips(ctx context.Context, filters repository.C
 		BroadcasterID:   filters.BroadcasterID,
 		CreatorID:       filters.CreatorID,
 		Tag:             filters.Tag,
+		Tags:            filters.Tags,
+		TagsLogic:       filters.TagsLogic,
 		ExcludeTags:     filters.ExcludeTags,
 		Search:          filters.Search,
 		Language:        filters.Language,
@@ -462,8 +487,11 @@ func (s *ClipService) VoteOnClip(ctx context.Context, userID, clipID uuid.UUID, 
 	}
 
 	// Check if clip exists
-	_, err := s.clipRepo.GetByID(ctx, clipID)
+	clip, err := s.clipRepo.GetByID(ctx, clipID)
 	if err != nil {
+		return err
+	}
+	if err := s.requireCreatorInteractionPermission(ctx, clip.CreatorAccountID, userID); err != nil {
 		return err
 	}
 
@@ -498,8 +526,9 @@ func (s *ClipService) VoteOnClip(ctx context.Context, userID, clipID uuid.UUID, 
 		clip, err := s.clipRepo.GetByID(ctx, clipID)
 		if err == nil && clip.CreatorID != nil && s.notificationService != nil {
 			// Check if we reached a vote threshold (async with timeout)
+			detachedCtx := context.WithoutCancel(ctx)
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(detachedCtx, 10*time.Second)
 				defer cancel()
 				_ = s.notificationService.NotifyClipVoteThreshold(timeoutCtx, clipID, clip.VoteScore, *clip.CreatorID)
 			}()
@@ -507,6 +536,7 @@ func (s *ClipService) VoteOnClip(ctx context.Context, userID, clipID uuid.UUID, 
 	}
 
 	// Update user karma (async)
+	detachedCtx := context.WithoutCancel(ctx)
 	go func() {
 		karmaChange := 0
 		if oldVote == nil {
@@ -526,7 +556,7 @@ func (s *ClipService) VoteOnClip(ctx context.Context, userID, clipID uuid.UUID, 
 		}
 
 		if karmaChange != 0 {
-			_ = s.userRepo.UpdateKarma(context.Background(), userID, karmaChange)
+			_ = s.userRepo.UpdateKarma(detachedCtx, userID, karmaChange)
 		}
 	}()
 
@@ -539,8 +569,11 @@ func (s *ClipService) VoteOnClip(ctx context.Context, userID, clipID uuid.UUID, 
 // AddFavorite adds a clip to user's favorites
 func (s *ClipService) AddFavorite(ctx context.Context, userID, clipID uuid.UUID) error {
 	// Check if clip exists
-	_, err := s.clipRepo.GetByID(ctx, clipID)
+	clip, err := s.clipRepo.GetByID(ctx, clipID)
 	if err != nil {
+		return err
+	}
+	if err := s.requireCreatorInteractionPermission(ctx, clip.CreatorAccountID, userID); err != nil {
 		return err
 	}
 
@@ -549,6 +582,11 @@ func (s *ClipService) AddFavorite(ctx context.Context, userID, clipID uuid.UUID)
 
 // RemoveFavorite removes a clip from user's favorites
 func (s *ClipService) RemoveFavorite(ctx context.Context, userID, clipID uuid.UUID) error {
+	if clip, err := s.clipRepo.GetByID(ctx, clipID); err == nil {
+		if err := s.requireCreatorInteractionPermission(ctx, clip.CreatorAccountID, userID); err != nil {
+			return err
+		}
+	}
 	return s.favoriteRepo.Delete(ctx, userID, clipID)
 }
 
@@ -613,6 +651,10 @@ func (s *ClipService) buildCacheKey(filters repository.ClipFilters, page, limit 
 	}
 	if filters.Tag != nil {
 		key += fmt.Sprintf(":tag:%s", *filters.Tag)
+	}
+	if len(filters.Tags) > 0 {
+		key += fmt.Sprintf(":tags:%v", filters.Tags)
+		key += fmt.Sprintf(":tagslogic:%s", filters.TagsLogic)
 	}
 	if filters.Search != nil {
 		key += fmt.Sprintf(":search:%s", *filters.Search)

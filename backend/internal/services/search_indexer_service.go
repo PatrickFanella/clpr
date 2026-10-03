@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/pkg/opensearch"
+	"git.subcult.tv/subculture-collective/clpr/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/opensearch-project/opensearch-go/v2/opensearchapi"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/pkg/opensearch"
-	"github.com/subculture-collective/clipper/pkg/utils"
 )
 
 // SearchIndexerService handles indexing operations for OpenSearch
@@ -104,6 +104,10 @@ func (s *SearchIndexerService) IndexClip(ctx context.Context, clip *models.Clip)
 	doc := map[string]interface{}{
 		"id":               clip.ID.String(),
 		"twitch_clip_id":   clip.TwitchClipID,
+		"twitch_clip_url":  clip.TwitchClipURL,
+		"embed_url":        clip.EmbedURL,
+		"thumbnail_url":    clip.ThumbnailURL,
+		"duration":         clip.Duration,
 		"title":            clip.Title,
 		"creator_name":     clip.CreatorName,
 		"creator_id":       clip.CreatorID,
@@ -119,13 +123,15 @@ func (s *SearchIndexerService) IndexClip(ctx context.Context, clip *models.Clip)
 		"is_featured":      clip.IsFeatured,
 		"is_nsfw":          clip.IsNSFW,
 		"is_removed":       clip.IsRemoved,
+		"is_hidden":        clip.IsHidden,
+		"dmca_removed":     clip.DMCARemoved,
 		"created_at":       clip.CreatedAt,
 		"imported_at":      clip.ImportedAt,
 		"engagement_score": engagementScore,
 		"recency_score":    recencyScore,
 	}
 
-	// Include submitted_by_user_id so we can filter out unsubmitted clips
+	// Preserve submission provenance without making it a search eligibility rule
 	if clip.SubmittedByUserID != nil {
 		doc["submitted_by_user_id"] = clip.SubmittedByUserID.String()
 	}
@@ -303,6 +309,10 @@ func (s *SearchIndexerService) BulkIndexClips(ctx context.Context, clips []model
 		doc := map[string]interface{}{
 			"id":               clip.ID.String(),
 			"twitch_clip_id":   clip.TwitchClipID,
+			"twitch_clip_url":  clip.TwitchClipURL,
+			"embed_url":        clip.EmbedURL,
+			"thumbnail_url":    clip.ThumbnailURL,
+			"duration":         clip.Duration,
 			"title":            clip.Title,
 			"creator_name":     clip.CreatorName,
 			"creator_id":       clip.CreatorID,
@@ -318,13 +328,15 @@ func (s *SearchIndexerService) BulkIndexClips(ctx context.Context, clips []model
 			"is_featured":      clip.IsFeatured,
 			"is_nsfw":          clip.IsNSFW,
 			"is_removed":       clip.IsRemoved,
+			"is_hidden":        clip.IsHidden,
+			"dmca_removed":     clip.DMCARemoved,
 			"created_at":       clip.CreatedAt,
 			"imported_at":      clip.ImportedAt,
 			"engagement_score": engagementScore,
 			"recency_score":    recencyScore,
 		}
 
-		// Include submitted_by_user_id so we can filter out unsubmitted clips
+		// Preserve submission provenance without making it a search eligibility rule
 		if clip.SubmittedByUserID != nil {
 			doc["submitted_by_user_id"] = clip.SubmittedByUserID.String()
 		}
@@ -447,6 +459,7 @@ func getClipIndexMapping() string {
 "is_featured": {"type": "boolean"},
 "is_nsfw": {"type": "boolean"},
 "is_removed": {"type": "boolean"},
+"submitted_by_user_id": {"type": "keyword"},
 "created_at": {"type": "date"},
 "imported_at": {"type": "date"},
 "engagement_score": {"type": "float"},

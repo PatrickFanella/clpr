@@ -8,8 +8,10 @@ import {
     CardBody,
     Button,
     Stack,
+    SEO,
 } from '../components';
 import { useAuth } from '../context/AuthContext';
+import { getAuthReturnTo } from '../lib/auth-return';
 
 export function LoginPage() {
     const { t } = useTranslation();
@@ -21,10 +23,9 @@ export function LoginPage() {
 
     // Store the return URL when the login page is accessed
     useEffect(() => {
-        const from = (location.state as { from?: { pathname: string } })?.from
-            ?.pathname;
-        if (from && from !== '/login') {
-            sessionStorage.setItem('auth_return_to', from);
+        const from = (location.state as { from?: unknown } | null)?.from;
+        if (from) {
+            sessionStorage.setItem('auth_return_to', getAuthReturnTo(from));
         }
     }, [location]);
 
@@ -33,7 +34,7 @@ export function LoginPage() {
     };
 
     return (
-        <Container className='py-16 max-w-md'>
+        <><SEO title='Sign in' description='Sign in to clpr with Twitch.' canonicalUrl='/login' noindex /><Container className='py-16 max-w-md'>
             <Card>
                 <CardHeader>
                     <h1 className='text-2xl font-bold text-center'>
@@ -80,6 +81,6 @@ export function LoginPage() {
                     </Stack>
                 </CardBody>
             </Card>
-        </Container>
+        </Container></>
     );
 }

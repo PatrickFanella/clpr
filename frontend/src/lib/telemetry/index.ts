@@ -15,8 +15,6 @@
  * // Identify user
  * identifyUser('user123', {
  *   user_id: 'user123',
- *   is_premium: true,
- *   premium_tier: 'pro',
  *   signup_date: '2024-01-01'
  * });
  * ```
@@ -27,11 +25,12 @@ export {
   AuthEvents,
   SubmissionEvents,
   EngagementEvents,
-  PremiumEvents,
   NavigationEvents,
   SettingsEvents,
   ErrorEvents,
   PerformanceEvents,
+  CreatorEvents,
+  ModerationEvents,
 } from './events';
 
 export type {

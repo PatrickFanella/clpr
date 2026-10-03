@@ -6,6 +6,7 @@ import {
     SEO,
     VideoPlayer,
     TheatreMode,
+    ResourceUnavailable,
 } from '../components';
 import {
     useClipById,
@@ -14,26 +15,33 @@ import {
     useClipFavorite,
     useIsAuthenticated,
     useToast,
-    useShare,
     useWatchHistory,
 } from '../hooks';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
-import { useState, useEffect, useRef } from 'react';
+import { ShareButton } from '@/components/clip/ShareButton';
+import { TagList } from '@/components/tag/TagList';
+import { useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { topicApi } from '@/lib/topic-api';
+import { isNotFoundError } from '@/lib/error-utils';
 
 export function ClipDetailPage() {
     const { id } = useParams<{ id: string }>();
-    const { data: clip, isLoading, error } = useClipById(id || '');
+    const { data: clip, isLoading, error, refetch } = useClipById(id || '');
     const user = useUser();
     const isAuthenticated = useIsAuthenticated();
     const voteMutation = useClipVote();
     const favoriteMutation = useClipFavorite();
     const toast = useToast();
-    const { share } = useShare();
-    const [showShareMenu, setShowShareMenu] = useState(false);
     const isVoting = voteMutation.isPending;
     const isBanned = user?.is_banned;
     const banReason = user?.ban_reason;
+    const { data: clipTopics } = useQuery({
+        queryKey: ['clip-topics', id],
+        queryFn: () => topicApi.getClipTopics(id || ''),
+        enabled: Boolean(id),
+    });
 
     // Watch history integration - full progress tracking for HLS clips only
     const {
@@ -66,22 +74,17 @@ export function ClipDetailPage() {
     }, [isAuthenticated, clip]);
 
     const clipUrl = clip ? `${window.location.origin}/clip/${clip.id}` : '';
-    const shareTitle = clip ? clip.title : 'Check out this clip';
-    const shareText =
-        clip ?
-            `${clip.title} - Clipped from ${clip.broadcaster_name}'s stream`
-        :   '';
     // Show ban message if user is banned (before clip loading checks)
     if (isBanned) {
         return (
             <>
                 <SEO title='Banned' noindex />
                 <Container className='py-8'>
-                    <div className='rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-6 my-8'>
-                        <h2 className='text-lg font-bold text-red-800 dark:text-red-400 mb-2'>
+                    <div className='border border-error-800 border-l-[3px] border-l-error-400 bg-surface p-6 my-8'>
+                        <h2 className='text-2xl text-error-300 mb-2'>
                             You are banned
                         </h2>
-                        <p className='text-red-700 dark:text-red-300'>
+                        <p className='text-text-secondary'>
                             You are banned and cannot interact with clips
                             {banReason ? `: ${banReason}` : ''}.
                         </p>
@@ -91,47 +94,6 @@ export function ClipDetailPage() {
         );
     }
 
-    const handleNativeShare = async () => {
-        const clipUrl = `${window.location.origin}/clip/${clip?.id}`;
-        await share({
-            title: clip?.title || 'Check out this clip',
-            text: `${clip?.title} - Clipped from ${clip?.broadcaster_name}'s stream`,
-            url: clipUrl,
-        });
-        setShowShareMenu(false);
-    };
-
-    const handleCopyLink = async () => {
-        try {
-            await navigator.clipboard.writeText(clipUrl);
-            toast.success('Link copied to clipboard!');
-            setShowShareMenu(false);
-        } catch {
-            toast.error('Failed to copy link');
-        }
-    };
-
-    const handleShareToTwitter = () => {
-        const text = encodeURIComponent(shareText);
-        const url = encodeURIComponent(clipUrl);
-        window.open(
-            `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
-            '_blank',
-            'noopener,noreferrer',
-        );
-        setShowShareMenu(false);
-    };
-
-    const handleShareToReddit = () => {
-        const title = encodeURIComponent(shareTitle);
-        const url = encodeURIComponent(clipUrl);
-        window.open(
-            `https://reddit.com/submit?title=${title}&url=${url}`,
-            '_blank',
-            'noopener,noreferrer',
-        );
-        setShowShareMenu(false);
-    };
 
     const handleVote = (voteType: 1 | -1) => {
         if (!isAuthenticated) {
@@ -175,35 +137,30 @@ export function ClipDetailPage() {
         );
     }
 
-    if (error) {
+    if (error || !clip) {
+        const notFound = !error || isNotFoundError(error);
         return (
             <>
-                <SEO title='Error Loading Clip' noindex />
+                <SEO title={notFound ? 'Clip not found' : 'Clip unavailable'} noindex />
                 <Container className='py-8'>
-                    <div className='text-center py-12'>
-                        <h2 className='text-2xl font-bold text-error-600 mb-4'>
-                            Error Loading Clip
-                        </h2>
-                        <p className='text-muted-foreground'>{error.message}</p>
-                    </div>
-                </Container>
-            </>
-        );
-    }
-
-    if (!clip) {
-        return (
-            <>
-                <SEO title='Clip Not Found' noindex />
-                <Container className='py-8'>
-                    <div className='text-center py-12'>
-                        <h2 className='text-2xl font-bold mb-4'>
-                            Clip Not Found
-                        </h2>
-                        <p className='text-muted-foreground'>
-                            The clip you're looking for doesn't exist.
-                        </p>
-                    </div>
+                    {notFound ?
+                        <ResourceUnavailable
+                            kind='not-found'
+                            title="This clip isn't here"
+                            description='It may have been removed, or the link is incomplete.'
+                            links={[
+                                { label: 'Back to the feed', href: '/' },
+                                { label: 'Search clips', href: '/search' },
+                            ]}
+                        />
+                    :   <ResourceUnavailable
+                            kind='error'
+                            title="We couldn't load this clip"
+                            description='Check your connection and try again.'
+                            onRetry={() => void refetch()}
+                            links={[{ label: 'Back to the feed', href: '/' }]}
+                        />
+                    }
                 </Container>
             </>
         );
@@ -219,7 +176,7 @@ export function ClipDetailPage() {
     const description = `Watch "${clip.title}" by ${clip.creator_name} on ${
         clip.broadcaster_name
     }'s channel${
-        clip.game_name ? ` playing ${clip.game_name}` : ''
+        clip.game_name ? ` in the ${clip.game_name} Twitch category` : ''
     }. ${clip.view_count.toLocaleString()} views, ${clip.vote_score} votes.`;
 
     // Schema.org VideoObject structured data
@@ -264,253 +221,197 @@ export function ClipDetailPage() {
                 canonicalUrl={`/clip/${clip.id}`}
                 ogType='video.other'
                 ogImage={clip.thumbnail_url || undefined}
-                twitterCard='player'
+                imageAlt={`${clip.title} — ${clip.creator_name}`}
                 structuredData={structuredData}
             />
-            <Container className='py-4 xs:py-6 md:py-8'>
-                <div className='max-w-4xl mx-auto'>
-                    <div className='mb-4 xs:mb-6'>
-                        <h1 className='text-2xl xs:text-3xl font-bold mb-2'>
-                            {clip.title}
-                        </h1>
-                        <div className='flex flex-wrap gap-2 xs:gap-4 text-xs xs:text-sm text-muted-foreground'>
-                            <span className='font-medium'>
+            <Container className='py-4 md:py-8'>
+                <div className='grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_24rem]'>
+                <div className='min-w-0'>
+                {/* Video Player — full width */}
+                <div className='mb-6'>
+                    {clip.video_url ?
+                        <TheatreMode
+                            title={clip.title}
+                            hlsUrl={clip.video_url}
+                            resumePosition={resumePosition}
+                            hasProgress={hasProgress}
+                            isLoadingProgress={isLoadingProgress}
+                            onProgressUpdate={recordProgress}
+                            onPause={recordProgressOnPause}
+                            onEnded={recordProgressOnPause}
+                        />
+                    :   <VideoPlayer
+                            clipId={clip.id}
+                            title={clip.title}
+                            embedUrl={clip.embed_url}
+                            twitchClipId={clip.twitch_clip_id}
+                        />
+                    }
+                </div>
+
+                {/* Header — compact, matching PlaylistDetail style */}
+                <div className='mb-6'>
+                    <h1 className='text-3xl lg:text-4xl text-foreground mb-2'>
+                        {clip.title}
+                    </h1>
+
+                    {/* Metadata row */}
+                    <div className='flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] uppercase tracking-[0.04em] text-muted-foreground mb-4'>
+                        <Link
+                            to={`/broadcaster/${clip.broadcaster_id || clip.broadcaster_name}`}
+                            className='font-medium text-foreground/90 hover:text-foreground transition-colors'
+                        >
+                            {clip.broadcaster_name}
+                        </Link>
+                        {clip.game_name && (
+                            <>
+                                <span className='text-text-disabled'>·</span>
                                 <Link
-                                    to={`/broadcaster/${
-                                        clip.broadcaster_id ||
-                                        clip.broadcaster_name
-                                    }`}
+                                    to={`/twitch-category/${clip.twitch_category_id || clip.game_id}`}
                                     className='hover:text-foreground transition-colors'
                                 >
-                                    {clip.broadcaster_name}
+                                    {clip.game_name}
                                 </Link>
-                            </span>
-                            {clip.game_name && (
-                                <>
-                                    <span className='hidden xs:inline'>•</span>
-                                    <span>
-                                        <Link
-                                            to={`/game/${clip.game_id}`}
-                                            className='hover:text-foreground transition-colors'
-                                        >
-                                            {clip.game_name}
-                                        </Link>
-                                    </span>
-                                </>
-                            )}
-                            {clip.submitted_by && (
-                                <>
-                                    <span className='hidden xs:inline'>•</span>
-                                    <span>
-                                        Submitted by{' '}
-                                        <Link
-                                            to={`/user/${clip.submitted_by.username}`}
-                                            className='hover:text-foreground transition-colors'
-                                        >
-                                            {clip.submitted_by.display_name}
-                                        </Link>
-                                    </span>
-                                </>
-                            )}
-                            {clip.creator_id &&
-                                clip.creator_id.trim() !== '' &&
-                                clip.creator_name && (
-                                    <>
-                                        <span className='hidden xs:inline'>
-                                            •
-                                        </span>
-                                        <span>
-                                            Clipped by{' '}
-                                            <Link
-                                                to={`/user/${clip.creator_id}`}
-                                                className='hover:text-foreground transition-colors'
-                                            >
-                                                {clip.creator_name}
-                                            </Link>
-                                        </span>
-                                    </>
-                                )}
-                            <span className='hidden xs:inline'>•</span>
-                            <span>
-                                {clip.view_count.toLocaleString()} views
-                            </span>
-                            <span className='hidden xs:inline'>•</span>
-                            <span>{clip.vote_score} votes</span>
+                            </>
+                        )}
+                        {clip.submitted_by && (
+                            <>
+                                <span className='text-text-disabled'>·</span>
+                                <span>
+                                    by{' '}
+                                    <Link
+                                        to={`/user/${clip.submitted_by.username}`}
+                                        className='hover:text-foreground transition-colors'
+                                    >
+                                        {clip.submitted_by.display_name}
+                                    </Link>
+                                </span>
+                            </>
+                        )}
+                        <span className='text-text-disabled'>·</span>
+                        {/* view_count is clpr's last Twitch sync; the embed shows Twitch's live count. */}
+                        <span title='Twitch view count when clpr last synced this clip. The player shows the live count.'>
+                            {clip.view_count.toLocaleString()} Twitch views at last sync
+                        </span>
+                        <span className='text-text-disabled'>·</span>
+                        <span>
+                            {new Date(clip.created_at).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                            })}
+                        </span>
+                    </div>
+
+                    <div className='mb-4 grid gap-2 sm:grid-cols-[6rem_1fr] sm:items-start'>
+                        <p className='kicker pt-1.5'>Tags</p>
+                        <TagList clipId={clip.id} maxVisible={16} />
+                    </div>
+
+                    {clipTopics && clipTopics.topics.length > 0 && (
+                        <div className='mb-4 flex flex-wrap items-center gap-1.5 sm:grid sm:grid-cols-[6rem_1fr]' aria-label='Clip topics'>
+                            <p className='kicker'>Topics</p>
+                            <div className='flex flex-wrap gap-1.5'>
+                            {clipTopics.topics.map(topic => (
+                                <Link
+                                    key={topic.topic_id}
+                                    to={`/topics/${topic.topic_slug}`}
+                                    className='inline-flex min-h-8 items-center border border-line-strong px-2 font-heading text-[13px] font-bold uppercase tracking-[0.04em] text-foreground transition-colors hover:border-text-tertiary'
+                                >
+                                    {topic.topic_name}
+                                </Link>
+                            ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
-                    <div className='mb-4 xs:mb-6'>
-                        {/* Render TheatreMode for HLS clips, otherwise use VideoPlayer
-                            Note: Watch history tracking only works with HLS clips (TheatreMode).
-                            Twitch iframe embeds (VideoPlayer) don't expose playback events per TOS. */}
-                        {clip.video_url ?
-                            <TheatreMode
-                                title={clip.title}
-                                hlsUrl={clip.video_url}
-                                resumePosition={resumePosition}
-                                hasProgress={hasProgress}
-                                isLoadingProgress={isLoadingProgress}
-                                onProgressUpdate={recordProgress}
-                                onPause={recordProgressOnPause}
-                                onEnded={recordProgressOnPause}
-                            />
-                        :   <VideoPlayer
-                                clipId={clip.id}
-                                title={clip.title}
-                                embedUrl={clip.embed_url}
-                            />
-                        }
-                    </div>
-
-                    <div className='grid grid-cols-1 xs:grid-cols-3 gap-3 xs:gap-4 mb-4 xs:mb-6'>
+                    {/* Actions row — matching PlaylistDetail stats row */}
+                    <div className='flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-3 font-mono text-xs text-muted-foreground'>
                         <button
+                            aria-label={`Upvote: ${clip.vote_score} votes`}
+                            aria-pressed={clip.user_vote === 1}
                             onClick={() => handleVote(1)}
                             disabled={!isAuthenticated || isVoting || isBanned}
                             className={cn(
-                                'px-4 py-3 rounded-md transition-colors touch-target',
-                                clip.user_vote === 1 ?
-                                    'bg-green-600 text-white hover:bg-green-700'
-                                :   'bg-primary-500 text-white hover:bg-primary-600',
+                                'inline-flex min-h-11 min-w-11 items-center justify-center gap-2 px-3 py-2 transition-colors cursor-pointer',
+                                clip.user_vote === 1
+                                    ? 'text-upvote bg-upvote/10'
+                                    : 'hover:bg-accent hover:text-foreground',
                                 (!isAuthenticated || isVoting || isBanned) &&
-                                    'opacity-50 cursor-not-allowed hover:bg-primary-500',
+                                    'opacity-50 cursor-not-allowed',
                             )}
-                            aria-label={
-                                isAuthenticated ?
-                                    `Upvote, ${clip.vote_score} votes`
-                                :   'Log in to upvote'
-                            }
-                            aria-disabled={
-                                !isAuthenticated || isVoting || isBanned
-                            }
-                            title={
-                                isAuthenticated ? undefined : 'Log in to vote'
-                            }
+                            title={isAuthenticated ? 'Upvote' : 'Log in to vote'}
                         >
-                            Upvote ({clip.vote_score})
+                            <svg className='h-5 w-5' fill={clip.user_vote === 1 ? 'currentColor' : 'none'} stroke='currentColor' strokeWidth={2} viewBox='0 0 24 24'>
+                                <path d='M12 4l8 8h-6v8h-4v-8H4z' />
+                            </svg>
+                            <span className='font-medium text-foreground/90'>
+                                {clip.vote_score}
+                            </span>
                         </button>
+
                         <button
-                            className={cn(
-                                'px-4 py-3 border border-border rounded-md hover:bg-muted transition-colors touch-target',
-                                isBanned && 'opacity-50 cursor-not-allowed',
-                            )}
-                            aria-label={`Comment, ${clip.comment_count} comments`}
                             onClick={() => {
-                                if (isBanned) return;
-                                document
-                                    .getElementById('comments')
-                                    ?.scrollIntoView({ behavior: 'smooth' });
+                                const discussion = document.getElementById('comments');
+                                discussion?.focus({ preventScroll: true });
+                                discussion?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
                             }}
-                            disabled={isBanned}
+                            aria-label={`Read discussion: ${clip.comment_count} comments`}
+                            className='inline-flex min-h-11 min-w-11 items-center justify-center gap-2 px-3 py-2 transition-colors hover:bg-accent hover:text-foreground cursor-pointer'
                         >
-                            Comment ({clip.comment_count})
+                            <svg className='h-5 w-5' fill='none' stroke='currentColor' strokeWidth={2} viewBox='0 0 24 24'>
+                                <path strokeLinecap='round' strokeLinejoin='round' d='M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z' />
+                            </svg>
+                            <span className='font-medium text-foreground/90'>
+                                {clip.comment_count}
+                            </span>
                         </button>
+
                         <button
+                            aria-label={clip.is_favorited ? 'Remove from saved clips' : 'Save clip'}
+                            aria-pressed={!!clip.is_favorited}
                             onClick={() => handleFavorite()}
                             disabled={!isAuthenticated || isBanned}
                             className={cn(
-                                'px-4 py-3 rounded-md transition-colors touch-target',
-                                clip.is_favorited ?
-                                    'bg-red-500 text-white hover:bg-red-600'
-                                :   'border border-border hover:bg-muted',
+                                'inline-flex min-h-11 min-w-11 items-center justify-center gap-2 px-3 py-2 transition-colors cursor-pointer',
+                                clip.is_favorited
+                                    ? 'text-red-500'
+                                    : 'hover:bg-accent hover:text-foreground',
                                 (!isAuthenticated || isBanned) &&
-                                    'opacity-50 cursor-not-allowed hover:bg-muted',
+                                    'opacity-50 cursor-not-allowed',
                             )}
-                            aria-label={
-                                !isAuthenticated ? 'Log in to favorite'
-                                : clip.is_favorited ?
-                                    `Remove from favorites, ${clip.favorite_count} favorites`
-                                :   `Add to favorites, ${clip.favorite_count} favorites`
-
-                            }
-                            aria-disabled={!isAuthenticated || isBanned}
-                            title={
-                                isAuthenticated ? undefined : (
-                                    'Log in to favorite'
-                                )
-                            }
+                            title={isAuthenticated ? (clip.is_favorited ? 'Unfavorite' : 'Favorite') : 'Log in to favorite'}
                         >
-                            {clip.is_favorited ? '❤️ ' : ''}Favorite (
-                            {clip.favorite_count})
+                            <svg className='h-5 w-5' fill={clip.is_favorited ? 'currentColor' : 'none'} stroke='currentColor' strokeWidth={2} viewBox='0 0 24 24'>
+                                <path strokeLinecap='round' strokeLinejoin='round' d='M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' />
+                            </svg>
+                            <span className='font-medium text-foreground/90'>
+                                {clip.favorite_count}
+                            </span>
                         </button>
-                    </div>
 
-                    <button
-                        onClick={() => setShowShareMenu(!showShareMenu)}
-                        className='w-full xs:w-auto px-4 py-2 border border-border rounded-md hover:bg-muted transition-colors text-sm xs:text-base'
-                        aria-label='Share this clip'
-                    >
-                        📤 Share
-                    </button>
-
-                    {showShareMenu && (
-                        <div className='mt-2 p-3 border border-border rounded-md bg-card space-y-2'>
-                            <button
-                                onClick={handleCopyLink}
-                                className='w-full px-4 py-2 text-left hover:bg-muted rounded transition-colors text-sm'
-                            >
-                                📋 Copy Link
-                            </button>
-                            {navigator.share && (
-                                <button
-                                    onClick={handleNativeShare}
-                                    className='w-full px-4 py-2 text-left hover:bg-muted rounded transition-colors text-sm'
-                                >
-                                    📤 Share via...
-                                </button>
-                            )}
-                            <button
-                                onClick={handleShareToTwitter}
-                                className='w-full px-4 py-2 text-left hover:bg-muted rounded transition-colors text-sm'
-                            >
-                                🐦 Share on Twitter/X
-                            </button>
-                            <button
-                                onClick={handleShareToReddit}
-                                className='w-full px-4 py-2 text-left hover:bg-muted rounded transition-colors text-sm'
-                            >
-                                🔴 Share on Reddit
-                            </button>
-                        </div>
-                    )}
-
-                    {clip.game_name && (
-                        <div className='mb-4'>
-                            <span className='text-xs xs:text-sm text-muted-foreground'>
-                                Game:{' '}
-                            </span>
-                            <span className='font-semibold text-sm xs:text-base'>
-                                {clip.game_name}
-                            </span>
-                        </div>
-                    )}
-
-                    <div className='text-xs xs:text-sm text-muted-foreground space-y-1'>
-                        <p>Broadcaster: {clip.broadcaster_name}</p>
-                        <p>
-                            Created:{' '}
-                            {new Date(clip.created_at).toLocaleDateString(
-                                'en-US',
-                                {
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric',
-                                },
-                            )}
-                        </p>
-                    </div>
-
-                    <div
-                        className='mt-8 border-t border-border pt-8'
-                        id='comments'
-                    >
-                        <CommentSection
-                            clipId={clip.id}
-                            currentUserId={user?.id}
-                            isAdmin={user?.role === 'admin'}
-                            isBanned={!!isBanned}
-                            banReason={banReason}
+                        <ShareButton
+                            shareUrl={clipUrl}
+                            shareTitle={clip.title}
+                            showLabel={false}
+                            buttonClassName='inline-flex min-h-11 min-w-11 items-center justify-center rounded px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer'
+                            iconClassName='h-5 w-5'
                         />
                     </div>
+                </div>
+
+                </div>
+                <section id='comments' aria-label='Discussion' tabIndex={-1} className='min-w-0 scroll-mt-24 border border-border bg-surface p-4 tally-bar xl:sticky xl:top-24 xl:max-h-[calc(100dvh-8rem)] xl:self-start xl:overflow-hidden'>
+                    <CommentSection
+                        clipId={clip.id}
+                        variant='compact'
+                        className='xl:h-[calc(100dvh-10rem)]'
+                        currentUserId={user?.id}
+                        isAdmin={user?.role === 'admin'}
+                        isBanned={!!isBanned}
+                        banReason={banReason}
+                    />
+                </section>
                 </div>
             </Container>
         </>

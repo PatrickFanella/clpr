@@ -1,11 +1,11 @@
-# Clipper Browser Extension
+# clpr Browser Extension
 
-Share Twitch clips to [Clipper](https://clipper.gg) with one click.
+Submits the Twitch clip you are watching to [clpr](https://clpr.tv). It fills in the title, lets you add tags, and sends the clip for review.
 
 ## Features
 
 - **Detects Twitch clips** automatically when you visit a clip page
-- **Context menu** – right-click on any Twitch clip page to see "Share to Clipper"
+- **Context menu** – right-click on any Twitch clip page to see "Share to clpr"
 - **Popup UI** with:
   - Clip thumbnail preview
   - Editable title (pre-filled from Twitch metadata)
@@ -13,7 +13,7 @@ Share Twitch clips to [Clipper](https://clipper.gg) with one click.
   - Multi-select tag picker
   - NSFW toggle
   - One-click submit
-- **OAuth via Clipper** – authenticates using your existing Clipper account
+- **OAuth via clpr** – authenticates using your existing clpr account
 - **Desktop notifications** on successful submission
 
 ## Supported Browsers
@@ -75,7 +75,7 @@ npm run typecheck
 
 ## Configuration
 
-By default the extension points to the production Clipper API (`https://api.clipper.gg/api/v1`).
+By default the extension points to the production clpr API (`https://clpr.tv/api/v1`).
 
 To point at a local backend, open the browser's extension storage inspector and set:
 
@@ -97,10 +97,10 @@ chrome.storage.local.set({
 
 ## Authentication
 
-The extension reads the `access_token` JWT cookie issued by the Clipper backend and sends it as a `Bearer` token.  To authenticate:
+The extension reads the `access_token` JWT cookie issued by the clpr backend and sends it as a `Bearer` token.  To authenticate:
 
 1. Click the extension icon
-2. Click **Login with Twitch** – this opens `clipper.gg` in a new tab
+2. Click **Login with Twitch** – this opens `clpr.tv` in a new tab
 3. Complete the Twitch OAuth flow on the website
 4. Return to the extension popup – you should now be logged in
 
@@ -112,21 +112,19 @@ extension/
 ├── build.js                # esbuild orchestration script
 ├── package.json
 ├── tsconfig.json
-├── scripts/
-│   └── generate-icons.js   # Generates PNG icons from pure Node.js
 ├── src/
 │   ├── background.ts       # Service worker – context menu & tab tracking
 │   ├── content.ts          # Content script – Twitch SPA URL detection
 │   ├── types.ts            # Shared TypeScript interfaces
 │   ├── lib/
-│   │   ├── api.ts          # Clipper API client
+│   │   ├── api.ts          # clpr API client
 │   │   ├── auth.ts         # Auth token retrieval & verification
 │   │   └── twitch.ts       # Twitch URL detection utilities
 │   └── popup/
 │       ├── popup.html      # Popup markup
 │       ├── popup.ts        # Popup logic
 │       └── popup.css       # Popup styles
-└── icons/                  # Generated PNG icons
+└── icons/                  # PNG icons rendered by frontend/scripts/render-brand-assets.mjs
 ```
 
 ## Publishing
@@ -134,7 +132,7 @@ extension/
 ### Chrome Web Store
 
 1. Run `npm run build`
-2. Zip the `dist/` folder: `cd dist && zip -r ../clipper-extension.zip .`
+2. Zip the `dist/` folder: `cd dist && zip -r ../clpr-extension.zip .`
 3. Upload to the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole)
 
 ### Firefox Add-ons (AMO)

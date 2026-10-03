@@ -1,8 +1,11 @@
+import { Avatar } from '@/components/ui/Avatar';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Container, Card, CardHeader, CardBody, Button, Input } from '../../components';
 import { Search, Shield, Ban, TrendingUp, MessageSquare, MessageSquareOff, Eye } from 'lucide-react';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
+import { Modal } from '@/components/ui/Modal';
+import { useSearchParams } from 'react-router-dom';
 
 interface User {
   id: string;
@@ -26,6 +29,12 @@ interface UsersResponse {
   total: number;
   page: number;
   per_page: number;
+  summary: {
+    signed_in_users: number;
+    unclaimed_creators: number;
+    staff: number;
+    other: number;
+  };
 }
 
 interface UserActionModalProps {
@@ -70,29 +79,25 @@ function UserActionModal({ user, actionType, onClose, onConfirm }: UserActionMod
     unban: 'Unban User',
     promote: 'Promote User',
     demote: 'Demote User',
-    karma: 'Adjust Karma Points',
+    karma: 'Adjust Uppies',
     suspend_comments: 'Suspend Comment Privileges',
     lift_suspension: 'Lift Comment Suspension',
     toggle_review: 'Toggle Comment Review'
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader>
-          <h3 className="text-xl font-semibold">{titles[actionType]}</h3>
+    <Modal open onClose={onClose} title={titles[actionType]} size="md">
           <p className="text-sm text-muted-foreground">
             User: {user.username} ({user.email})
           </p>
-        </CardHeader>
-        <CardBody>
           <form onSubmit={handleSubmit} className="space-y-4">
             {actionType === 'karma' ? (
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  New Karma Points
+                <label htmlFor="admin-user-karma" className="block text-sm font-medium mb-2">
+                  New Uppies
                 </label>
                 <Input
+                  id="admin-user-karma"
                   type="number"
                   value={karmaValue}
                   onChange={(e) => {
@@ -116,10 +121,11 @@ function UserActionModal({ user, actionType, onClose, onConfirm }: UserActionMod
             ) : actionType === 'suspend_comments' ? (
               <>
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label htmlFor="admin-user-suspension-type" className="block text-sm font-medium mb-2">
                     Suspension Type
                   </label>
                   <select
+                    id="admin-user-suspension-type"
                     value={suspensionType}
                     onChange={(e) => setSuspensionType(e.target.value as 'warning' | 'temporary' | 'permanent')}
                     className="w-full p-2 border border-border rounded-md bg-background"
@@ -131,10 +137,11 @@ function UserActionModal({ user, actionType, onClose, onConfirm }: UserActionMod
                 </div>
                 {suspensionType === 'temporary' && (
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label htmlFor="admin-user-suspension-duration" className="block text-sm font-medium mb-2">
                       Duration (hours)
                     </label>
                     <Input
+                      id="admin-user-suspension-duration"
                       type="number"
                       value={durationHours}
                       onChange={(e) => {
@@ -152,10 +159,11 @@ function UserActionModal({ user, actionType, onClose, onConfirm }: UserActionMod
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label htmlFor="admin-user-suspension-reason" className="block text-sm font-medium mb-2">
                     Reason (Required)
                   </label>
                   <textarea
+                    id="admin-user-suspension-reason"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     className="w-full p-2 border border-border rounded-md min-h-[100px] bg-background"
@@ -184,10 +192,11 @@ function UserActionModal({ user, actionType, onClose, onConfirm }: UserActionMod
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label htmlFor="admin-user-review-reason" className="block text-sm font-medium mb-2">
                     Reason (Required)
                   </label>
                   <textarea
+                    id="admin-user-review-reason"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     className="w-full p-2 border border-border rounded-md min-h-[100px] bg-background"
@@ -198,10 +207,11 @@ function UserActionModal({ user, actionType, onClose, onConfirm }: UserActionMod
               </>
             ) : (
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  {actionType === 'ban' || actionType === 'suspend_comments' ? 'Reason (Required)' : 'Action Reason'}
+                <label htmlFor="admin-user-action-reason" className="block text-sm font-medium mb-2">
+                  {actionType === 'ban' ? 'Reason (Required)' : 'Action Reason'}
                 </label>
                 <textarea
+                  id="admin-user-action-reason"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   className="w-full p-2 border border-border rounded-md min-h-[100px] bg-background"
@@ -220,15 +230,14 @@ function UserActionModal({ user, actionType, onClose, onConfirm }: UserActionMod
               </Button>
             </div>
           </form>
-        </CardBody>
-      </Card>
-    </div>
+    </Modal>
   );
 }
 
 export function AdminUsersPage() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState(() => searchParams.get('role') || 'all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -266,8 +275,7 @@ export function AdminUsersPage() {
       setActionType(null);
       setErrorMessage(null);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ error?: string }>) => {
       setErrorMessage(error.response?.data?.error || 'Failed to ban user');
     },
   });
@@ -283,8 +291,7 @@ export function AdminUsersPage() {
       setActionType(null);
       setErrorMessage(null);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ error?: string }>) => {
       setErrorMessage(error.response?.data?.error || 'Failed to unban user');
     },
   });
@@ -300,8 +307,7 @@ export function AdminUsersPage() {
       setActionType(null);
       setErrorMessage(null);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ error?: string }>) => {
       setErrorMessage(error.response?.data?.error || 'Failed to update user role');
     },
   });
@@ -317,9 +323,8 @@ export function AdminUsersPage() {
       setActionType(null);
       setErrorMessage(null);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => {
-      setErrorMessage(error.response?.data?.error || 'Failed to update user karma');
+    onError: (error: AxiosError<{ error?: string }>) => {
+      setErrorMessage(error.response?.data?.error || 'Failed to update user uppies');
     },
   });
 
@@ -343,8 +348,7 @@ export function AdminUsersPage() {
       setActionType(null);
       setErrorMessage(null);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ error?: string }>) => {
       setErrorMessage(error.response?.data?.error || 'Failed to suspend comment privileges');
     },
   });
@@ -360,8 +364,7 @@ export function AdminUsersPage() {
       setActionType(null);
       setErrorMessage(null);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ error?: string }>) => {
       setErrorMessage(error.response?.data?.error || 'Failed to lift comment suspension');
     },
   });
@@ -384,8 +387,7 @@ export function AdminUsersPage() {
       setActionType(null);
       setErrorMessage(null);
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => {
+    onError: (error: AxiosError<{ error?: string }>) => {
       setErrorMessage(error.response?.data?.error || 'Failed to toggle comment review');
     },
   });
@@ -470,6 +472,7 @@ export function AdminUsersPage() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
                   type="text"
+                  aria-label="Search users"
                   placeholder="Search by username, email..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -479,6 +482,7 @@ export function AdminUsersPage() {
             </div>
             <div>
               <select
+                aria-label="Filter users by role"
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
                 className="w-full p-2 border border-border rounded-md bg-background"
@@ -491,6 +495,7 @@ export function AdminUsersPage() {
             </div>
             <div>
               <select
+                aria-label="Filter users by status"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full p-2 border border-border rounded-md bg-background"
@@ -507,11 +512,11 @@ export function AdminUsersPage() {
 
       {/* Stats */}
       {data && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
           <Card>
             <CardBody className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Users</p>
+                <p className="text-sm text-muted-foreground">Identity Records</p>
                 <p className="text-2xl font-bold">{data.total}</p>
               </div>
             </CardBody>
@@ -519,16 +524,32 @@ export function AdminUsersPage() {
           <Card>
             <CardBody className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">On This Page</p>
-                <p className="text-2xl font-bold">{data.users.length}</p>
+                <p className="text-sm text-muted-foreground">Signed-in Users</p>
+                <p className="text-2xl font-bold">{data.summary?.signed_in_users ?? 0}</p>
               </div>
             </CardBody>
           </Card>
           <Card>
             <CardBody className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Page</p>
-                <p className="text-2xl font-bold">{page} / {totalPages}</p>
+                <p className="text-sm text-muted-foreground">Unclaimed Creators</p>
+                <p className="text-2xl font-bold">{data.summary?.unclaimed_creators ?? 0}</p>
+              </div>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Staff</p>
+                <p className="text-2xl font-bold">{data.summary?.staff ?? 0}</p>
+              </div>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Other Identities</p>
+                <p className="text-2xl font-bold">{data.summary?.other ?? 0}</p>
               </div>
             </CardBody>
           </Card>
@@ -554,7 +575,7 @@ export function AdminUsersPage() {
             </div>
           )}
 
-          {data && data.users.length === 0 && (
+          {data?.users?.length === 0 && (
             <div className="text-center py-8">
               <p className="text-muted-foreground">No users found matching your criteria.</p>
             </div>
@@ -568,7 +589,7 @@ export function AdminUsersPage() {
                     <th className="text-left p-3">User</th>
                     <th className="text-left p-3">Email</th>
                     <th className="text-left p-3">Role</th>
-                    <th className="text-left p-3">Karma</th>
+                    <th className="text-left p-3">Uppies</th>
                     <th className="text-left p-3">Status</th>
                     <th className="text-left p-3">Joined</th>
                     <th className="text-right p-3">Actions</th>
@@ -582,10 +603,12 @@ export function AdminUsersPage() {
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           {user.avatar_url && (
-                            <img
+                            <Avatar
                               src={user.avatar_url}
-                              alt={user.username}
-                              className="w-8 h-8 rounded-full"
+                              alt=""
+                              fallback={user.username}
+                              size="sm"
+                              className="shrink-0"
                             />
                           )}
                           <div>
@@ -662,7 +685,7 @@ export function AdminUsersPage() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleAction(user, 'karma')}
-                            title="Adjust Karma"
+                            title="Adjust Uppies"
                           >
                             <TrendingUp className="w-4 h-4" />
                           </Button>

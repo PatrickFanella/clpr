@@ -1,272 +1,75 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { Container, Grid, Card, CardHeader, CardBody } from '../../components';
+import { Link } from 'react-router-dom';
+import { ArrowUpRight, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
+import { adminNavGroups } from '../../components/admin/adminNavigation';
+import { SEO } from '../../components';
 
-const quickDocLinks = [
-    {
-        name: 'API Reference',
-        path: '/admin/api-docs',
-        description: 'Interactive API documentation',
-        isRoute: true,
-    },
-    {
-        name: 'Runbook',
-        path: 'operations/runbook',
-        description: 'Incident response procedures',
-    },
-    {
-        name: 'Deployment',
-        path: 'operations/deployment',
-        description: 'Deploy to production',
-    },
-    {
-        name: 'Monitoring',
-        path: 'operations/monitoring',
-        description: 'Metrics and alerts',
-    },
-    {
-        name: 'Database',
-        path: 'backend/database',
-        description: 'Schema and migrations',
-    },
-    {
-        name: 'Feature Flags',
-        path: 'operations/feature-flags',
-        description: 'Toggle features',
-    },
+const priorityActions = [
+    { label: 'Review moderation queue', href: '/admin/moderation', description: 'Work through the highest-priority reports and flagged content.', icon: ShieldCheck },
+    { label: 'Review creator verification', href: '/admin/verification', description: 'Approve or reject pending creator applications.', icon: CheckCircle2 },
+    { label: 'Check collection automation', href: '/admin/playlist-scripts', description: 'Inspect generated playlists and scheduling rules.', icon: Sparkles },
 ];
 
-export function AdminDashboard() {
-    const navigate = useNavigate();
+const dashboardGroups = adminNavGroups
+    .map(group => ({ ...group, items: group.items.filter(item => item.href !== '/admin/dashboard') }))
+    .filter(group => group.items.length > 0);
 
-    const handleDocClick = (path: string, isRoute: boolean = false) => {
-        if (isRoute) {
-            // Navigate to route directly
-            navigate(path);
-        } else {
-            // Navigate to docs page with the specific document
-            navigate(`/docs?doc=${path}`);
-        }
-    };
+export function AdminDashboard() {
+    const today = new Intl.DateTimeFormat('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric',
+    }).format(new Date());
 
     return (
-        <Container className='py-4 xs:py-6 md:py-8'>
-            <h1 className='text-2xl xs:text-3xl font-bold mb-6 xs:mb-8'>
-                Admin Dashboard
-            </h1>
+        <>
+            <SEO title='Administration' noindex />
+            <div className='mx-auto max-w-7xl'>
+                <header className='mb-6 border-b border-border pb-5'>
+                    <p className='mb-2 text-sm text-muted-foreground'>{today}</p>
+                    <h1 className='text-2xl font-semibold text-text-primary'>Administration</h1>
+                    <p className='mt-2 text-sm text-text-secondary'>Review community activity and manage content.</p>
+                </header>
 
-            {/* Quick Documentation Access */}
-            <Card className='mb-6 xs:mb-8'>
-                <CardHeader>
-                    <div className='flex justify-between items-center'>
-                        <h2 className='text-xl font-semibold'>
-                            📚 Quick Documentation
-                        </h2>
-                        <Link
-                            to='/docs'
-                            className='text-sm text-primary hover:underline'
-                        >
-                            View All Docs →
-                        </Link>
+                <section className='mb-9' aria-labelledby='priority-heading'>
+                    <div className='mb-4 flex items-end justify-between'>
+                        <div><p className='text-xs font-bold uppercase tracking-[0.16em] text-link'>Start here</p><h2 id='priority-heading' className='mt-1 text-xl font-bold text-text-primary'>Priority workflows</h2></div>
+
                     </div>
-                </CardHeader>
-                <CardBody>
-                    <Grid cols={1} gap={3} responsive={{ sm: 2, md: 3 }}>
-                        {quickDocLinks.map(doc => (
-                            <button
-                                key={doc.path}
-                                onClick={() => handleDocClick(doc.path, doc.isRoute)}
-                                className='text-left p-3 border border-border rounded-lg hover:bg-accent transition-colors'
-                            >
-                                <h3 className='font-semibold text-sm mb-1'>
-                                    {doc.name}
-                                </h3>
-                                <p className='text-xs text-muted-foreground'>
-                                    {doc.description}
-                                </p>
-                            </button>
+                    <div className='grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3'>
+                        {priorityActions.map(action => {
+                            const Icon = action.icon;
+                            return (
+                                <Link key={action.href} to={action.href} className='group relative min-w-0 rounded-lg border border-border bg-surface p-4 transition-colors hover:bg-surface-hover'>
+                                    <div className='mb-3 flex items-start justify-between'><span className='rounded-lg bg-brand/10 p-2.5 text-link'><Icon className='h-5 w-5' /></span><ArrowUpRight className='h-4 w-4 text-text-tertiary transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-link' /></div>
+                                    <h3 className='font-semibold text-text-primary'>{action.label}</h3>
+                                    <p className='mt-1.5 text-sm leading-5 text-text-secondary'>{action.description}</p>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                <section aria-labelledby='workspace-heading'>
+                    <div className='mb-4'><p className='text-xs font-bold uppercase tracking-[0.16em] text-link'>Directory</p><h2 id='workspace-heading' className='mt-1 text-xl font-bold text-text-primary'>Every admin workspace</h2></div>
+                    <div className='grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-2'>
+                        {dashboardGroups.map(group => (
+                            <div key={group.label} className='min-w-0 rounded-lg border border-border bg-surface p-4'>
+                                <h3 className='mb-3 text-xs font-bold uppercase tracking-[0.16em] text-text-tertiary'>{group.label}</h3>
+                                <div className='divide-y divide-border'>
+                                    {group.items.map(item => {
+                                        const Icon = item.icon;
+                                        return (
+                                            <Link key={item.href} to={item.href} className='group flex items-center gap-3 py-3 first:pt-1 last:pb-1'>
+                                                <span className='rounded-md bg-surface-raised p-2 text-text-secondary group-hover:bg-brand/10 group-hover:text-link'><Icon className='h-4 w-4' /></span>
+                                                <span className='min-w-0 flex-1'><span className='block text-sm font-medium text-text-primary'>{item.label}</span><span className='block truncate text-xs text-text-tertiary'>{item.description}</span></span>
+                                                <ArrowUpRight className='h-4 w-4 text-text-tertiary group-hover:text-link' />
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         ))}
-                    </Grid>
-                </CardBody>
-            </Card>
-
-            {/* Admin Tools */}
-            <h2 className='text-xl font-semibold mb-4'>Admin Tools</h2>
-            <Grid
-                cols={1}
-                gap={4}
-                responsive={{ sm: 1, md: 2, lg: 3 }}
-                className='xs:gap-6'
-            >
-                <Link to='/admin/clips' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Clip Moderation
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                Review and moderate clips submitted to the
-                                platform
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/comments' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Comment Moderation
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                Manage and moderate user comments
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/users' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                User Management
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                Manage user accounts and permissions
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/reports' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Reports
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                Review user reports and take action
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/sync' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Sync Controls
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                Manually trigger Twitch clip synchronization
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/analytics' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Platform Analytics
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                View platform metrics and user engagement
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/revenue' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Revenue Dashboard
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                MRR, churn, ARPU, and subscription metrics
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/verification' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Creator Verification
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                Review and manage creator verification
-                                applications
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/campaigns' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Ad Campaigns
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                Manage campaigns, creatives, and view
-                                performance
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/discovery-lists' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Discovery Lists
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                Create and manage curated discovery lists
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-                <Link to='/admin/webhooks/dlq' className='touch-target'>
-                    <Card hover clickable>
-                        <CardHeader>
-                            <h3 className='text-lg xs:text-xl font-semibold'>
-                                Webhook DLQ
-                            </h3>
-                        </CardHeader>
-                        <CardBody>
-                            <p className='text-sm xs:text-base text-muted-foreground'>
-                                View and replay failed webhook deliveries
-                            </p>
-                        </CardBody>
-                    </Card>
-                </Link>
-
-
-            </Grid>
-        </Container>
+                    </div>
+                </section>
+            </div>
+        </>
     );
 }

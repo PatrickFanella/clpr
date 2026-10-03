@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, memo, type ReactNode } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { useSearchParams } from 'react-router-dom';
 import { Spinner, Button, ScrollToTop } from '@/components/ui';
@@ -8,8 +8,11 @@ import { DiscoverClipCard } from './DiscoverClipCard';
 import { ClipCardSkeleton } from './ClipCardSkeleton';
 import { EmptyState } from './EmptyState';
 import { FeedHeader } from './FeedHeader';
+import { VirtualClipList } from './VirtualClipList';
 import { useClipFeed } from '@/hooks/useClips';
 import type { SortOption, TimeFrame, ClipFeedFilters } from '@/types/clip';
+import { useFeedAutoplayPreference } from '@/hooks';
+import { SettingsEvents, SubmissionEvents, trackEvent } from '@/lib/telemetry';
 
 interface ClipFeedProps {
     title?: string;
@@ -21,6 +24,10 @@ interface ClipFeedProps {
     useSortTitle?: boolean;
     /** When true, uses simplified cards focused on discovery and posting */
     discoverMode?: boolean;
+    insertAfter?: number;
+    insertedContent?: ReactNode;
+    /** Use h2 when the page already has its own h1. */
+    headingLevel?: 'h1' | 'h2';
 }
 
 // Map legacy 'hot' to 'trending' for consistency
@@ -28,36 +35,12 @@ const normalizeSortOption = (sort: SortOption): SortOption => {
     return sort === 'hot' ? 'trending' : sort;
 };
 
-// Memoized ClipCard wrapper for performance
-const MemoizedClipCard = memo(ClipCard, (prevProps, nextProps) => {
-    return (
-        prevProps.clip.id === nextProps.clip.id &&
-        prevProps.clip.vote_score === nextProps.clip.vote_score &&
-        prevProps.clip.user_vote === nextProps.clip.user_vote &&
-        prevProps.clip.is_favorited === nextProps.clip.is_favorited &&
-        prevProps.clip.comment_count === nextProps.clip.comment_count &&
-        prevProps.clip.favorite_count === nextProps.clip.favorite_count &&
-        prevProps.clip.watch_progress?.progress_percent ===
-            nextProps.clip.watch_progress?.progress_percent &&
-        prevProps.clip.watch_progress?.completed ===
-            nextProps.clip.watch_progress?.completed &&
-        // Detect when watch_progress changes from undefined to defined or vice versa
-        (prevProps.clip.watch_progress === undefined) ===
-            (nextProps.clip.watch_progress === undefined)
-    );
-});
+// Sorts whose order is a ranking; "new" is chronological and unranked.
+const RANKED_SORTS = new Set<SortOption>(['trending', 'popular', 'top', 'rising', 'discussed']);
 
-// Memoized DiscoverClipCard wrapper for performance
-const MemoizedDiscoverClipCard = memo(
-    DiscoverClipCard,
-    (prevProps, nextProps) => {
-        return (
-            prevProps.clip.id === nextProps.clip.id &&
-            prevProps.clip.view_count === nextProps.clip.view_count &&
-            prevProps.clip.submitted_by?.id === nextProps.clip.submitted_by?.id
-        );
-    },
-);
+// React's shallow comparison respects every clip field as the card evolves.
+const MemoizedClipCard = memo(ClipCard);
+const MemoizedDiscoverClipCard = memo(DiscoverClipCard);
 
 export function ClipFeed({
     title = 'Clip Feed',
@@ -68,25 +51,30 @@ export function ClipFeed({
     showSearch = false,
     useSortTitle = true,
     discoverMode = false,
+    insertAfter = 5,
+    insertedContent,
+    headingLevel = 'h1',
 }: ClipFeedProps) {
     const [searchParams, setSearchParams] = useSearchParams();
     const containerRef = useRef<HTMLDivElement>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [pullDistance, setPullDistance] = useState(0);
+    const [activeClipId, setActiveClipId] = useState<string | null>(null);
+    const visibleClipIdsRef = useRef(new Set<string>());
+    const { preference: autoplayPreference, setPreference: setAutoplayPreference } =
+        useFeedAutoplayPreference();
     const touchStartRef = useRef<number>(0);
     const scrollTopRef = useRef<number>(0);
 
     // Get filters from URL or use defaults (normalize 'hot' to 'trending')
     // In discover mode, ignore URL sort/timeframe to keep the feed controlled by tabs
-    const rawSort =
-        discoverMode ? defaultSort : (
-            (searchParams.get('sort') as SortOption) || defaultSort
-        );
+    const rawSort = discoverMode
+        ? defaultSort
+        : (searchParams.get('sort') as SortOption) || defaultSort;
     const sort = normalizeSortOption(rawSort);
-    const timeframe =
-        discoverMode ? defaultTimeframe : (
-            (searchParams.get('timeframe') as TimeFrame) || defaultTimeframe
-        );
+    const timeframe = discoverMode
+        ? defaultTimeframe
+        : (searchParams.get('timeframe') as TimeFrame) || defaultTimeframe;
 
     // Combine URL filters with additional filters and current language
     const filters: ClipFeedFilters = {
@@ -105,24 +93,72 @@ export function ClipFeed({
         isFetchingNextPage,
         isLoading,
         isError,
+        isFetchNextPageError,
         refetch,
     } = useClipFeed(filters);
 
-    // Get all clips from all pages
-    const clips = data?.pages.flatMap(page => page.clips) ?? [];
-    const validClips = clips.filter(clip => clip?.id);
+    const validClips = useMemo(() => data?.pages.flatMap((page) => page.clips).filter((clip) => clip?.id) ?? [], [data?.pages]);
+    const filterKey = JSON.stringify(filters);
+
+    const handleVisibilityChange = useCallback(
+        (clipId: string, visible: boolean) => {
+            const visibleIds = visibleClipIdsRef.current;
+            if (visible) {
+                visibleIds.add(clipId);
+                if (autoplayPreference === 'muted') {
+                    setActiveClipId(clipId);
+                    trackEvent(SubmissionEvents.SUBMISSION_PLAY_STARTED, {
+                        clip_id: clipId,
+                        playback_mode: 'muted_autoplay',
+                        section_name: 'clip_feed',
+                    });
+                }
+                return;
+            }
+
+            visibleIds.delete(clipId);
+            setActiveClipId(current => {
+                if (current !== clipId) return current;
+                return autoplayPreference === 'muted'
+                    ? (visibleIds.values().next().value ?? null)
+                    : null;
+            });
+        },
+        [autoplayPreference],
+    );
+
+    const handleAutoplayPreferenceChange = useCallback(
+        (value: 'manual' | 'muted') => {
+            setAutoplayPreference(value);
+            if (value === 'manual') setActiveClipId(null);
+            trackEvent(SettingsEvents.FEED_AUTOPLAY_CHANGED, {
+                setting_name: 'feed_autoplay',
+                new_value: value,
+            });
+        },
+        [setAutoplayPreference],
+    );
+
+    const handleActivate = useCallback((clipId: string) => {
+        setActiveClipId(clipId);
+        trackEvent(SubmissionEvents.SUBMISSION_PLAY_STARTED, {
+            clip_id: clipId,
+            playback_mode: 'manual',
+            section_name: 'clip_feed',
+        });
+    }, []);
 
     // Intersection observer for infinite scroll
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0.5,
     });
 
-    // Load more when the trigger element comes into view
+    // Stop automatic retries after an error; the visible action retries deliberately.
     useEffect(() => {
-        if (inView && hasNextPage && !isFetchingNextPage) {
-            fetchNextPage();
-        }
-    }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
+        if (inView && hasNextPage && !isFetchingNextPage && !isError) void fetchNextPage();
+    }, [inView, hasNextPage, isFetchingNextPage, isError, fetchNextPage]);
+
+    const handleLoadMore = useCallback(() => { void fetchNextPage(); }, [fetchNextPage]);
 
     // Pull-to-refresh handlers for mobile web
     const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -199,172 +235,198 @@ export function ClipFeed({
         week: 'Past Week',
         month: 'Past Month',
         year: 'Past Year',
-        all: 'All Time',
+        all: sort === 'trending' ? 'Since tracking began' : 'All Time',
     };
 
-    const resolvedTitle =
-        useSortTitle ?
-            sort === 'top' || sort === 'trending' ?
-                `${sortLabelMap[sort] ?? sort} — ${timeframeLabelMap[timeframe] ?? 'Past Day'}`
-            :   `${sortLabelMap[sort] ?? sort} Feed`
-        :   title;
+    const engagement = data?.pages[0]?.engagement;
+    const resolvedTitle = useSortTitle
+        ? sort === 'top' || sort === 'trending'
+            ? `${sortLabelMap[sort] ?? sort} — ${timeframeLabelMap[timeframe] ?? 'Past Day'}`
+            : `${sortLabelMap[sort] ?? sort} Feed`
+        : title;
 
     return (
-        <div className='w-full'>
-            {/* Hide FeedHeader in discover mode - DiscoveryPage has its own header/tabs */}
+        <div className="w-full">
+            {/* Hide FeedHeader when the parent supplies discovery navigation */}
             {!discoverMode && (
                 <FeedHeader
                     title={resolvedTitle || title}
+                    headingLevel={headingLevel}
                     description={description}
                     showSearch={showSearch}
                     sort={sort}
                     timeframe={timeframe}
                     onSortChange={handleSortChange}
                     onTimeframeChange={handleTimeframeChange}
+                    autoplayPreference={autoplayPreference}
+                    onAutoplayPreferenceChange={handleAutoplayPreferenceChange}
                 />
+            )}
+
+            {engagement && (
+                <p role="status" className="mb-4 text-sm text-muted-foreground">
+                    {engagement.partial_coverage
+                        ? 'Ranked by new views, votes, and comments. Estimates cover what clpr has tracked so far.'
+                        : 'Ranked by new views, votes, and comments (estimated).'}
+                </p>
             )}
 
             {/* Pull-to-refresh indicator */}
             {pullDistance > 0 && (
                 <div
-                    className='flex justify-center items-center py-4 text-muted-foreground transition-all'
+                    className="flex justify-center items-center py-4 text-muted-foreground transition-all"
                     style={{
                         transform: `translateY(${Math.min(pullDistance, 80)}px)`,
                         opacity: Math.min(pullDistance / 80, 1),
                     }}
                 >
-                    {isRefreshing ?
-                        <Spinner size='md' />
-                    :   <div className='flex flex-col items-center'>
+                    {isRefreshing ? (
+                        <Spinner size="md" />
+                    ) : (
+                        <div className="flex flex-col items-center">
                             <svg
-                                className='w-6 h-6 mb-1'
-                                fill='none'
-                                stroke='currentColor'
-                                viewBox='0 0 24 24'
+                                className="w-6 h-6 mb-1"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
                                 style={{
                                     transform: `rotate(${pullDistance * 4}deg)`,
                                 }}
                             >
                                 <path
-                                    strokeLinecap='round'
-                                    strokeLinejoin='round'
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
                                     strokeWidth={2}
-                                    d='M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                                 />
                             </svg>
-                            <span className='text-xs'>
-                                {pullDistance > 80 ?
-                                    'Release to refresh'
-                                :   'Pull to refresh'}
+                            <span className="text-xs">
+                                {pullDistance > 80
+                                    ? 'Release to refresh'
+                                    : 'Pull to refresh'}
                             </span>
                         </div>
-                    }
+                    )}
                 </div>
             )}
 
             {/* Loading state */}
             {isLoading && (
-                <div className='space-y-6'>
+                <div className="space-y-6">
                     {Array.from({ length: 5 }).map((_, i) => (
                         <ClipCardSkeleton key={i} />
                     ))}
                 </div>
             )}
 
-            {/* Error state */}
             {isError && (
-                <EmptyState
-                    title='Error loading clips'
-                    message='Something went wrong. Please try again later.'
-                    icon={
-                        <svg
-                            className='w-16 h-16'
-                            fill='none'
-                            stroke='currentColor'
-                            viewBox='0 0 24 24'
-                        >
-                            <path
-                                strokeLinecap='round'
-                                strokeLinejoin='round'
-                                strokeWidth={2}
-                                d='M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-                            />
-                        </svg>
-                    }
-                />
+                <div role='alert' className='mb-5 rounded-lg border border-error-800 bg-error-950/40 p-4'>
+                    <p className='font-medium text-error-200'>
+                        {validClips.length ? "We couldn't update this feed." : "We couldn't load the clips."}
+                    </p>
+                    <p className='mt-1 text-sm text-text-secondary'>Your filters and any loaded clips are still here.</p>
+                    <Button variant='outline' className='mt-3' onClick={() => { void (isFetchNextPageError ? fetchNextPage() : refetch()); }}>
+                        Try again
+                    </Button>
+                </div>
             )}
 
             {/* Empty state */}
             {!isLoading && !isError && validClips.length === 0 && (
                 <EmptyState
-                    title='No clips found'
-                    message='Try adjusting your filters or check back later.'
+                    title={engagement ? 'No measured engagement yet' : 'No clips found'}
+                    message={engagement
+                        ? 'Check back after new engagement is observed.'
+                        : 'Try adjusting your filters or check back later.'}
                     icon={
                         <svg
-                            className='w-16 h-16'
-                            fill='none'
-                            stroke='currentColor'
-                            viewBox='0 0 24 24'
+                            className="w-16 h-16"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
                         >
                             <path
-                                strokeLinecap='round'
-                                strokeLinejoin='round'
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                                 strokeWidth={2}
-                                d='M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z'
+                                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
                             />
                         </svg>
                     }
                 />
             )}
 
+            {!isLoading && !isError && validClips.length === 0 && engagement && (
+                <p className="flex justify-center gap-4">
+                    <a href="/?sort=new">Newest</a>
+                    <a href="/?sort=popular">Most Popular</a>
+                </p>
+            )}
+
             {/* Clips list with pull-to-refresh */}
-            {!isLoading && !isError && validClips.length > 0 && (
+            {validClips.length > 0 && (
                 <div
                     ref={containerRef}
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
                 >
-                    <div className='space-y-6'>
-                        {validClips.map(clip =>
-                            discoverMode ?
-                                <MemoizedDiscoverClipCard
-                                    key={clip.id}
-                                    clip={clip}
-                                />
-                            :   <MemoizedClipCard key={clip.id} clip={clip} />,
+                    <VirtualClipList key={filterKey + (engagement?.generation ?? '')} clips={validClips}>
+                        {(clip, clipIndex) => (
+                            <>
+                                {discoverMode ? (
+                                    <MemoizedDiscoverClipCard
+                                        clip={clip}
+                                        active={activeClipId === clip.id}
+                                        onActivate={handleActivate}
+                                    />
+                                ) : (
+                                    <MemoizedClipCard
+                                        clip={clip}
+                                        rank={RANKED_SORTS.has(sort) ? clipIndex + 1 : undefined}
+                                        active={activeClipId === clip.id}
+                                        autoplay={autoplayPreference === 'muted'}
+                                        onActivate={handleActivate}
+                                        onVisibilityChange={handleVisibilityChange}
+                                    />
+                                )}
+                                {insertedContent && clipIndex + 1 === insertAfter && (
+                                    <div className='mt-5 md:mt-8'>{insertedContent}</div>
+                                )}
+                            </>
                         )}
-                    </div>
+                    </VirtualClipList>
 
                     {/* Load more trigger */}
-                    {hasNextPage && (
+                    {hasNextPage && !isError && (
                         <div
                             ref={loadMoreRef}
-                            className='py-8 flex justify-center'
+                            className="py-8 flex justify-center"
                         >
-                            {isFetchingNextPage ?
-                                <Spinner size='lg' />
-                            :   <Button onClick={() => fetchNextPage()}>
+                            {isFetchingNextPage ? (
+                                <Spinner size="lg" />
+                            ) : (
+                                <Button onClick={handleLoadMore}>
                                     Load More
                                 </Button>
-                            }
+                            )}
                         </div>
                     )}
 
                     {/* End of results */}
-                    {!hasNextPage && validClips.length > 0 && (
-                        <div className='text-center py-8 text-muted-foreground'>
-                            <p>You've reached the end!</p>
+                    {!hasNextPage && !isError && validClips.length > 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                            <p>That's all of them.</p>
                         </div>
                     )}
                 </div>
             )}
 
             {/* Scroll to top button */}
-            <ScrollToTop threshold={500} />
+            <div className='hidden md:block'><ScrollToTop threshold={500} /></div>
 
             {/* Mini footer for quick access to footer links */}
-            <MiniFooter />
+            <div className='hidden md:block'><MiniFooter /></div>
         </div>
     );
 }

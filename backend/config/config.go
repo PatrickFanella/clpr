@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -16,10 +17,10 @@ type Config struct {
 	Redis           RedisConfig
 	JWT             JWTConfig
 	Twitch          TwitchConfig
+	Clip            ClipConfig
 	CORS            CORSConfig
 	WebSocket       WebSocketConfig
 	OpenSearch      OpenSearchConfig
-	Stripe          StripeConfig
 	Sentry          SentryConfig
 	Email           EmailConfig
 	Embedding       EmbeddingConfig
@@ -36,7 +37,11 @@ type Config struct {
 	Recommendations RecommendationsConfig
 	Toxicity        ToxicityConfig
 	NSFW            NSFWConfig
+	Vision          VisionConfig
+	Whisper         WhisperConfig
 	Telemetry       TelemetryConfig
+	ClipSource      ClipSourceConfig
+	ClipStorage     ClipStorageConfig
 }
 
 // ServerConfig holds server-specific configuration
@@ -47,6 +52,12 @@ type ServerConfig struct {
 	Environment string
 	ExportDir   string
 	DocsPath    string
+
+	// Anonymous responses of hot public listing endpoints are cached in
+	// Redis for PublicCacheTTL; the last good copy is kept for
+	// PublicCacheStaleTTL and served when the handler fails with a 5xx.
+	PublicCacheTTL      time.Duration
+	PublicCacheStaleTTL time.Duration
 }
 
 // DatabaseConfig holds database connection configuration
@@ -75,9 +86,28 @@ type JWTConfig struct {
 
 // TwitchConfig holds Twitch API configuration
 type TwitchConfig struct {
-	ClientID     string
-	ClientSecret string
-	RedirectURI  string
+	TestFixtureURL string
+	ClientID       string
+	ClientSecret   string
+	RedirectURI    string
+}
+
+// ClipConfig holds clip upload/storage configuration
+type ClipConfig struct {
+	MaxDurationSeconds         int
+	RecommendedDurationSeconds int
+	MaxUploadBytes             int64
+	AllowedUploadMimeTypes     []string
+	RequireModerationForUpload bool
+	StorageProvider            string
+	StorageEndpoint            string
+	StorageBucket              string
+	StorageRegion              string
+	StorageAccessKey           string
+	StorageSecretKey           string
+	StorageForcePathStyle      bool
+	StoragePublicBaseURL       string
+	MediaPublicBaseURL         string
 }
 
 // CORSConfig holds CORS configuration
@@ -96,20 +126,6 @@ type OpenSearchConfig struct {
 	Username           string
 	Password           string
 	InsecureSkipVerify bool
-}
-
-// StripeConfig holds Stripe payment configuration
-type StripeConfig struct {
-	SecretKey            string
-	WebhookSecrets       []string
-	ProMonthlyPriceID    string
-	ProYearlyPriceID     string
-	ProMonthlyPriceCents int // Monthly price in cents (e.g., 999 for $9.99)
-	ProYearlyPriceCents  int // Full yearly price in cents (e.g., 9999 for $99.99/year) - service layer converts to monthly equivalent
-	SuccessURL           string
-	CancelURL            string
-	TaxEnabled           bool // Enable automatic tax calculation via Stripe Tax
-	InvoicePDFEnabled    bool // Enable sending invoice PDFs via email
 }
 
 // SentryConfig holds Sentry error tracking configuration
@@ -144,13 +160,16 @@ type EmbeddingConfig struct {
 
 // FeatureFlagsConfig holds feature flag configuration
 type FeatureFlagsConfig struct {
-	SemanticSearch       bool
-	PremiumSubscriptions bool
-	EmailNotifications   bool
-	PushNotifications    bool
-	Analytics            bool
-	Moderation           bool
-	DiscoveryLists       bool
+	RecentEngagement   bool
+	SemanticSearch     bool
+	EmailNotifications bool
+	PushNotifications  bool
+	Analytics          bool
+	Moderation         bool
+	DiscoveryLists     bool
+	StreamClipCreation bool
+	LiveFeed           bool
+	WatchParties       bool
 }
 
 // KarmaConfig holds karma system configuration
@@ -163,8 +182,26 @@ type KarmaConfig struct {
 // JobsConfig holds background job interval configuration
 type JobsConfig struct {
 	HotClipsRefreshIntervalMinutes int
-	WebhookRetryIntervalMinutes    int
-	WebhookRetryBatchSize          int
+	AutoTagIntervalSeconds         int
+	TagPromotionIntervalMinutes    int
+	TrendingScoreIntervalMinutes   int
+	TrendingScoreBatchSize         int
+	AutoTagStartDelaySeconds       int
+	TagPromotionStartDelaySeconds  int
+	HotScoreStartDelaySeconds      int
+	PlaylistStartDelaySeconds      int
+	TrendingStartDelaySeconds      int
+	EmbeddingStartDelaySeconds     int
+
+	// Live status also covers the most-clipped broadcasters, not only
+	// followed ones, so the public live list reflects popular streams.
+	LiveStatusCandidateLimit          int // 0 disables; 100 per Helix request
+	LiveStatusCandidateWindowDays     int
+	LiveStatusCandidateRefreshMinutes int
+
+	// EngagementPublishInterval spaces out recent-engagement ranking
+	// publishes; polling still runs every minute.
+	EngagementPublishInterval time.Duration
 }
 
 // RateLimitConfig holds rate limiting configuration
@@ -192,11 +229,59 @@ type RateLimitConfig struct {
 
 	// IP whitelist for bypassing rate limits (comma-separated, for development/testing)
 	WhitelistIPs string
+
+	// TrustedProxies lists the proxy addresses/CIDRs whose X-Forwarded-For
+	// entries are believed when deriving the client IP. Anything outside
+	// this list is treated as the client, so a visitor-supplied header cannot
+	// replace the address appended by the edge proxy.
+	TrustedProxies []string
+
+	// Abuse detection: IP-wide volume limits applied to every API request.
+	Abuse AbuseDetectionConfig
+}
+
+// AbuseDetectionConfig controls the global per-IP abuse limiter. Reads and
+// writes are counted separately so ordinary browsing (many parallel GETs per
+// page) is judged against a much higher budget than state-changing requests.
+type AbuseDetectionConfig struct {
+	Enabled bool
+
+	ReadPerMinute  int // GET/HEAD and non-authoritative telemetry
+	ReadPerHour    int
+	WritePerMinute int // mutations and authentication endpoints
+	WritePerHour   int
+
+	// BanDurations escalate with each offense inside OffenseWindow; the last
+	// entry repeats for further offenses.
+	BanDurations  []time.Duration
+	OffenseWindow time.Duration
 }
 
 // SecurityConfig holds security-related configuration
 type SecurityConfig struct {
 	MFAEncryptionKey string // 32-byte key for AES-256 encryption of MFA secrets
+	OperationalToken string // bearer token for metrics and detailed health endpoints
+}
+
+// ClipSourceConfig holds clip source limits and upload moderation configuration
+type ClipSourceConfig struct {
+	MaxDurationSeconds         int64    `mapstructure:"max_duration_seconds"`
+	RecommendedDurationSeconds int64    `mapstructure:"recommended_duration_seconds"`
+	MaxUploadBytes             int64    `mapstructure:"max_upload_bytes"`
+	AllowedUploadMimeTypes     []string `mapstructure:"allowed_upload_mime_types"`
+	RequireModerationForUpload bool     `mapstructure:"require_moderation_for_upload"`
+}
+
+// ClipStorageConfig holds S3-compatible clip storage configuration
+type ClipStorageConfig struct {
+	Provider       string `mapstructure:"provider"`
+	Endpoint       string `mapstructure:"endpoint"`
+	Bucket         string `mapstructure:"bucket"`
+	Region         string `mapstructure:"region"`
+	AccessKey      string `mapstructure:"access_key"`
+	SecretKey      string `mapstructure:"secret_key"`
+	ForcePathStyle bool   `mapstructure:"force_path_style"`
+	PublicBaseURL  string `mapstructure:"public_base_url"`
 }
 
 // QueryLimitsConfig holds database query limits
@@ -304,10 +389,50 @@ type NSFWConfig struct {
 	TimeoutSeconds int     // Request timeout in seconds (default: 5)
 }
 
+// VisionConfig holds vision AI (content classification) configuration
+type VisionConfig struct {
+	Enabled        bool      // Enable vision AI tagging (default: false)
+	Provider       string    // API provider: "openai", "openrouter", "anthropic" (default: "openai")
+	APIKey         string    // API key for vision API
+	APIURL         string    // API URL for vision API (auto-inferred if empty for known providers)
+	Model          string    // Model name (e.g., gpt-4o-mini, openai/gpt-4o-mini, claude-3.5-haiku)
+	FFmpegPath     string    // Path to ffmpeg binary
+	OutputDir      string    // Directory for extracted thumbnails
+	SiteURL        string    // Site URL for OpenRouter HTTP-Referer header
+	SiteName       string    // Site name for OpenRouter X-Title header
+	TimeoutSeconds int       // Request timeout in seconds (default: 30)
+	BatchSize      int       // Maximum sequential requests per scheduler run (default: 1)
+	CreatedAfter   time.Time // Process only clips created at or after this rollout cutoff
+}
+
+// Defaults for known providers when api_url is not explicitly set.
+func (c VisionConfig) ResolveAPIURL() string {
+	if c.APIURL != "" {
+		return c.APIURL
+	}
+	switch c.Provider {
+	case "openrouter":
+		return "https://openrouter.ai/api/v1/chat/completions"
+	case "anthropic":
+		return "https://api.anthropic.com/v1/messages"
+	default:
+		return "https://api.openai.com/v1/chat/completions"
+	}
+}
+
+// WhisperConfig holds Whisper transcription configuration
+type WhisperConfig struct {
+	Enabled    bool   // Enable Whisper transcription (default: false)
+	PythonPath string // Path to python3 binary
+	RunnerDir  string // Directory containing whisper_runner.py
+	FFmpegPath string // Path to ffmpeg for streaming audio extraction
+	WorkDir    string // Temporary WAV directory
+}
+
 // TelemetryConfig holds distributed tracing configuration
 type TelemetryConfig struct {
 	Enabled          bool    // Enable OpenTelemetry tracing (default: false)
-	ServiceName      string  // Service name for traces (default: "clipper-backend")
+	ServiceName      string  // Service name for traces (default: "clpr-backend")
 	ServiceVersion   string  // Service version for traces
 	OTLPEndpoint     string  // OTLP endpoint for trace export (default: "localhost:4317")
 	Insecure         bool    // Use insecure connection to OTLP endpoint (default: true for development)
@@ -351,6 +476,14 @@ func Load() (*Config, error) {
 		redisDB = 0
 	}
 
+	var visionCreatedAfter time.Time
+	if raw := strings.TrimSpace(getEnv("VISION_CREATED_AFTER", "")); raw != "" {
+		visionCreatedAfter, err = time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return nil, fmt.Errorf("VISION_CREATED_AFTER must be RFC3339: %w", err)
+		}
+	}
+
 	config := &Config{
 		Server: ServerConfig{
 			Port:        getEnv("PORT", "8080"),
@@ -359,13 +492,16 @@ func Load() (*Config, error) {
 			Environment: getEnv("ENVIRONMENT", "development"),
 			ExportDir:   getEnv("EXPORT_DIR", "./exports"),
 			DocsPath:    getEnv("DOCS_PATH", "../docs"),
+
+			PublicCacheTTL:      getEnvDuration("PUBLIC_CACHE_TTL", 30*time.Second),
+			PublicCacheStaleTTL: getEnvDuration("PUBLIC_CACHE_STALE_TTL", 15*time.Minute),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
-			User:     getEnv("DB_USER", "clipper"),
+			User:     getEnv("DB_USER", "clpr"),
 			Password: getEnv("DB_PASSWORD", "CHANGEME_SECURE_PASSWORD_HERE"),
-			Name:     getEnv("DB_NAME", "clipper_db"),
+			Name:     getEnv("DB_NAME", "clpr_db"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 		Redis: RedisConfig{
@@ -379,9 +515,26 @@ func Load() (*Config, error) {
 			PublicKey:  getEnv("JWT_PUBLIC_KEY", ""),
 		},
 		Twitch: TwitchConfig{
-			ClientID:     getEnv("TWITCH_CLIENT_ID", ""),
-			ClientSecret: getEnv("TWITCH_CLIENT_SECRET", ""),
-			RedirectURI:  getEnv("TWITCH_REDIRECT_URI", "http://localhost:8080/api/v1/auth/twitch/callback"),
+			TestFixtureURL: getEnv("TWITCH_TEST_FIXTURE_URL", ""),
+			ClientID:       getEnv("TWITCH_CLIENT_ID", ""),
+			ClientSecret:   getEnv("TWITCH_CLIENT_SECRET", ""),
+			RedirectURI:    getEnv("TWITCH_REDIRECT_URI", "http://localhost:8080/api/v1/auth/twitch/callback"),
+		},
+		Clip: ClipConfig{
+			MaxDurationSeconds:         getEnvInt("CLIP_MAX_DURATION_SECONDS", 60),
+			RecommendedDurationSeconds: getEnvInt("CLIP_RECOMMENDED_DURATION_SECONDS", 60),
+			MaxUploadBytes:             getEnvInt64("CLIP_MAX_UPLOAD_BYTES", 104857600),
+			AllowedUploadMimeTypes:     parseCommaSeparatedList(getEnv("CLIP_ALLOWED_UPLOAD_MIME_TYPES", "video/mp4,video/webm,video/quicktime")),
+			RequireModerationForUpload: getEnvBool("CLIP_REQUIRE_MODERATION_FOR_UPLOAD", false),
+			StorageProvider:            getEnv("CLIP_STORAGE_PROVIDER", "local"),
+			StorageEndpoint:            getEnv("CLIP_STORAGE_ENDPOINT", ""),
+			StorageBucket:              getEnv("CLIP_STORAGE_BUCKET", ""),
+			StorageRegion:              getEnv("CLIP_STORAGE_REGION", "us-east-1"),
+			StorageAccessKey:           getEnv("CLIP_STORAGE_ACCESS_KEY", ""),
+			StorageSecretKey:           getEnv("CLIP_STORAGE_SECRET_KEY", ""),
+			StorageForcePathStyle:      getEnvBool("CLIP_STORAGE_FORCE_PATH_STYLE", false),
+			StoragePublicBaseURL:       getEnv("CLIP_STORAGE_PUBLIC_BASE_URL", ""),
+			MediaPublicBaseURL:         getEnv("CLIP_MEDIA_PUBLIC_BASE_URL", ""),
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000"),
@@ -395,18 +548,6 @@ func Load() (*Config, error) {
 			Password:           getEnv("OPENSEARCH_PASSWORD", ""),
 			InsecureSkipVerify: getEnv("OPENSEARCH_INSECURE_SKIP_VERIFY", "true") == "true",
 		},
-		Stripe: StripeConfig{
-			SecretKey:            getEnv("STRIPE_SECRET_KEY", ""),
-			WebhookSecrets:       collectStripeWebhookSecrets(),
-			ProMonthlyPriceID:    getEnv("STRIPE_PRO_MONTHLY_PRICE_ID", ""),
-			ProYearlyPriceID:     getEnv("STRIPE_PRO_YEARLY_PRICE_ID", ""),
-			ProMonthlyPriceCents: getEnvInt("STRIPE_PRO_MONTHLY_PRICE_CENTS", 999), // Default: $9.99/month
-			ProYearlyPriceCents:  getEnvInt("STRIPE_PRO_YEARLY_PRICE_CENTS", 9999), // Default: $99.99/year (full yearly price)
-			SuccessURL:           getEnv("STRIPE_SUCCESS_URL", "http://localhost:5173/subscription/success"),
-			CancelURL:            getEnv("STRIPE_CANCEL_URL", "http://localhost:5173/subscription/cancel"),
-			TaxEnabled:           getEnv("STRIPE_TAX_ENABLED", "false") == "true",
-			InvoicePDFEnabled:    getEnv("STRIPE_INVOICE_PDF_ENABLED", "false") == "true",
-		},
 		Sentry: SentryConfig{
 			DSN:              getEnv("SENTRY_DSN", ""),
 			Environment:      getEnv("SENTRY_ENVIRONMENT", "development"),
@@ -417,14 +558,14 @@ func Load() (*Config, error) {
 		Email: EmailConfig{
 			SendGridAPIKey:           getEnv("SENDGRID_API_KEY", ""),
 			SendGridWebhookPublicKey: getEnv("SENDGRID_WEBHOOK_PUBLIC_KEY", ""),
-			FromEmail:                getEnv("EMAIL_FROM_ADDRESS", "noreply@clipper.gg"),
+			FromEmail:                getEnv("EMAIL_FROM_ADDRESS", "noreply@clpr.gg"),
 			FromName:                 getEnv("EMAIL_FROM_NAME", "clpr"),
 			Enabled:                  getEnv("EMAIL_ENABLED", "false") == "true",
 			SandboxMode:              getEnv("EMAIL_SANDBOX_MODE", "false") == "true",
 			MaxEmailsPerHour:         getEnvInt("EMAIL_MAX_PER_HOUR", 10),
 		},
 		Embedding: EmbeddingConfig{
-			OpenAIAPIKey:             getEnv("OPENAI_API_KEY", ""),
+			OpenAIAPIKey:             getEnv("LLAMA_LINE_API_KEY", getEnv("OPENAI_API_KEY", "")),
 			APIBaseURL:               getEnv("EMBEDDING_API_BASE_URL", ""),
 			Model:                    getEnv("EMBEDDING_MODEL", "text-embedding-3-small"),
 			RequestsPerMinute:        getEnvInt("EMBEDDING_REQUESTS_PER_MINUTE", 500),
@@ -432,23 +573,40 @@ func Load() (*Config, error) {
 			Enabled:                  getEnv("EMBEDDING_ENABLED", "false") == "true",
 		},
 		FeatureFlags: FeatureFlagsConfig{
-			SemanticSearch:       getEnv("FEATURE_SEMANTIC_SEARCH", "false") == "true",
-			PremiumSubscriptions: getEnv("FEATURE_PREMIUM_SUBSCRIPTIONS", "false") == "true",
-			EmailNotifications:   getEnv("FEATURE_EMAIL_NOTIFICATIONS", "false") == "true",
-			PushNotifications:    getEnv("FEATURE_PUSH_NOTIFICATIONS", "false") == "true",
-			Analytics:            getEnv("FEATURE_ANALYTICS", "true") == "true",
-			Moderation:           getEnv("FEATURE_MODERATION", "true") == "true",
-			DiscoveryLists:       getEnv("FEATURE_DISCOVERY_LISTS", "false") == "true",
+			RecentEngagement:   getEnvBool("FEATURE_RECENT_ENGAGEMENT", false),
+			SemanticSearch:     getEnv("FEATURE_SEMANTIC_SEARCH", "false") == "true",
+			EmailNotifications: getEnv("FEATURE_EMAIL_NOTIFICATIONS", "false") == "true",
+			PushNotifications:  getEnv("FEATURE_PUSH_NOTIFICATIONS", "false") == "true",
+			Analytics:          getEnv("FEATURE_ANALYTICS", "true") == "true",
+			Moderation:         getEnv("FEATURE_MODERATION", "true") == "true",
+			DiscoveryLists:     getEnv("FEATURE_DISCOVERY_LISTS", "false") == "true",
+			StreamClipCreation: getEnvBool("FEATURE_STREAM_CLIP_CREATION", false),
+			LiveFeed:           getEnvBool("FEATURE_LIVE_FEED", false),
+			WatchParties:       getEnvBool("FEATURE_WATCH_PARTIES", false),
 		},
 		Karma: KarmaConfig{
 			InitialKarmaPoints:        getEnvInt("KARMA_INITIAL_POINTS", 100),
-			SubmissionKarmaRequired:   getEnvInt("KARMA_SUBMISSION_REQUIRED", 100),
-			RequireKarmaForSubmission: getEnv("KARMA_REQUIRE_FOR_SUBMISSION", "true") == "true",
+			SubmissionKarmaRequired:   getEnvInt("KARMA_SUBMISSION_REQUIRED", 0),
+			RequireKarmaForSubmission: getEnv("KARMA_REQUIRE_FOR_SUBMISSION", "false") == "true",
 		},
 		Jobs: JobsConfig{
 			HotClipsRefreshIntervalMinutes: getEnvInt("HOT_CLIPS_REFRESH_INTERVAL_MINUTES", 5),
-			WebhookRetryIntervalMinutes:    getEnvInt("WEBHOOK_RETRY_INTERVAL_MINUTES", 1),
-			WebhookRetryBatchSize:          getEnvInt("WEBHOOK_RETRY_BATCH_SIZE", 100),
+			AutoTagIntervalSeconds:         getEnvInt("AUTO_TAG_INTERVAL_SECONDS", 30),
+			TagPromotionIntervalMinutes:    getEnvInt("TAG_PROMOTION_INTERVAL_MINUTES", 15),
+			TrendingScoreIntervalMinutes:   getEnvInt("TRENDING_SCORE_INTERVAL_MINUTES", 60),
+			TrendingScoreBatchSize:         getEnvInt("TRENDING_SCORE_BATCH_SIZE", 1000),
+			AutoTagStartDelaySeconds:       getEnvInt("AUTO_TAG_START_DELAY_SECONDS", 15),
+			TagPromotionStartDelaySeconds:  getEnvInt("TAG_PROMOTION_START_DELAY_SECONDS", 90),
+			HotScoreStartDelaySeconds:      getEnvInt("HOT_SCORE_START_DELAY_SECONDS", 120),
+			PlaylistStartDelaySeconds:      getEnvInt("PLAYLIST_START_DELAY_SECONDS", 240),
+			TrendingStartDelaySeconds:      getEnvInt("TRENDING_START_DELAY_SECONDS", 420),
+			EmbeddingStartDelaySeconds:     getEnvInt("EMBEDDING_START_DELAY_SECONDS", 720),
+
+			LiveStatusCandidateLimit:          getEnvInt("LIVE_STATUS_CANDIDATE_LIMIT", 300),
+			LiveStatusCandidateWindowDays:     getEnvInt("LIVE_STATUS_CANDIDATE_WINDOW_DAYS", 30),
+			LiveStatusCandidateRefreshMinutes: getEnvInt("LIVE_STATUS_CANDIDATE_REFRESH_MINUTES", 10),
+
+			EngagementPublishInterval: getEnvDuration("ENGAGEMENT_PUBLISH_INTERVAL", 5*time.Minute),
 		},
 		RateLimit: RateLimitConfig{
 			// Unauthenticated: 100 requests per 15 minutes per IP
@@ -475,9 +633,22 @@ func Load() (*Config, error) {
 
 			// IP whitelist for development/testing (localhost always included)
 			WhitelistIPs: getEnv("RATE_LIMIT_WHITELIST_IPS", ""),
+
+			TrustedProxies: parseCommaSeparatedList(getEnv("TRUSTED_PROXIES", DefaultTrustedProxies)),
+
+			Abuse: AbuseDetectionConfig{
+				Enabled:        getEnvBool("ABUSE_DETECTION_ENABLED", true),
+				ReadPerMinute:  getEnvInt("ABUSE_READ_PER_MINUTE", 1200),
+				ReadPerHour:    getEnvInt("ABUSE_READ_PER_HOUR", 12000),
+				WritePerMinute: getEnvInt("ABUSE_WRITE_PER_MINUTE", 120),
+				WritePerHour:   getEnvInt("ABUSE_WRITE_PER_HOUR", 1500),
+				BanDurations:   getEnvDurationList("ABUSE_BAN_DURATIONS", DefaultAbuseBanDurations),
+				OffenseWindow:  getEnvDuration("ABUSE_OFFENSE_WINDOW", 24*time.Hour),
+			},
 		},
 		Security: SecurityConfig{
 			MFAEncryptionKey: getEnv("MFA_ENCRYPTION_KEY", ""),
+			OperationalToken: getEnv("OPERATIONAL_AUTH_TOKEN", ""),
 		},
 		QueryLimits: QueryLimitsConfig{
 			MaxResultSize:   getEnvInt("QUERY_MAX_RESULT_SIZE", 1000),
@@ -568,17 +739,58 @@ func Load() (*Config, error) {
 			MaxLatencyMs:   getEnvInt("NSFW_MAX_LATENCY_MS", 200),
 			TimeoutSeconds: getEnvInt("NSFW_TIMEOUT_SECONDS", 5),
 		},
+		Vision: VisionConfig{
+			Enabled:        getEnvBool("VISION_ENABLED", false),
+			Provider:       getEnv("VISION_PROVIDER", "openai"),
+			APIKey:         getEnv("VISION_API_KEY", ""),
+			APIURL:         getEnv("VISION_API_URL", ""),
+			Model:          getEnv("VISION_MODEL", "gpt-4o-mini"),
+			FFmpegPath:     getEnv("VISION_FFMPEG_PATH", "ffmpeg"),
+			OutputDir:      getEnv("VISION_OUTPUT_DIR", "/tmp/clpr-thumbnails"),
+			SiteURL:        getEnv("VISION_SITE_URL", "https://clpr.tv"),
+			SiteName:       getEnv("VISION_SITE_NAME", "CLPR"),
+			TimeoutSeconds: getEnvInt("VISION_TIMEOUT_SECONDS", 30),
+			BatchSize:      getEnvInt("VISION_BATCH_SIZE", 1),
+			CreatedAfter:   visionCreatedAfter,
+		},
+		Whisper: WhisperConfig{
+			Enabled:    getEnvBool("WHISPER_ENABLED", false),
+			PythonPath: getEnv("WHISPER_PYTHON_PATH", "python3"),
+			RunnerDir:  getEnv("WHISPER_RUNNER_DIR", ""),
+			FFmpegPath: getEnv("WHISPER_FFMPEG_PATH", "ffmpeg"),
+			WorkDir:    getEnv("WHISPER_WORK_DIR", "/tmp/clpr-transcriptions"),
+		},
 		Telemetry: TelemetryConfig{
 			Enabled:          getEnvBool("TELEMETRY_ENABLED", false),
-			ServiceName:      getEnv("TELEMETRY_SERVICE_NAME", "clipper-backend"),
+			ServiceName:      getEnv("TELEMETRY_SERVICE_NAME", "clpr-backend"),
 			ServiceVersion:   getEnv("TELEMETRY_SERVICE_VERSION", ""),
 			OTLPEndpoint:     getEnv("TELEMETRY_OTLP_ENDPOINT", "localhost:4317"),
 			Insecure:         getEnvBool("TELEMETRY_INSECURE", true),
 			TracesSampleRate: clampFloat(getEnvFloat("TELEMETRY_TRACES_SAMPLE_RATE", 0.1), 0.0, 1.0),
 			Environment:      getEnv("TELEMETRY_ENVIRONMENT", getEnv("ENVIRONMENT", "development")),
 		},
+		ClipSource: ClipSourceConfig{
+			MaxDurationSeconds:         getEnvInt64("CLIP_MAX_DURATION_SECONDS", 600),
+			RecommendedDurationSeconds: getEnvInt64("CLIP_RECOMMENDED_DURATION_SECONDS", 420),
+			MaxUploadBytes:             getEnvInt64("CLIP_MAX_UPLOAD_BYTES", 1073741824),
+			AllowedUploadMimeTypes:     parseCommaSeparatedList(getEnv("CLIP_ALLOWED_UPLOAD_MIME_TYPES", "video/mp4,video/webm,video/quicktime")),
+			RequireModerationForUpload: getEnvBool("CLIP_REQUIRE_MODERATION_FOR_UPLOAD", true),
+		},
+		ClipStorage: ClipStorageConfig{
+			Provider:       getEnv("CLIP_STORAGE_PROVIDER", "s3"),
+			Endpoint:       getEnv("CLIP_STORAGE_ENDPOINT", ""),
+			Bucket:         getEnv("CLIP_STORAGE_BUCKET", ""),
+			Region:         getEnv("CLIP_STORAGE_REGION", "us-east-1"),
+			AccessKey:      getEnv("CLIP_STORAGE_ACCESS_KEY", ""),
+			SecretKey:      getEnv("CLIP_STORAGE_SECRET_KEY", ""),
+			ForcePathStyle: getEnvBool("CLIP_STORAGE_FORCE_PATH_STYLE", true),
+			PublicBaseURL:  getEnv("CLIP_STORAGE_PUBLIC_BASE_URL", ""),
+		},
 	}
 
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("validate configuration: %w", err)
+	}
 	return config, nil
 }
 
@@ -613,10 +825,61 @@ func getEnvFloat(key string, defaultValue float64) float64 {
 	return defaultValue
 }
 
+// DefaultTrustedProxies trusts loopback and private/container networks. In
+// production the backend is only reachable through the shared Caddy on a
+// Docker network, so the first public address from the right of
+// X-Forwarded-For is the visitor address appended by Cloudflare.
+const DefaultTrustedProxies = "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"
+
+// DefaultAbuseBanDurations escalates from a short cool-off to a day.
+var DefaultAbuseBanDurations = []time.Duration{15 * time.Minute, time.Hour, 6 * time.Hour, 24 * time.Hour}
+
+// getEnvDuration parses a Go duration (for example "90s" or "24h").
+func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	if value := os.Getenv(key); value != "" {
+		if d, err := time.ParseDuration(value); err == nil && d > 0 {
+			return d
+		}
+	}
+	return defaultValue
+}
+
+// getEnvDurationList parses a comma-separated list of positive durations.
+// An invalid entry makes the whole value fall back to the default.
+func getEnvDurationList(key string, defaultValue []time.Duration) []time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return append([]time.Duration(nil), defaultValue...)
+	}
+	items := parseCommaSeparatedList(value)
+	out := make([]time.Duration, 0, len(items))
+	for _, item := range items {
+		d, err := time.ParseDuration(item)
+		if err != nil || d <= 0 {
+			return append([]time.Duration(nil), defaultValue...)
+		}
+		out = append(out, d)
+	}
+	if len(out) == 0 {
+		return append([]time.Duration(nil), defaultValue...)
+	}
+	return out
+}
+
 // getEnvInt gets an int environment variable with a fallback default value
 func getEnvInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+	}
+	return defaultValue
+}
+
+// getEnvInt64 gets an int64 environment variable with a fallback default value
+func getEnvInt64(key string, defaultValue int64) int64 {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
 			return intVal
 		}
 	}
@@ -632,21 +895,4 @@ func clampFloat(value, min, max float64) float64 {
 		return max
 	}
 	return value
-}
-
-// collectStripeWebhookSecrets gathers the configured Stripe webhook secrets, supporting
-// one primary secret plus optional alternates without requiring multiple endpoints.
-func collectStripeWebhookSecrets() []string {
-	secrets := make([]string, 0, 3)
-	add := func(raw string) {
-		if v := strings.TrimSpace(raw); v != "" {
-			secrets = append(secrets, v)
-		}
-	}
-	add(getEnv("STRIPE_WEBHOOK_SECRET", ""))
-	add(getEnv("STRIPE_WEBHOOK_SECRET_ALT", ""))
-	for _, part := range strings.Split(getEnv("STRIPE_WEBHOOK_SECRETS", ""), ",") {
-		add(part)
-	}
-	return secrets
 }

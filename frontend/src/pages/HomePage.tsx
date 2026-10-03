@@ -1,7 +1,9 @@
-import { Container, SEO } from '../components';
+import { SEO } from '../components';
 import { ClipFeed } from '../components/clip';
-import { DiscoveryListCard } from '../components/discovery';
-import { useDiscoveryLists } from '../hooks/useDiscoveryLists';
+import { PlaylistCard } from '../components/playlist/PlaylistCard';
+import { FeedLayout } from '../components/layout/FeedLayout';
+import { FeedSidebar } from '../components/layout/FeedSidebar';
+import { FEATURED_PLAYLISTS_PREVIEW_LIMIT, useFeaturedPlaylists } from '../hooks/usePlaylist';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -31,114 +33,81 @@ export function HomePage() {
         );
     }, []);
 
-    // Fetch featured discovery lists
-    const { data: featuredLists, isLoading } = useDiscoveryLists({
-        featured: true,
-        limit: 8,
-    });
+    const { data: featuredPlaylistsResponse, isLoading } = useFeaturedPlaylists(
+        1,
+        FEATURED_PLAYLISTS_PREVIEW_LIMIT,
+    );
+    const featuredPlaylists = (featuredPlaylistsResponse?.data ?? []).filter(
+        playlist => (playlist.clip_count ?? 0) > 0,
+    );
 
     useEffect(() => {
-        updateCarouselControls();
         const container = carouselRef.current;
         if (!container) return;
 
         const handle = () => updateCarouselControls();
+        const initialFrame = requestAnimationFrame(handle);
         container.addEventListener('scroll', handle, { passive: true });
         const resizeObserver = new ResizeObserver(handle);
         resizeObserver.observe(container);
 
         return () => {
+            cancelAnimationFrame(initialFrame);
             container.removeEventListener('scroll', handle);
             resizeObserver.disconnect();
         };
-    }, [featuredLists?.length, updateCarouselControls]);
+    }, [featuredPlaylists.length, updateCarouselControls]);
+
+    const collectionsModule = isLoading ? (
+        <section className='min-h-64 animate-pulse rounded-2xl border border-border bg-card p-4' aria-label='Loading collections'>
+            <div className='mb-4 h-7 w-52 rounded bg-surface-raised' />
+            <div className='h-44 rounded-xl bg-surface-raised' />
+        </section>
+    ) : featuredPlaylists.length > 0 ? (
+        <section className='overflow-hidden' aria-labelledby='curated-collections-title'>
+            <div className='flex items-end justify-between gap-4 mb-4 px-4 md:px-0'>
+                <div>
+                    <p className='mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary-400'>Longer watch</p>
+                    <h2 id='curated-collections-title' className='text-xl md:text-2xl font-bold text-foreground'>Collections</h2>
+                    <p className='text-muted-foreground text-sm mt-1'>Clips grouped by creator, topic or moment, for when one isn&apos;t enough.</p>
+                </div>
+                <Link to='/discover/lists' className='flex min-h-11 shrink-0 items-center gap-1 text-primary-400 hover:text-primary-300 text-sm font-semibold'>
+                    View all <ChevronRight className='w-4 h-4' />
+                </Link>
+            </div>
+            <div className='relative'>
+                <div className='absolute inset-y-0 right-0 w-px bg-line-strong pointer-events-none z-10' />
+                <div ref={carouselRef} className='flex gap-4 md:gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 px-4 md:px-0 scrollbar-hide scrolling-touch touch-pan-x overscroll-x-contain' aria-label='Collections carousel'>
+                    {featuredPlaylists.map(playlist => (
+                        <div key={playlist.id} className='snap-start shrink-0 w-[82vw] max-w-90 lg:w-100'>
+                            <PlaylistCard playlist={playlist} />
+                        </div>
+                    ))}
+                </div>
+                {canScrollLeft && <div className='absolute top-1/2 -translate-y-1/2 left-2 hidden sm:flex'><button type='button' onClick={() => scrollCarousel('left')} className='h-9 w-9 rounded-full border border-border bg-background/90 shadow-md hover:bg-background flex items-center justify-center' aria-label='Scroll collections left'><ChevronLeft className='h-4 w-4' /></button></div>}
+                {canScrollRight && <div className='absolute top-1/2 -translate-y-1/2 right-2 hidden sm:flex'><button type='button' onClick={() => scrollCarousel('right')} className='h-9 w-9 rounded-full border border-border bg-background/90 shadow-md hover:bg-background flex items-center justify-center' aria-label='Scroll collections right'><ChevronRight className='h-4 w-4' /></button></div>}
+            </div>
+        </section>
+    ) : null;
 
     return (
         <>
             <SEO
                 title='Home'
-                description='Discover and share the best Twitch clips curated by the community. Vote on your favorite moments, explore trending clips, and join the conversation.'
+                description="Trending Twitch clips and the creators behind them. Vote, comment, and save the ones you'll want to find again."
                 canonicalUrl='/'
             />
-            <Container className='py-4 xs:py-6 md:py-8'>
-                {/* Featured Discovery Lists Section */}
-                {!isLoading && featuredLists && featuredLists.length > 0 && (
-                    <div className='mb-8'>
-                        <div className='flex items-center justify-between mb-4'>
-                            <div>
-                                <h2 className='text-2xl font-bold text-foreground'>
-                                    Curated Collections
-                                </h2>
-                                <p className='text-muted-foreground text-sm mt-1'>
-                                    Handpicked lists of amazing clips
-                                </p>
-                            </div>
-                            <Link
-                                to='/discover/lists'
-                                className='flex items-center gap-1 text-primary-500 hover:text-primary-600 text-sm font-medium transition-colors'
-                            >
-                                View All
-                                <ChevronRight className='w-4 h-4' />
-                            </Link>
-                        </div>
-                        <div className='relative'>
-                            <div className='absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-background to-transparent pointer-events-none' />
-                            <div className='absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent pointer-events-none' />
-
-                            <div
-                                ref={carouselRef}
-                                className='flex gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 scrollbar-hide scrolling-touch touch-pan-x overscroll-x-contain'
-                                aria-label='Curated collections carousel'
-                            >
-                                {featuredLists.map(list => (
-                                    <div
-                                        key={list.id}
-                                        className='snap-start shrink-0 w-[320px] xs:w-[340px] sm:w-[360px] lg:w-[400px]'
-                                    >
-                                        <DiscoveryListCard
-                                            list={list}
-                                            size='compact'
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-
-                            {canScrollLeft && (
-                                <div className='absolute top-1/2 -translate-y-1/2 left-2 hidden sm:flex'>
-                                    <button
-                                        type='button'
-                                        onClick={() => scrollCarousel('left')}
-                                        className='h-9 w-9 rounded-full border border-border bg-background/90 shadow-md hover:bg-background transition-colors flex items-center justify-center'
-                                        aria-label='Scroll curated collections left'
-                                    >
-                                        <ChevronLeft className='h-4 w-4' />
-                                    </button>
-                                </div>
-                            )}
-                            {canScrollRight && (
-                                <div className='absolute top-1/2 -translate-y-1/2 right-2 hidden sm:flex'>
-                                    <button
-                                        type='button'
-                                        onClick={() => scrollCarousel('right')}
-                                        className='h-9 w-9 rounded-full border border-border bg-background/90 shadow-md hover:bg-background transition-colors flex items-center justify-center'
-                                        aria-label='Scroll curated collections right'
-                                    >
-                                        <ChevronRight className='h-4 w-4' />
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
+            <FeedLayout sidebar={<FeedSidebar />}>
                 {/* Main Clip Feed */}
                 <ClipFeed
-                    title='Home Feed'
-                    description='Discover the best Twitch clips'
+                    title='You missed it live'
+                    description='Good thing somebody clipped it. These are the ones trending now.'
                     defaultSort='trending'
                     showSearch
+                    insertAfter={5}
+                    insertedContent={collectionsModule}
                 />
-            </Container>
+            </FeedLayout>
         </>
     );
 }

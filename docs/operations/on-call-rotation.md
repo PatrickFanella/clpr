@@ -207,13 +207,13 @@ Updates every 15 minutes
 **Service Issues:**
 ```bash
 # Restart service
-kubectl rollout restart deployment/backend -n clipper
+kubectl rollout restart deployment/backend -n clpr
 
 # Scale up
-kubectl scale deployment backend --replicas=5 -n clipper
+kubectl scale deployment backend --replicas=5 -n clpr
 
 # Rollback deployment
-kubectl rollout undo deployment/backend -n clipper
+kubectl rollout undo deployment/backend -n clpr
 ```
 
 **Database Issues:**
@@ -269,7 +269,7 @@ Service metrics back to normal. Monitoring for 30 minutes before closing.
 - **Clipper SLO:** SLO breach alerts
 - **Clipper Security:** Security events and authentication failures
 
-**Access:** https://clipper.pagerduty.com
+**Access:** https://clpr.pagerduty.com
 
 ### Slack Channels
 
@@ -312,8 +312,8 @@ On-Call Manager: [Check PagerDuty schedule]
 ```
 VP Engineering: [Name] - [Phone] - [Email]
 CTO: [Name] - [Phone] - [Email]
-Security Team: security@clipper.app
-Platform Team: platform@clipper.app
+Security Team: security@clpr.app
+Platform Team: platform@clpr.app
 ```
 
 **Note:** Keep these contacts up-to-date in PagerDuty.
@@ -335,17 +335,17 @@ Platform Team: platform@clipper.app
 **ServiceDown:**
 - **Meaning:** Service not responding
 - **Response:** Check pod status, restart or rollback
-- **Runbook:** [Service Down](runbook.md#service-down)
+- **Runbook:** [High error rate](runbook.md#high-error-rate)
 
 **DatabaseDown:**
 - **Meaning:** Database not responding
 - **Response:** Check DB status, connections, restart if needed
-- **Runbook:** [Database Down](runbook.md#database-down)
+- **Runbook:** [Database connection exhaustion](runbook.md#database-connection-exhaustion)
 
 **RedisDown:**
 - **Meaning:** Redis cache not responding
 - **Response:** Check Redis status, restart if needed
-- **Runbook:** [Redis Down](runbook.md#redis-down)
+- **Runbook:** [Cache operations](runbook.md#cache-operations)
 
 ### Warning Alerts (P2)
 
@@ -362,12 +362,12 @@ Platform Team: platform@clipper.app
 **HighMemoryUsage:**
 - **Meaning:** Memory usage > 80%
 - **Response:** Check for memory leaks, scale if needed
-- **Runbook:** [High Memory](runbook.md#high-memory-usage)
+- **Runbook:** [Scaling](runbook.md#scaling)
 
 **LowDiskSpace:**
 - **Meaning:** Disk space < 20%
 - **Response:** Clean up logs, expand volume if needed
-- **Runbook:** [Low Disk Space](runbook.md#low-disk-space)
+- **Runbook:** [Out of disk space](runbook.md#out-of-disk-space)
 
 ### Security Alerts
 
@@ -418,13 +418,13 @@ Platform Team: platform@clipper.app
 amtool silence add service=backend \
   --duration=2h \
   --comment="Backend deployment in progress" \
-  --author="ops@clipper.app"
+  --author="ops@clpr.app"
 
 # Silence specific alert
 amtool silence add alertname=HighMemoryUsage \
   --duration=1h \
   --comment="Investigating memory leak" \
-  --author="you@clipper.app"
+  --author="you@clpr.app"
 
 # List active silences
 amtool silence query
@@ -525,9 +525,9 @@ amtool silence expire <silence-id>
 
 ### Recommended Reading
 
-- [ ] [Alertmanager Setup Guide](../../monitoring/ALERTMANAGER_SETUP.md)
+- [ ] Alertmanager Setup Guide
 - [ ] [Centralized Logging](centralized-logging.md)
-- [ ] [Kubernetes Runbook](kubernetes-runbook.md)
+- [ ] Kubernetes Runbook
 - [ ] [Background Jobs Runbook](runbooks/background-jobs.md)
 
 ### Training Sessions
@@ -617,7 +617,7 @@ A: Consider silencing expected alerts. But watch dashboards closely and rollback
 
 **Questions about this guide:**
 - Slack: #platform-team
-- Email: platform@clipper.app
+- Email: platform@clpr.app
 
 **On-call support:**
 - Slack: #on-call-support
@@ -639,7 +639,7 @@ A: Consider silencing expected alerts. But watch dashboards closely and rollback
 ## Related Documentation
 
 - [On-Call Quick Reference Card](on-call-quick-reference.md) - Print and keep handy
-- [Alertmanager Setup Guide](../../monitoring/ALERTMANAGER_SETUP.md)
+- Alertmanager Setup Guide
 - [SLO Documentation](slos.md)
 - [Runbooks](runbooks/) and [Playbooks](playbooks/)
-- [Monitoring README](../../monitoring/README.md)
+- Monitoring README

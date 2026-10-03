@@ -1,18 +1,88 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/repository"
+	"git.subcult.tv/subculture-collective/clpr/internal/services"
+	"git.subcult.tv/subculture-collective/clpr/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/internal/repository"
-	"github.com/subculture-collective/clipper/internal/services"
-	"github.com/subculture-collective/clipper/internal/utils"
 )
+
+func requiredFeedUserID(c *gin.Context) (uuid.UUID, bool) {
+	value, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return uuid.Nil, false
+	}
+	userID, ok := value.(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid authenticated user"})
+		return uuid.Nil, false
+	}
+	routeUserID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return uuid.Nil, false
+	}
+	if routeUserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
+		return uuid.Nil, false
+	}
+	return userID, true
+}
+
+func optionalFeedUserID(c *gin.Context) (*uuid.UUID, bool) {
+	value, exists := c.Get("user_id")
+	if !exists {
+		return nil, true
+	}
+	userID, ok := value.(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid authenticated user"})
+		return nil, false
+	}
+	return &userID, true
+}
+
+func requiredFeedActorID(c *gin.Context) (uuid.UUID, bool) {
+	value, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return uuid.Nil, false
+	}
+	userID, ok := value.(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid authenticated user"})
+		return uuid.Nil, false
+	}
+	return userID, true
+}
+
+func handleFeedError(c *gin.Context, err error, fallback string) {
+	switch {
+	case errors.Is(err, services.ErrFeedNotFound), errors.Is(err, services.ErrFeedClipNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+	case errors.Is(err, services.ErrFeedForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
+	case errors.Is(err, services.ErrFeedMembershipMismatch):
+		c.JSON(http.StatusConflict, gin.H{"error": "Feed membership conflict"})
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
+	}
+}
+
+// EnableRecentEngagement switches ranking without changing collection.
+func (h *FeedHandler) EnableRecentEngagement(repo *repository.EngagementRepository) {
+	h.engagementRepo = repo
+}
 
 // validateDateFilter validates and normalizes a date string expected to be in ISO 8601 format
 func validateDateFilter(dateStr string) (string, error) {
@@ -33,11 +103,12 @@ func validateDateFilter(dateStr string) (string, error) {
 }
 
 type FeedHandler struct {
-	feedService  *services.FeedService
-	authService  *services.AuthService
-	voteRepo     *repository.VoteRepository
-	favoriteRepo *repository.FavoriteRepository
-	userRepo     *repository.UserRepository
+	engagementRepo *repository.EngagementRepository
+	feedService    *services.FeedService
+	authService    *services.AuthService
+	voteRepo       *repository.VoteRepository
+	favoriteRepo   *repository.FavoriteRepository
+	userRepo       *repository.UserRepository
 }
 
 func NewFeedHandler(
@@ -58,9 +129,8 @@ func NewFeedHandler(
 
 // CreateFeed creates a new feed
 func (h *FeedHandler) CreateFeed(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	userID, ok := requiredFeedUserID(c)
+	if !ok {
 		return
 	}
 
@@ -70,9 +140,9 @@ func (h *FeedHandler) CreateFeed(c *gin.Context) {
 		return
 	}
 
-	feed, err := h.feedService.CreateFeed(c.Request.Context(), userID.(uuid.UUID), &req)
+	feed, err := h.feedService.CreateFeed(c.Request.Context(), userID, &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to create feed")
 		return
 	}
 
@@ -88,10 +158,9 @@ func (h *FeedHandler) ListUserFeeds(c *gin.Context) {
 		return
 	}
 
-	var requestingUserID *uuid.UUID
-	if id, exists := c.Get("user_id"); exists {
-		uid := id.(uuid.UUID)
-		requestingUserID = &uid
+	requestingUserID, ok := optionalFeedUserID(c)
+	if !ok {
+		return
 	}
 
 	feeds, err := h.feedService.GetUserFeeds(c.Request.Context(), userID, requestingUserID)
@@ -112,15 +181,23 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 		return
 	}
 
-	var requestingUserID *uuid.UUID
-	if id, exists := c.Get("user_id"); exists {
-		uid := id.(uuid.UUID)
-		requestingUserID = &uid
+	requestingUserID, ok := optionalFeedUserID(c)
+	if !ok {
+		return
 	}
 
 	feed, err := h.feedService.GetFeed(c.Request.Context(), feedID, requestingUserID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to get feed")
+		return
+	}
+	ownerID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+	if feed.UserID != ownerID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 		return
 	}
 
@@ -129,9 +206,8 @@ func (h *FeedHandler) GetFeed(c *gin.Context) {
 
 // UpdateFeed updates a feed
 func (h *FeedHandler) UpdateFeed(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	userID, ok := requiredFeedUserID(c)
+	if !ok {
 		return
 	}
 
@@ -147,10 +223,14 @@ func (h *FeedHandler) UpdateFeed(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	feed, err := h.feedService.UpdateFeed(c.Request.Context(), feedID, userID.(uuid.UUID), &req)
+	feed, err := h.feedService.UpdateFeed(c.Request.Context(), feedID, userID, &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to update feed")
 		return
 	}
 
@@ -159,9 +239,8 @@ func (h *FeedHandler) UpdateFeed(c *gin.Context) {
 
 // DeleteFeed deletes a feed
 func (h *FeedHandler) DeleteFeed(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	userID, ok := requiredFeedUserID(c)
+	if !ok {
 		return
 	}
 
@@ -172,9 +251,9 @@ func (h *FeedHandler) DeleteFeed(c *gin.Context) {
 		return
 	}
 
-	err = h.feedService.DeleteFeed(c.Request.Context(), feedID, userID.(uuid.UUID))
+	err = h.feedService.DeleteFeed(c.Request.Context(), feedID, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to delete feed")
 		return
 	}
 
@@ -183,9 +262,8 @@ func (h *FeedHandler) DeleteFeed(c *gin.Context) {
 
 // AddClipToFeed adds a clip to a feed
 func (h *FeedHandler) AddClipToFeed(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	userID, ok := requiredFeedUserID(c)
+	if !ok {
 		return
 	}
 
@@ -202,9 +280,9 @@ func (h *FeedHandler) AddClipToFeed(c *gin.Context) {
 		return
 	}
 
-	feedItem, err := h.feedService.AddClipToFeed(c.Request.Context(), feedID, userID.(uuid.UUID), req.ClipID)
+	feedItem, err := h.feedService.AddClipToFeed(c.Request.Context(), feedID, userID, req.ClipID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to add clip to feed")
 		return
 	}
 
@@ -213,9 +291,8 @@ func (h *FeedHandler) AddClipToFeed(c *gin.Context) {
 
 // RemoveClipFromFeed removes a clip from a feed
 func (h *FeedHandler) RemoveClipFromFeed(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	userID, ok := requiredFeedUserID(c)
+	if !ok {
 		return
 	}
 
@@ -233,9 +310,9 @@ func (h *FeedHandler) RemoveClipFromFeed(c *gin.Context) {
 		return
 	}
 
-	err = h.feedService.RemoveClipFromFeed(c.Request.Context(), feedID, userID.(uuid.UUID), clipID)
+	err = h.feedService.RemoveClipFromFeed(c.Request.Context(), feedID, userID, clipID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to remove clip from feed")
 		return
 	}
 
@@ -251,15 +328,19 @@ func (h *FeedHandler) GetFeedClips(c *gin.Context) {
 		return
 	}
 
-	var requestingUserID *uuid.UUID
-	if id, exists := c.Get("user_id"); exists {
-		uid := id.(uuid.UUID)
-		requestingUserID = &uid
+	requestingUserID, ok := optionalFeedUserID(c)
+	if !ok {
+		return
+	}
+	ownerID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
 	}
 
-	clips, err := h.feedService.GetFeedClips(c.Request.Context(), feedID, requestingUserID)
+	clips, err := h.feedService.GetFeedClips(c.Request.Context(), feedID, ownerID, requestingUserID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to get feed clips")
 		return
 	}
 
@@ -268,9 +349,8 @@ func (h *FeedHandler) GetFeedClips(c *gin.Context) {
 
 // ReorderFeedClips reorders clips in a feed
 func (h *FeedHandler) ReorderFeedClips(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	userID, ok := requiredFeedUserID(c)
+	if !ok {
 		return
 	}
 
@@ -287,9 +367,9 @@ func (h *FeedHandler) ReorderFeedClips(c *gin.Context) {
 		return
 	}
 
-	err = h.feedService.ReorderFeedClips(c.Request.Context(), feedID, userID.(uuid.UUID), req.ClipIDs)
+	err = h.feedService.ReorderFeedClips(c.Request.Context(), feedID, userID, req.ClipIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to reorder feed clips")
 		return
 	}
 
@@ -298,9 +378,13 @@ func (h *FeedHandler) ReorderFeedClips(c *gin.Context) {
 
 // FollowFeed follows a feed
 func (h *FeedHandler) FollowFeed(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	userID, ok := requiredFeedActorID(c)
+	if !ok {
+		return
+	}
+	ownerID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
@@ -311,9 +395,9 @@ func (h *FeedHandler) FollowFeed(c *gin.Context) {
 		return
 	}
 
-	err = h.feedService.FollowFeed(c.Request.Context(), userID.(uuid.UUID), feedID)
+	err = h.feedService.FollowFeed(c.Request.Context(), userID, ownerID, feedID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to follow feed")
 		return
 	}
 
@@ -322,9 +406,13 @@ func (h *FeedHandler) FollowFeed(c *gin.Context) {
 
 // UnfollowFeed unfollows a feed
 func (h *FeedHandler) UnfollowFeed(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	userID, ok := requiredFeedActorID(c)
+	if !ok {
+		return
+	}
+	ownerID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
@@ -335,9 +423,9 @@ func (h *FeedHandler) UnfollowFeed(c *gin.Context) {
 		return
 	}
 
-	err = h.feedService.UnfollowFeed(c.Request.Context(), userID.(uuid.UUID), feedID)
+	err = h.feedService.UnfollowFeed(c.Request.Context(), userID, ownerID, feedID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		handleFeedError(c, err, "Failed to unfollow feed")
 		return
 	}
 
@@ -347,16 +435,15 @@ func (h *FeedHandler) UnfollowFeed(c *gin.Context) {
 // DiscoverFeeds retrieves public feeds for discovery
 func (h *FeedHandler) DiscoverFeeds(c *gin.Context) {
 	limit, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	if err != nil || limit < 1 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
+	if err != nil || limit < 1 || limit > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be between 1 and 100"})
+		return
 	}
 
 	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if err != nil || offset < 0 {
-		offset = 0
+	if err != nil || offset < 0 || offset > 100000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "offset must be between 0 and 100000"})
+		return
 	}
 
 	feeds, err := h.feedService.DiscoverPublicFeeds(c.Request.Context(), limit, offset)
@@ -370,23 +457,22 @@ func (h *FeedHandler) DiscoverFeeds(c *gin.Context) {
 
 // SearchFeeds searches for public feeds
 func (h *FeedHandler) SearchFeeds(c *gin.Context) {
-	query := c.Query("q")
-	if query == "" {
+	query := strings.TrimSpace(c.Query("q"))
+	if query == "" || len(query) > 100 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Query parameter 'q' is required"})
 		return
 	}
 
 	limit, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	if err != nil || limit < 1 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
+	if err != nil || limit < 1 || limit > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be between 1 and 100"})
+		return
 	}
 
 	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if err != nil || offset < 0 {
-		offset = 0
+	if err != nil || offset < 0 || offset > 100000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "offset must be between 0 and 100000"})
+		return
 	}
 
 	feeds, err := h.feedService.SearchFeeds(c.Request.Context(), query, limit, offset)
@@ -402,27 +488,31 @@ func (h *FeedHandler) SearchFeeds(c *gin.Context) {
 // GET /api/v1/feed/following
 func (h *FeedHandler) GetFollowingFeed(c *gin.Context) {
 	// Get current user ID from auth middleware
-	userIDInterface, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	userID, ok := currentUserID(c)
+	if !ok {
 		return
 	}
-	userID := userIDInterface.(uuid.UUID)
 
 	// Parse pagination and filter parameters
 	page := 1
 	limit := 20
 
 	if pageStr := c.Query("page"); pageStr != "" {
-		if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
-			page = parsedPage
+		parsedPage, err := strconv.Atoi(pageStr)
+		if err != nil || parsedPage < 1 || parsedPage > 100000 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "page must be between 1 and 100000"})
+			return
 		}
+		page = parsedPage
 	}
 
 	if limitStr := c.Query("limit"); limitStr != "" {
-		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 100 {
-			limit = parsedLimit
+		parsedLimit, err := strconv.Atoi(limitStr)
+		if err != nil || parsedLimit < 1 || parsedLimit > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be between 1 and 100"})
+			return
 		}
+		limit = parsedLimit
 	}
 
 	offset := (page - 1) * limit
@@ -454,15 +544,60 @@ func (h *FeedHandler) GetFollowingFeed(c *gin.Context) {
 // Supports both offset-based (legacy) and cursor-based pagination
 func (h *FeedHandler) GetFilteredClips(c *gin.Context) {
 	// Parse query parameters
-	games := c.QueryArray("filter[game]")
-	streamers := c.QueryArray("filter[streamer]")
-	tags := c.QueryArray("filter[tags]")
-	dateFrom := c.Query("filter[date_from]")
-	dateTo := c.Query("filter[date_to]")
+	// Use flat parameter names because the global request validator deliberately
+	// rejects bracketed query keys. Keep the bracketed lookups as a compatibility
+	// fallback for callers mounted without that middleware.
+	twitchCategories := c.QueryArray("twitch_category_id")
+	if len(twitchCategories) == 0 {
+		twitchCategories = c.QueryArray("game_id")
+	}
+	if len(twitchCategories) == 0 {
+		twitchCategories = c.QueryArray("filter[game]")
+	}
+	streamers := c.QueryArray("broadcaster_id")
+	if len(streamers) == 0 {
+		streamers = c.QueryArray("filter[streamer]")
+	}
+	tags := c.QueryArray("tag")
+	if len(tags) == 0 {
+		tags = c.QueryArray("filter[tags]")
+	}
+	dateFrom := c.Query("date_from")
+	if dateFrom == "" {
+		dateFrom = c.Query("filter[date_from]")
+	}
+	dateTo := c.Query("date_to")
+	if dateTo == "" {
+		dateTo = c.Query("filter[date_to]")
+	}
 	sort := c.DefaultQuery("sort", "trending")
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit, limitErr := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, offsetErr := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	cursor := c.Query("cursor") // Cursor for cursor-based pagination
+	if limitErr != nil || limit < 10 || limit > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be between 10 and 100"})
+		return
+	}
+	if offsetErr != nil || offset < 0 || offset > 100000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "offset must be between 0 and 100000"})
+		return
+	}
+	if len(cursor) > 2048 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cursor is too long"})
+		return
+	}
+	if len(twitchCategories) > 1 || len(streamers) > 1 || len(tags) > 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Twitch category, creator, and tag filters currently accept one value each"})
+		return
+	}
+	for _, values := range [][]string{twitchCategories, streamers, tags} {
+		for _, value := range values {
+			if value == "" || len(value) > 100 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "filter values must be between 1 and 100 characters"})
+				return
+			}
+		}
+	}
 
 	// Validate and normalize sort parameter
 	validSorts := map[string]bool{
@@ -470,15 +605,31 @@ func (h *FeedHandler) GetFilteredClips(c *gin.Context) {
 		"top": true, "discussed": true, "hot": true, "rising": true,
 	}
 	if !validSorts[sort] {
-		sort = "trending" // Default to trending for invalid sorts
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid sort"})
+		return
 	}
 
-	// Validate and constrain parameters
-	if limit < 10 || limit > 100 {
-		limit = 20 // Default to 20 for out-of-range values
+	// Resolve the viewer before creating the stateless feed-session seed. A new
+	// first-page request gets a fresh personalized arrangement; subsequent pages
+	// recover the same seed from the cursor.
+	userID, ok := optionalFeedUserID(c)
+	if !ok {
+		return
 	}
-	if offset < 0 {
-		offset = 0
+	shuffleSeed := ""
+	if sort == "trending" && h.engagementRepo == nil {
+		if cursor != "" {
+			decodedCursor, decodeErr := utils.DecodeCursor(cursor)
+			if decodeErr != nil || decodedCursor == nil || decodedCursor.ShuffleSeed == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid cursor: refresh the feed to start a new session"})
+				return
+			}
+			shuffleSeed = decodedCursor.ShuffleSeed
+		} else if userID != nil {
+			shuffleSeed = uuid.NewSHA1(*userID, []byte(uuid.NewString())).String()
+		} else {
+			shuffleSeed = uuid.NewString()
+		}
 	}
 
 	// Validate date filters to prevent SQL injection
@@ -498,22 +649,66 @@ func (h *FeedHandler) GetFilteredClips(c *gin.Context) {
 			return
 		}
 	}
+	if validatedDateFrom != "" && validatedDateTo != "" {
+		fromTime, _ := time.Parse(time.RFC3339, validatedDateFrom)
+		toTime, _ := time.Parse(time.RFC3339, validatedDateTo)
+		if fromTime.After(toTime) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "date_from must not be after date_to"})
+			return
+		}
+	}
 
 	// Build filters for clip repository
 	filters := repository.ClipFilters{
-		Sort:              sort,
-		UserSubmittedOnly: true, // Only show user-submitted clips in feed
+		Sort:                sort,
+		UserSubmittedOnly:   false, // Automated and user-submitted clips share the main feed.
+		TrendingShuffleSeed: &shuffleSeed,
 	}
 
+	period := c.DefaultQuery("timeframe", "day")
+	if _, valid := repository.EngagementWindow(period); !valid {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid timeframe"})
+		return
+	}
+	filters.Timeframe = &period
+	var engagement *repository.EngagementMetadata
+	if sort == "trending" && h.engagementRepo != nil {
+		var generation *uuid.UUID
+		if cursor != "" {
+			decoded, decodeErr := decodeEngagementCursor(cursor, c.Request.URL.Query())
+			if decodeErr != nil {
+				c.JSON(http.StatusConflict, gin.H{"code": "RANKING_REFRESH_REQUIRED", "error": "Refresh the feed to continue"})
+				return
+			}
+			generation = &decoded.Generation
+			cursor = utils.EncodeCursor("trending", decoded.Score, decoded.ClipID, 0)
+		}
+		engagement, err = h.engagementRepo.Resolve(c.Request.Context(), period, generation)
+		if errors.Is(err, repository.ErrRankingExpired) {
+			if generation != nil {
+				c.JSON(http.StatusConflict, gin.H{"code": "RANKING_REFRESH_REQUIRED", "error": "Refresh the feed to continue"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"success": true, "clips": []services.ClipWithUserContext{}, "pagination": gin.H{"limit": limit, "offset": 0, "has_more": false, "total": 0}, "engagement": gin.H{"period": period, "estimated": true, "partial_coverage": true, "pending": true}})
+			return
+		}
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Recent engagement is temporarily unavailable"})
+			return
+		}
+		filters.RankingGeneration = &engagement.Generation
+		filters.RankingPeriod = period
+		filters.TrendingShuffleSeed = nil
+	}
 	// Apply cursor if provided (takes precedence over offset)
 	if cursor != "" {
 		filters.Cursor = &cursor
 		offset = 0 // Ignore offset when using cursor
 	}
 
-	// Apply game filters (currently single-select; multi-select requires backend changes)
-	if len(games) > 0 {
-		filters.GameID = &games[0]
+	// Apply Twitch category filters (currently single-select).
+	if len(twitchCategories) > 0 {
+		filters.GameID = &twitchCategories[0]
 	}
 
 	// Apply streamer filters (currently single-select; multi-select requires backend changes)
@@ -534,13 +729,6 @@ func (h *FeedHandler) GetFilteredClips(c *gin.Context) {
 		filters.DateTo = &validatedDateTo
 	}
 
-	// Get authenticated user ID if present
-	var userID *uuid.UUID
-	if id, exists := c.Get("user_id"); exists {
-		uid := id.(uuid.UUID)
-		userID = &uid
-	}
-
 	// Fetch clips using feed service with user data enrichment (fetch limit+1 to check if there are more)
 	fetchLimit := limit + 1
 	clips, total, err := h.feedService.GetFilteredClipsWithUserData(c.Request.Context(), filters, fetchLimit, offset, userID)
@@ -554,8 +742,6 @@ func (h *FeedHandler) GetFilteredClips(c *gin.Context) {
 		}
 		return
 	}
-	// This will be implemented in a follow-up change
-
 	// Determine if there are more results
 	hasMore := len(clips) > limit
 	if hasMore {
@@ -598,7 +784,10 @@ func (h *FeedHandler) GetFilteredClips(c *gin.Context) {
 		default:
 			sortValue = float64(lastClip.CreatedAt.Unix())
 		}
-		encodedCursor := utils.EncodeCursor(sort, sortValue, lastClip.ID, lastClip.CreatedAt.Unix())
+		encodedCursor := utils.EncodeCursorWithShuffleSeed(sort, sortValue, lastClip.ID, lastClip.CreatedAt.Unix(), shuffleSeed)
+		if engagement != nil {
+			encodedCursor = encodeEngagementCursor(engagement.Generation, lastClip.ID, lastClip.TrendingScore, c.Request.URL.Query())
+		}
 		nextCursor = &encodedCursor
 	}
 
@@ -626,13 +815,16 @@ func (h *FeedHandler) GetFilteredClips(c *gin.Context) {
 		"success":    true,
 		"clips":      clips,
 		"pagination": paginationResponse,
+		"engagement": engagement,
 		"filters_applied": gin.H{
-			"games":     games,
-			"streamers": streamers,
-			"tags":      tags,
-			"date_from": dateFrom,
-			"date_to":   dateTo,
-			"sort":      sort,
+			"twitch_categories": twitchCategories,
+			"games":             twitchCategories,
+			"creators":          streamers,
+			"streamers":         streamers,
+			"tags":              tags,
+			"date_from":         dateFrom,
+			"date_to":           dateTo,
+			"sort":              sort,
 		},
 	})
 }

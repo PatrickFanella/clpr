@@ -1,69 +1,51 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/internal/services"
 )
+
+type outboundWebhookStatsService interface {
+	GetDeliveryStats(context.Context) (map[string]interface{}, error)
+}
 
 // WebhookMonitoringHandler handles webhook monitoring endpoints
 type WebhookMonitoringHandler struct {
-	webhookRetryService    *services.WebhookRetryService
-	outboundWebhookService *services.OutboundWebhookService
+	outboundWebhookService outboundWebhookStatsService
 }
 
 // NewWebhookMonitoringHandler creates a new webhook monitoring handler
 func NewWebhookMonitoringHandler(
-	webhookRetryService *services.WebhookRetryService,
-	outboundWebhookService *services.OutboundWebhookService,
+	outboundWebhookService outboundWebhookStatsService,
 ) *WebhookMonitoringHandler {
 	return &WebhookMonitoringHandler{
-		webhookRetryService:    webhookRetryService,
 		outboundWebhookService: outboundWebhookService,
 	}
 }
 
-// GetWebhookRetryStats returns webhook retry queue statistics
-// @Summary Get webhook retry queue stats
-// @Description Returns statistics about the webhook retry queue and dead-letter queue
+// GetWebhookStats returns outbound webhook delivery statistics
+// @Summary Get outbound webhook delivery stats
+// @Description Returns statistics about outbound webhook subscriptions and deliveries
 // @Tags monitoring
 // @Produce json
 // @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} map[string]string
-// @Router /health/webhooks [get]
-func (h *WebhookMonitoringHandler) GetWebhookRetryStats(c *gin.Context) {
-	// Get retry queue stats (includes queue sizes)
-	stats, err := h.webhookRetryService.GetRetryQueueStats(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to retrieve webhook stats",
-		})
-		return
-	}
-
+// @Failure 503 {object} map[string]string
+// @Router /internal/operations/webhooks [get]
+func (h *WebhookMonitoringHandler) GetWebhookStats(c *gin.Context) {
 	// Get additional metrics from outbound webhook service
 	deliveryStats, err := h.outboundWebhookService.GetDeliveryStats(c.Request.Context())
 	if err != nil {
-		// Log error but don't fail the request
-		c.JSON(http.StatusOK, gin.H{
-			"status":   "healthy",
-			"webhooks": stats,
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status":                 "degraded",
+			"unavailable_components": []string{"delivery_stats"},
 		})
 		return
-	}
-
-	// Combine stats
-	combinedStats := make(map[string]interface{})
-	for k, v := range stats {
-		combinedStats[k] = v
-	}
-	for k, v := range deliveryStats {
-		combinedStats[k] = v
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   "healthy",
-		"webhooks": combinedStats,
+		"webhooks": deliveryStats,
 	})
 }

@@ -1,241 +1,116 @@
-import { Container, Card, CardBody, SEO } from '../components';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { Button, Container, SEO } from '../components';
+import { fetchClips } from '../lib/clip-api';
+import { SUPPORT_URL } from '../lib/support-link';
 
-export function AboutPage() {
-  const lastUpdated = 'January 15, 2025';
+const LIVE_CLIP_COUNT = 3;
+
+const actions = [
+  {
+    title: 'Browse',
+    description: 'Start from a person, a subject or a tag instead of a Twitch category.',
+    links: [
+      { label: 'Creators', to: '/creators' },
+      { label: 'Topics', to: '/topics' },
+      { label: 'Tags', to: '/tags' },
+    ],
+  },
+  {
+    title: 'Watch collections',
+    description: 'Lists that refresh daily and weekly, built around creators, topics and moments.',
+    links: [{ label: 'Discover', to: '/discover' }],
+  },
+  {
+    title: 'Save, vote and comment',
+    description: 'Favorite clips, or line them up in playlists. Upvotes and comments help timely clips rise in the feed.',
+    links: [{ label: 'Feed', to: '/' }],
+  },
+  {
+    title: 'Submit',
+    description: "Got a Twitch clip that isn't here yet? Send it in.",
+    links: [{ label: 'Submit a clip', to: '/submit' }],
+  },
+];
+
+/** Today's top clips, so the page shows the product instead of describing it. */
+function LiveClips() {
+  const { data } = useQuery({
+    queryKey: ['about', 'live-clips'],
+    queryFn: () => fetchClips({ filters: { sort: 'trending', timeframe: 'day' } }),
+    staleTime: 5 * 60 * 1000,
+  });
+  const clips = (data?.clips ?? []).filter(clip => clip.thumbnail_url && !clip.is_nsfw).slice(0, LIVE_CLIP_COUNT);
+  if (clips.length === 0) return null;
 
   return (
+    <section aria-labelledby='about-live' className='border-t border-line-strong pt-6'>
+      <p className='kicker mb-2'>Trending today</p>
+      <h2 id='about-live' className='mb-4 text-2xl'>On clpr right now</h2>
+      <ul className='grid gap-4 sm:grid-cols-3'>
+        {clips.map(clip => (
+          <li key={clip.id}>
+            <Link to={`/clip/${clip.id}`} className='group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'>
+              <img src={clip.thumbnail_url} alt='' width={640} height={360} loading='lazy' className='aspect-video w-full border border-border object-cover group-hover:border-line-strong' />
+              <span className='mt-2 block font-heading text-lg font-bold uppercase leading-tight text-foreground line-clamp-2'>{clip.title}</span>
+              <span className='kicker mt-1 block'>{clip.broadcaster_name}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export function AboutPage() {
+  return (
     <>
-      <SEO
-        title="About"
-        description="Learn about clpr - a modern, open-source platform for discovering and sharing the best Twitch clips. Join our community of gamers and streamers."
-        canonicalUrl="/about"
-      />
-      <Container className="py-8 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-4">About clpr</h1>
-        <p className="text-sm text-muted-foreground">Last updated: {lastUpdated}</p>
-      </div>
+      <SEO title='About' description='clpr sorts Twitch clips by creator, topic and tag, so the one you mean is easier to find.' canonicalUrl='/about' />
+      <Container className='py-8'>
+        <div className='mx-auto max-w-4xl space-y-10'>
+          <header>
+            <p className='kicker mb-3'>About clpr</p>
+            <h1 className='display mb-4 text-4xl sm:text-5xl'>Somebody clipped it. It&apos;s probably in here.</h1>
+            <p className='max-w-3xl text-lg text-text-secondary'>clpr sorts Twitch clips by creator, topic and tag. Start from a person or a subject, then save the good ones to a playlist you can send around.</p>
+          </header>
 
-      <div className="space-y-6">
-        {/* What is clpr */}
-        <Card id="what-is-clpr">
-          <CardBody>
-            <h2 className="text-2xl font-semibold mb-4">What is clpr?</h2>
-            <p className="text-muted-foreground mb-4">
-              clpr is a modern, open-source platform for discovering and sharing gaming highlights from Twitch. 
-              We aggregate the best clips from your favorite games and streamers, making them easy to find, watch, 
-              and share with the gaming community.
-            </p>
-            <p className="text-muted-foreground mb-4">
-              Our mission is to celebrate great gaming moments and connect the gaming community through shared experiences. 
-              Whether you're looking for the latest esports plays, hilarious streamer reactions, or incredible speedrun achievements, 
-              clpr brings it all together in one place.
-            </p>
-            <p className="text-muted-foreground">
-              Built with React, TypeScript, and modern web technologies, clpr is designed to be fast, responsive, 
-              and accessible on any device.
-            </p>
-          </CardBody>
-        </Card>
+          <LiveClips />
 
-        {/* How It Works */}
-        <Card id="how-it-works">
-          <CardBody>
-            <h2 className="text-2xl font-semibold mb-4">How It Works</h2>
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">Automated Clip Discovery</h3>
-                <p className="text-muted-foreground">
-                  We automatically sync and index clips from Twitch, ensuring you never miss the hottest moments 
-                  from your favorite games and creators.
-                </p>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">Smart Browsing & Search</h3>
-                <p className="text-muted-foreground">
-                  Browse clips by game, creator, or tag. Our intelligent search makes it easy to find exactly 
-                  what you're looking for, from specific plays to trending moments.
-                </p>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">Community-Driven Curation</h3>
-                <p className="text-muted-foreground">
-                  Save your favorite clips, upvote the best moments, and see what's trending in the community. 
-                  Our feeds (New, Top, Rising) help surface the content that matters most.
-                </p>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">Creator Features</h3>
-                <p className="text-muted-foreground">
-                  Track your clips' performance with analytics, build your audience, and connect with fans 
-                  who appreciate your best moments.
-                </p>
-              </div>
+          <section aria-labelledby='about-scope' className='border-t border-line-strong pt-6'>
+            <h2 id='about-scope' className='mb-4 text-2xl'>Streams wander</h2>
+            <p className='max-w-3xl text-text-secondary'>One channel can do IRL, a reaction segment, music, a news rant and a speedrun in the same week. So clips here are filed under the creator, the topic and the tag, and the Twitch category is only one way in.</p>
+          </section>
+
+          <section aria-labelledby='about-actions'>
+            <h2 id='about-actions' className='mb-4 text-2xl'>What&apos;s in here</h2>
+            <dl className='border-b border-line-strong'>
+              {actions.map(action => (
+                <div key={action.title} className='grid gap-1 border-t border-line-strong py-5 sm:grid-cols-[14rem_1fr] sm:gap-8'>
+                  <dt className='font-heading text-xl font-bold uppercase tracking-[0.01em] text-foreground'>{action.title}</dt>
+                  <dd className='text-text-secondary'>
+                    {action.description}{' '}
+                    {action.links.map((link, index) => (
+                      <span key={link.to}>
+                        {index > 0 && ', '}
+                        <Link to={link.to} className='text-link underline underline-offset-2'>{link.label}</Link>
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          <section aria-labelledby='about-join'>
+            <h2 id='about-join' className='mb-4 text-2xl'>House rules</h2>
+            <p className='mb-5 max-w-3xl text-text-secondary'>Read the <Link to='/community-rules' className='text-link underline underline-offset-2'>community rules</Link> before you post or comment. They keep clpr decent for creators and viewers both.</p>
+            <div className='flex flex-wrap gap-3'>
+              <Button asChild><Link to='/contact'>Contact us</Link></Button>
+              <Button asChild variant='outline'><a href={SUPPORT_URL} target='_blank' rel='noopener noreferrer'>Support us on Patreon</a></Button>
             </div>
-          </CardBody>
-        </Card>
-
-        {/* Features */}
-        <Card id="features">
-          <CardBody>
-            <h2 className="text-2xl font-semibold mb-4">Key Features</h2>
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Browse clips from multiple games and creators</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Advanced search and filtering options</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Save favorites for later viewing</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Upvote and comment on clips</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Submit your own Twitch clips</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Track trending and rising content</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Creator analytics and insights</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Dark mode and responsive design</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Leaderboards and community stats</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-primary mr-2">✓</span>
-                <span className="text-muted-foreground">Notification system for updates</span>
-              </li>
-            </ul>
-          </CardBody>
-        </Card>
-
-        {/* Open Source */}
-        <Card id="open-source">
-          <CardBody>
-            <h2 className="text-2xl font-semibold mb-4">Open Source & Community</h2>
-            <p className="text-muted-foreground mb-4">
-              clpr is proudly open source! Our code is available on GitHub, and we welcome contributions 
-              from developers, designers, and gaming enthusiasts.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <a
-                href="https://github.com/subculture-collective/clipper"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-              >
-                View on GitHub
-              </a>
-              <a
-                href="https://github.com/subculture-collective/clipper/issues"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-4 py-2 border border-border rounded-md hover:bg-accent transition-colors"
-              >
-                Report Issues
-              </a>
-              <a
-                href="https://github.com/subculture-collective/clipper/blob/main/CONTRIBUTING.md"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-4 py-2 border border-border rounded-md hover:bg-accent transition-colors"
-              >
-                Contribute
-              </a>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* Technology Stack */}
-        <Card id="tech-stack">
-          <CardBody>
-            <h2 className="text-2xl font-semibold mb-4">Technology Stack</h2>
-            <p className="text-muted-foreground mb-4">
-              clpr is built with modern, production-ready technologies:
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">Frontend</h3>
-                <ul className="space-y-1 text-muted-foreground">
-                  <li>• React 19 with TypeScript</li>
-                  <li>• Vite for build tooling</li>
-                  <li>• TailwindCSS for styling</li>
-                  <li>• React Router for navigation</li>
-                  <li>• TanStack Query for data fetching</li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">Backend</h3>
-                <ul className="space-y-1 text-muted-foreground">
-                  <li>• Python with FastAPI</li>
-                  <li>• PostgreSQL database</li>
-                  <li>• Redis for caching</li>
-                  <li>• Twitch API integration</li>
-                  <li>• Docker for deployment</li>
-                </ul>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* Contact */}
-        <Card id="contact">
-          <CardBody>
-            <h2 className="text-2xl font-semibold mb-4">Get in Touch</h2>
-            <p className="text-muted-foreground mb-4">
-              Have questions, feedback, or just want to connect? We'd love to hear from you!
-            </p>
-            <div className="space-y-2 text-muted-foreground">
-              <p>
-                <strong className="text-foreground">Community:</strong> Join our{' '}
-                <Link to="/community-rules" className="text-primary hover:underline">
-                  community
-                </Link>{' '}
-                and follow our guidelines
-              </p>
-              <p>
-                <strong className="text-foreground">Development:</strong> Contribute on{' '}
-                <a
-                  href="https://github.com/subculture-collective/clipper"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  GitHub
-                </a>
-              </p>
-              <p>
-                <strong className="text-foreground">Legal:</strong> Review our{' '}
-                <Link to="/privacy" className="text-primary hover:underline">
-                  Privacy Policy
-                </Link>{' '}
-                and{' '}
-                <Link to="/terms" className="text-primary hover:underline">
-                  Terms of Service
-                </Link>
-              </p>
-            </div>
-          </CardBody>
-        </Card>
-      </div>
-    </Container>
+          </section>
+        </div>
+      </Container>
     </>
   );
 }

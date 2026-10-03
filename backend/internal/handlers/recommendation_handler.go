@@ -3,10 +3,10 @@ package handlers
 import (
 	"net/http"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/internal/services"
 )
 
 // RecommendationHandler handles recommendation endpoints
@@ -110,19 +110,12 @@ func (h *RecommendationHandler) SubmitFeedback(c *gin.Context) {
 		return
 	}
 
-	// Record interaction based on feedback
-	interactionType := models.InteractionTypeLike
-	if req.FeedbackType == "negative" {
-		interactionType = models.InteractionTypeDislike
+	feedback := &models.RecommendationFeedback{
+		UserID: userID, ClipID: req.ClipID, FeedbackType: req.FeedbackType,
+		Algorithm: req.Algorithm, Score: req.Score,
 	}
 
-	interaction := &models.UserClipInteraction{
-		UserID:          userID,
-		ClipID:          req.ClipID,
-		InteractionType: interactionType,
-	}
-
-	if err := h.service.RecordInteraction(c.Request.Context(), interaction); err != nil {
+	if err := h.service.RecordFeedback(c.Request.Context(), feedback); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to record feedback",
 		})
@@ -192,7 +185,6 @@ func (h *RecommendationHandler) CompleteOnboarding(c *gin.Context) {
 		})
 		return
 	}
-
 	// Validate that at least one preference type is provided
 	if err := req.Validate(); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -204,9 +196,9 @@ func (h *RecommendationHandler) CompleteOnboarding(c *gin.Context) {
 	// Create preferences object
 	preferences := &models.UserPreference{
 		UserID:              userID,
-		FavoriteGames:       req.FavoriteGames,
-		FollowedStreamers:   req.FollowedStreamers,
-		PreferredCategories: req.PreferredCategories,
+		FavoriteGames:       firstNonEmptyStrings(req.TwitchCategories, req.FavoriteGames),
+		FollowedStreamers:   firstNonEmptyStrings(req.FollowedCreators, req.FollowedStreamers),
+		PreferredCategories: firstNonEmptyStrings(req.PreferredTopics, req.PreferredCategories),
 		PreferredTags:       req.PreferredTags,
 	}
 
@@ -257,6 +249,10 @@ func (h *RecommendationHandler) UpdatePreferences(c *gin.Context) {
 		})
 		return
 	}
+	if err := req.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	// Get current preferences
 	preferences, err := h.service.GetUserPreferences(c.Request.Context(), userID)
@@ -280,6 +276,16 @@ func (h *RecommendationHandler) UpdatePreferences(c *gin.Context) {
 	if req.PreferredTags != nil {
 		preferences.PreferredTags = *req.PreferredTags
 	}
+	if req.TwitchCategories != nil {
+		preferences.FavoriteGames = *req.TwitchCategories
+	}
+	if req.FollowedCreators != nil {
+		preferences.FollowedStreamers = *req.FollowedCreators
+	}
+	if req.PreferredTopics != nil {
+		preferences.PreferredCategories = *req.PreferredTopics
+	}
+	preferences.SyncCreatorFirstAliases()
 
 	// Update preferences
 	if err := h.service.UpdateUserPreferences(c.Request.Context(), preferences); err != nil {
@@ -290,6 +296,13 @@ func (h *RecommendationHandler) UpdatePreferences(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, preferences)
+}
+
+func firstNonEmptyStrings(primary, legacy []string) []string {
+	if len(primary) > 0 {
+		return primary
+	}
+	return legacy
 }
 
 // TrackView handles POST /api/v1/recommendations/track-view
@@ -323,10 +336,13 @@ func (h *RecommendationHandler) TrackView(c *gin.Context) {
 	}
 
 	// Parse request body for dwell time (optional)
-	var body struct {
-		DwellTime *int `json:"dwell_time,omitempty"`
+	var body models.TrackRecommendationViewRequest
+	if c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
-	_ = c.ShouldBindJSON(&body)
 
 	// Record view interaction
 	interaction := &models.UserClipInteraction{

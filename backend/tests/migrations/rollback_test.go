@@ -5,50 +5,50 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os/exec"
+	"strings"
 	"testing"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/subculture-collective/clipper/tests/integration/testutil"
 )
 
-// runMigration runs migrate command
+// runMigration runs the migrate CLI against this package's isolated database.
 func runMigration(direction string, steps int) error {
-	dbHost := testutil.GetEnv("TEST_DATABASE_HOST", "localhost")
-	dbPort := testutil.GetEnv("TEST_DATABASE_PORT", "5437")
-	dbUser := testutil.GetEnv("TEST_DATABASE_USER", "clipper")
-	dbPassword := testutil.GetEnv("TEST_DATABASE_PASSWORD", "clipper_password")
-	dbName := testutil.GetEnv("TEST_DATABASE_NAME", "clipper_test")
+	return runMigrationOn(testutil.DatabaseURL(), direction, steps)
+}
 
-	// Build connection URL (password will be sanitized in error messages)
-	dbURL := fmt.Sprintf(
-		"postgresql://%s:%s@%s:%s/%s?sslmode=disable",
-		dbUser, dbPassword, dbHost, dbPort, dbName,
-	)
-
+// runMigrationOn runs the migrate CLI against databaseURL. A negative step
+// count passes -all (only valid for down).
+func runMigrationOn(databaseURL, direction string, steps int) error {
 	// Get migrations path from env or use default
 	migrationsPath := testutil.GetEnv("TEST_MIGRATIONS_PATH", "../../migrations")
 
 	args := []string{
 		"-path", migrationsPath,
-		"-database", dbURL,
+		"-database", databaseURL,
 		direction,
 	}
 
-	if steps > 0 {
+	switch {
+	case steps > 0:
 		args = append(args, fmt.Sprintf("%d", steps))
+	case steps < 0:
+		args = append(args, "-all")
 	}
 
 	cmd := exec.Command("migrate", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Sanitize password from error message
-		sanitizedURL := fmt.Sprintf(
-			"postgresql://%s:***@%s:%s/%s?sslmode=disable",
-			dbUser, dbHost, dbPort, dbName,
-		)
-		return fmt.Errorf("migration failed (db: %s): %v, output: %s", sanitizedURL, err, string(output))
+		// Never include the password in failure output.
+		sanitizedURL := databaseURL
+		if parsed, parseErr := url.Parse(databaseURL); parseErr == nil {
+			sanitizedURL = parsed.Redacted()
+		}
+		sanitizedOutput := strings.ReplaceAll(string(output), databaseURL, sanitizedURL)
+		return fmt.Errorf("migration failed (db: %s): %v, output: %s", sanitizedURL, err, sanitizedOutput)
 	}
 	return nil
 }
@@ -394,4 +394,3 @@ func TestMigrationIdempotency(t *testing.T) {
 		assert.True(t, exists, "moderation_queue should still exist")
 	})
 }
-

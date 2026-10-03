@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button, Spinner } from '@/components/ui';
 import { CommentTree } from './CommentTree';
@@ -10,6 +11,7 @@ interface CommentSectionProps {
     clipId: string;
     currentUserId?: string;
     isAdmin?: boolean;
+    variant?: 'expanded' | 'compact';
     className?: string;
     isBanned?: boolean;
     banReason?: string;
@@ -19,12 +21,16 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
     clipId,
     currentUserId,
     isAdmin = false,
+    variant = 'expanded',
     className,
     isBanned = false,
     banReason,
 }) => {
     const [sort, setSort] = React.useState<CommentSortOption>('best');
     const isAuthenticated = useIsAuthenticated();
+    const isCompact = variant === 'compact';
+    const location = useLocation();
+    const sortId = React.useId();
 
     const {
         data,
@@ -33,6 +39,9 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
+        isFetchNextPageError,
+        isFetching,
+        refetch,
     } = useComments(clipId, sort);
 
     const totalComments = data?.pages[0]?.total || 0;
@@ -41,17 +50,109 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
         [data],
     );
 
-    if (error) {
+    const recovery = error ? (
+        <div role='alert' className='rounded-lg border border-border p-4 text-sm'>
+            <p>{allComments.length ? 'More comments could not be loaded. Your discussion is still here.' : 'Comments could not be loaded.'}</p>
+            <Button variant='outline' className='mt-3' disabled={isFetching}
+                onClick={() => isFetchNextPageError ? fetchNextPage() : refetch()}>
+                Try again
+            </Button>
+        </div>
+    ) : null;
+    const signIn = (
+        <p className='py-3 text-sm text-muted-foreground'>
+            <Link to='/login' state={{ from: location }} className='text-link underline underline-offset-4'>Log in</Link> to join the discussion.
+        </p>
+    );
+    const sortControl = (
+        <div className='flex items-center gap-2'>
+            <label htmlFor={sortId} className='text-sm text-muted-foreground'>Sort:</label>
+            <select id={sortId} value={sort}
+                onChange={e => setSort(e.target.value as CommentSortOption)}
+                className='min-h-11 rounded-md border border-border bg-background px-2 text-sm'>
+                <option value='best'>Best</option>
+                <option value='top'>Top</option>
+                <option value='new'>New</option>
+                <option value='old'>Old</option>
+                <option value='controversial'>Controversial</option>
+            </select>
+        </div>
+    );
+
+    // An empty discussion takes one line, not the full-height panel.
+    const isEmpty = !isLoading && !error && allComments.length === 0;
+
+    if (isCompact) {
         return (
-            <div className={cn('space-y-4', className)}>
-                <div className='text-center py-8'>
-                    <p className='text-error-500'>Error loading comments</p>
-                    <p className='text-sm text-muted-foreground mt-2'>
-                        {error instanceof Error ?
-                            error.message
-                        :   'Something went wrong'}
-                    </p>
+            <div className={cn('flex flex-col', className, isEmpty && 'h-auto xl:h-auto')}>
+                {/* Header */}
+                <div className='flex flex-wrap items-center justify-between gap-2 mb-3'>
+                    <h2 className='text-[14px] font-semibold'>
+                        Comments ({totalComments.toLocaleString()})
+                    </h2>
+                    {!isEmpty && sortControl}
                 </div>
+                {recovery}
+
+                {isBanned && (
+                    <div
+                        role='alert'
+                        className='rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3 text-sm text-red-800 mb-3'
+                    >
+                        You are banned and cannot comment
+                        {banReason ? `: ${banReason}` : ''}.
+                    </div>
+                )}
+
+                {/* Scrollable comments area */}
+                <div className='min-h-0 flex-1 xl:overflow-y-auto'>
+                    {isLoading ?
+                        <div className='flex justify-center py-8'>
+                            <Spinner size='lg' />
+                        </div>
+                    : allComments.length === 0 && !error ?
+                        <p className='py-2 text-sm text-text-secondary'>
+                            No comments yet
+                        </p>
+                    :   <>
+                            <CommentTree
+                                comments={allComments}
+                                clipId={clipId}
+                                currentUserId={currentUserId}
+                                isAdmin={isAdmin}
+                                depth={0}
+                                maxDepth={2}
+                                variant='expanded'
+                            />
+
+                            {hasNextPage && !error && (
+                                <div className='flex justify-center pt-3'>
+                                    <Button
+                                        onClick={() => fetchNextPage()}
+                                        disabled={isFetchingNextPage}
+                                        loading={isFetchingNextPage}
+                                        variant='outline'
+                                    >
+                                        {isFetchingNextPage ?
+                                            'Loading...'
+                                        :   'Load More'}
+                                    </Button>
+                                </div>
+                            )}
+                        </>
+                    }
+                </div>
+
+                {!isAuthenticated && signIn}
+                {/* Comment composer */}
+                {isAuthenticated && !isBanned && (
+                    <div className='shrink-0 border-t border-border bg-surface-raised pt-3'>
+                        <CommentForm
+                            clipId={clipId}
+                            placeholder='Add a comment...'
+                        />
+                    </div>
+                )}
             </div>
         );
     }
@@ -64,30 +165,9 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                     Comments ({totalComments.toLocaleString()})
                 </h2>
 
-                {/* Sort dropdown */}
-                <div className='flex items-center gap-2'>
-                    <label
-                        htmlFor='sort-select'
-                        className='text-sm text-muted-foreground'
-                    >
-                        Sort by:
-                    </label>
-                    <select
-                        id='sort-select'
-                        value={sort}
-                        onChange={e =>
-                            setSort(e.target.value as CommentSortOption)
-                        }
-                        className='px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary-500'
-                    >
-                        <option value='best'>Best</option>
-                        <option value='top'>Top</option>
-                        <option value='new'>New</option>
-                        <option value='old'>Old</option>
-                        <option value='controversial'>Controversial</option>
-                    </select>
-                </div>
+                {sortControl}
             </div>
+            {recovery}
 
             {isBanned && (
                 <div
@@ -102,17 +182,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
             {/* Add comment button/form */}
             <div>
                 {!isAuthenticated ?
-                    <div className='text-center py-6 border border-border rounded-lg'>
-                        <p className='text-muted-foreground mb-3'>
-                            Please log in to comment
-                        </p>
-                        <Button
-                            onClick={() => (window.location.href = '/login')}
-                            variant='primary'
-                        >
-                            Log In
-                        </Button>
-                    </div>
+                    signIn
                 : !isBanned ?
                     <CommentForm
                         clipId={clipId}
@@ -126,7 +196,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                 <div className='flex justify-center py-12'>
                     <Spinner size='lg' />
                 </div>
-            : allComments.length === 0 ?
+            : allComments.length === 0 && !error ?
                 /* Empty state */
                 <div className='text-center py-12 border border-border rounded-lg'>
                     <p className='text-xl font-semibold mb-2'>
@@ -148,7 +218,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                     />
 
                     {/* Load more button */}
-                    {hasNextPage && (
+                    {hasNextPage && !error && (
                         <div className='flex justify-center pt-4'>
                             <Button
                                 onClick={() => fetchNextPage()}

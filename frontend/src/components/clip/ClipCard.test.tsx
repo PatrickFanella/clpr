@@ -54,7 +54,7 @@ describe('ClipCard', () => {
 
         const voteScore = screen.getByText('42');
         expect(voteScore).toBeInTheDocument();
-        expect(voteScore).toHaveClass('text-sm', 'font-bold');
+        expect(voteScore).toHaveClass('text-xs', 'font-bold');
     });
 
     it('formats large numbers correctly', () => {
@@ -88,7 +88,7 @@ describe('ClipCard', () => {
         render(<ClipCard clip={mockClip} />);
 
         const voteScore = screen.getByText('42');
-        expect(voteScore).toHaveClass('text-green-600');
+        expect(voteScore).toHaveClass('text-upvote');
     });
 
     it('displays negative vote score in red', () => {
@@ -100,7 +100,7 @@ describe('ClipCard', () => {
         render(<ClipCard clip={clipWithNegativeScore} />);
 
         const voteScore = screen.getByText('-5');
-        expect(voteScore).toHaveClass('text-red-600');
+        expect(voteScore).toHaveClass('text-downvote');
     });
 
     it('displays zero vote score in muted color', () => {
@@ -247,7 +247,7 @@ describe('ClipCard', () => {
         expect(progressBar).toHaveAttribute('aria-valuenow', '100');
         expect(progressBar).toHaveAttribute('aria-label', '100% watched');
         // Visual indicator should be clamped to 100%
-        const progressFill = progressBar.querySelector('.bg-purple-600');
+        const progressFill = progressBar.firstElementChild;
         expect(progressFill).toHaveStyle({ width: '100%' });
     });
 
@@ -270,7 +270,24 @@ describe('ClipCard', () => {
         expect(progressBar).toHaveAttribute('aria-valuenow', '0');
         expect(progressBar).toHaveAttribute('aria-label', '0% watched');
         // Visual indicator should be clamped to 0%
-        const progressFill = progressBar.querySelector('.bg-purple-600');
+        const progressFill = progressBar.firstElementChild;
         expect(progressFill).toHaveStyle({ width: '0%' });
+    });
+
+    it('removes badges from the player area while the clip plays', () => {
+        const clip = {
+            ...mockClip,
+            is_nsfw: true,
+            is_featured: true,
+            watch_progress: { progress_percent: 40, completed: false },
+        } as Clip;
+        const { rerender } = render(<ClipCard clip={clip} />);
+        expect(screen.getByText('NSFW')).toBeInTheDocument();
+        expect(screen.getByRole('progressbar')).toBeInTheDocument();
+
+        rerender(<ClipCard clip={clip} active />);
+        expect(screen.queryByText('NSFW')).not.toBeInTheDocument();
+        expect(screen.queryByText('Featured')).not.toBeInTheDocument();
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     });
 });

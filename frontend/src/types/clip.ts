@@ -1,3 +1,5 @@
+import type { ClipSourceFields, ClipSourceType } from './submission';
+
 export interface ClipSubmitter {
     id: string;
     username: string;
@@ -6,7 +8,7 @@ export interface ClipSubmitter {
     is_verified?: boolean;
 }
 
-export interface Clip {
+export interface Clip extends ClipSourceFields {
     id: string;
     twitch_clip_id: string;
     twitch_clip_url: string;
@@ -18,6 +20,8 @@ export interface Clip {
     broadcaster_id?: string;
     game_id?: string;
     game_name?: string;
+    twitch_category_id?: string;
+    twitch_category_name?: string;
     language?: string;
     thumbnail_url?: string;
     duration?: number;
@@ -25,6 +29,7 @@ export interface Clip {
     created_at: string;
     imported_at: string;
     video_url?: string; // HLS video URL for clips with adaptive streaming support
+    stream_source?: ClipSourceType | 'stream'; // 'twitch' = imported clip, 'stream' = created from live stream
     vote_score: number;
     comment_count: number;
     favorite_count: number;
@@ -56,7 +61,22 @@ export interface Clip {
     };
 }
 
+export interface EngagementMetadata {
+    generation?: string;
+    period: TimeFrame;
+    published_at?: string;
+    tracking_started_at?: string;
+    coverage_started_at?: string;
+    window_start?: string;
+    oldest_observation_at?: string;
+    stale_clips?: number;
+    eligible_clips?: number;
+    partial_coverage: boolean;
+    estimated: boolean;
+}
+
 export interface ClipFeedResponse {
+    engagement?: EngagementMetadata | null;
     clips: Clip[];
     total: number;
     page: number;
@@ -83,7 +103,9 @@ export interface ClipFeedFilters {
     sort?: SortOption;
     timeframe?: TimeFrame;
     game_id?: string;
+    twitch_category_id?: string;
     games?: string[]; // Multi-select game filter
+    twitch_categories?: string[];
     creator_id?: string;
     streamers?: string[]; // Multi-select streamer filter
     tags?: string[];

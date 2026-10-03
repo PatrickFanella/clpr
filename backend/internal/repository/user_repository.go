@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/subculture-collective/clipper/internal/models"
 )
 
 var (
@@ -19,7 +19,18 @@ var (
 	// ErrUserAlreadyExists is returned when trying to create a duplicate user
 	ErrUserAlreadyExists = errors.New("user already exists")
 	// ErrBlockNotFound is returned when a block relationship is not found
-	ErrBlockNotFound = errors.New("block not found")
+	ErrBlockNotFound        = errors.New("block not found")
+	ErrAdminRequired        = errors.New("administrator role required")
+	ErrAdminSelfMutation    = errors.New("administrators cannot mutate their own account")
+	ErrProtectedAdminTarget = errors.New("administrator accounts require break-glass management")
+)
+
+const (
+	AdminUserActionBan    = "ban_user"
+	AdminUserActionUnban  = "unban_user"
+	AdminUserActionRole   = "update_user_role"
+	AdminUserActionKarma  = "update_user_karma"
+	AdminUserActionReview = "toggle_comment_review"
 )
 
 // UserRepository handles user database operations
@@ -618,6 +629,43 @@ func (r *AccountDeletionRepository) MarkCompleted(ctx context.Context, deletionI
 	return err
 }
 
+// GetBroadcastersWithMinFollowers returns broadcaster IDs that have at least
+// minFollowers users following them on clpr.
+func (r *UserRepository) GetBroadcastersWithMinFollowers(ctx context.Context, minFollowers int) ([]string, error) {
+	if minFollowers < 1 {
+		minFollowers = 1
+	}
+
+	query := `
+		SELECT broadcaster_id
+		FROM broadcaster_follows
+		GROUP BY broadcaster_id
+		HAVING COUNT(*) >= $1
+		ORDER BY COUNT(*) DESC
+	`
+
+	rows, err := r.db.Query(ctx, query, minFollowers)
+	if err != nil {
+		return nil, fmt.Errorf("querying broadcasters by min followers: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scanning broadcaster id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating broadcaster ids: %w", err)
+	}
+
+	return ids, nil
+}
+
 // UpdateDeviceToken updates a user's device token and platform
 func (r *UserRepository) UpdateDeviceToken(ctx context.Context, userID uuid.UUID, deviceToken string, devicePlatform string) error {
 	query := `
@@ -631,14 +679,14 @@ func (r *UserRepository) UpdateDeviceToken(ctx context.Context, userID uuid.UUID
 }
 
 // ClearDeviceToken clears a user's device token
-func (r *UserRepository) ClearDeviceToken(ctx context.Context, userID uuid.UUID) error {
+func (r *UserRepository) ClearDeviceToken(ctx context.Context, userID uuid.UUID, deviceToken string) error {
 	query := `
 		UPDATE users
 		SET device_token = NULL, device_platform = NULL, updated_at = NOW()
-		WHERE id = $1
+		WHERE id = $1 AND device_token = $2
 	`
 
-	_, err := r.db.Exec(ctx, query, userID)
+	_, err := r.db.Exec(ctx, query, userID, deviceToken)
 	return err
 }
 
@@ -1115,7 +1163,7 @@ func (r *UserRepository) AdminSearchUsers(ctx context.Context, searchQuery strin
 	// Build dynamic query based on filters
 	baseQuery := `
 		SELECT
-			id, twitch_id, username, display_name, email, avatar_url, bio,
+			id, twitch_id, username, COALESCE(display_name, username), email, avatar_url, bio,
 			karma_points, role, account_type, is_banned, account_status, created_at, updated_at, last_login_at
 		FROM users
 		WHERE 1=1
@@ -1189,6 +1237,39 @@ func (r *UserRepository) AdminSearchUsers(ctx context.Context, searchQuery strin
 	}
 
 	return users, total, nil
+}
+
+// GetAdminIdentitySummary reports mutually exclusive identity categories.
+// Only active role=user records are product users; imported creators and staff
+// remain visible to administrators without inflating that metric.
+func (r *UserRepository) GetAdminIdentitySummary(ctx context.Context) (*models.AdminIdentitySummary, error) {
+	const query = `
+		WITH classified AS (
+			SELECT CASE
+				WHEN account_status = 'active' AND role = 'user' THEN 'signed_in_users'
+				WHEN account_status = 'unclaimed' AND role = 'user' THEN 'unclaimed_creators'
+				WHEN role IN ('admin', 'moderator') THEN 'staff'
+				ELSE 'other'
+			END AS category
+			FROM users
+		)
+		SELECT
+			COUNT(*) FILTER (WHERE category = 'signed_in_users'),
+			COUNT(*) FILTER (WHERE category = 'unclaimed_creators'),
+			COUNT(*) FILTER (WHERE category = 'staff'),
+			COUNT(*) FILTER (WHERE category = 'other')
+		FROM classified
+	`
+	var summary models.AdminIdentitySummary
+	if err := r.db.QueryRow(ctx, query).Scan(
+		&summary.SignedInUsers,
+		&summary.UnclaimedCreators,
+		&summary.Staff,
+		&summary.Other,
+	); err != nil {
+		return nil, err
+	}
+	return &summary, nil
 }
 
 // SearchUsersForAutocomplete searches users by username prefix for chat mentions and autocomplete
@@ -1279,6 +1360,83 @@ func (r *UserRepository) UpdateUserRole(ctx context.Context, userID uuid.UUID, r
 	return nil
 }
 
+// ApplyAdminUserMutation locks actor and target, enforces the administrator
+// hierarchy, applies one supported mutation, and records its audit event in the
+// same transaction. Administrator accounts are intentionally break-glass only.
+func (r *UserRepository) ApplyAdminUserMutation(ctx context.Context, targetID, actorID uuid.UUID, action string, value interface{}, reason string) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if actorID == targetID {
+		return ErrAdminSelfMutation
+	}
+	var actorRole, targetRole string
+	if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 FOR UPDATE`, actorID).Scan(&actorRole); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrAdminRequired
+		}
+		return err
+	}
+	if actorRole != models.RoleAdmin {
+		return ErrAdminRequired
+	}
+	if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 FOR UPDATE`, targetID).Scan(&targetRole); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+	if targetRole == models.RoleAdmin {
+		return ErrProtectedAdminTarget
+	}
+
+	auditAction := action
+	switch action {
+	case AdminUserActionBan:
+		_, err = tx.Exec(ctx, `UPDATE users SET is_banned = true, updated_at = NOW() WHERE id = $1`, targetID)
+	case AdminUserActionUnban:
+		_, err = tx.Exec(ctx, `UPDATE users SET is_banned = false, updated_at = NOW() WHERE id = $1`, targetID)
+	case AdminUserActionRole:
+		role, ok := value.(string)
+		if !ok || !models.IsValidRole(role) {
+			return errors.New("invalid role")
+		}
+		_, err = tx.Exec(ctx, `UPDATE users SET role = $2, updated_at = NOW() WHERE id = $1`, targetID, role)
+	case AdminUserActionKarma:
+		karma, ok := value.(int)
+		if !ok {
+			return errors.New("invalid karma")
+		}
+		_, err = tx.Exec(ctx, `UPDATE users SET karma_points = $2, updated_at = NOW() WHERE id = $1`, targetID, karma)
+	case AdminUserActionReview:
+		requireReview, ok := value.(bool)
+		if !ok {
+			return errors.New("invalid review state")
+		}
+		if requireReview {
+			auditAction = "enable_comment_review"
+		} else {
+			auditAction = "disable_comment_review"
+		}
+		_, err = tx.Exec(ctx, `UPDATE users SET comments_require_review = $2, updated_at = NOW() WHERE id = $1`, targetID, requireReview)
+	default:
+		return errors.New("unsupported admin user mutation")
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+			INSERT INTO moderation_audit_logs
+				(id, action, entity_type, entity_id, moderator_id, actor_id, target_user_id, reason, created_at)
+			VALUES ($1, $2, 'user', $3, $4, $4, $3, $5, NOW())`,
+		uuid.New(), auditAction, targetID, actorID, reason); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // SetUserKarma sets a user's karma points to a specific value (admin override)
 func (r *UserRepository) SetUserKarma(ctx context.Context, userID uuid.UUID, karma int) error {
 	query := `
@@ -1320,6 +1478,25 @@ func (r *UserRepository) SuspendCommentPrivileges(
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if suspendedBy == userID {
+		return ErrAdminSelfMutation
+	}
+	var actorRole, targetRole string
+	if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 FOR UPDATE`, suspendedBy).Scan(&actorRole); err != nil || actorRole != models.RoleAdmin {
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		return ErrAdminRequired
+	}
+	if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&targetRole); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+	if targetRole == models.RoleAdmin {
+		return ErrProtectedAdminTarget
+	}
 
 	// Calculate expiration time for temporary suspensions
 	var expiresAt *time.Time
@@ -1341,7 +1518,11 @@ func (r *UserRepository) SuspendCommentPrivileges(
 				updated_at = NOW()
 			WHERE id = $1
 		`
-		_, err = tx.Exec(ctx, updateQuery, userID, permanentDate)
+		result, execErr := tx.Exec(ctx, updateQuery, userID, permanentDate)
+		err = execErr
+		if err == nil && result.RowsAffected() == 0 {
+			return ErrUserNotFound
+		}
 	} else if suspensionType == models.SuspensionTypeTemporary {
 		updateQuery = `
 			UPDATE users
@@ -1381,6 +1562,13 @@ func (r *UserRepository) SuspendCommentPrivileges(
 	if err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `
+			INSERT INTO moderation_audit_logs
+				(id, action, entity_type, entity_id, moderator_id, actor_id, target_user_id, reason, created_at)
+			VALUES ($1, 'suspend_comment_privileges', 'user', $2, $3, $3, $2, $4, NOW())`,
+		uuid.New(), userID, suspendedBy, reason); err != nil {
+		return err
+	}
 
 	return tx.Commit(ctx)
 }
@@ -1397,6 +1585,25 @@ func (r *UserRepository) LiftCommentSuspension(
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if liftedBy == userID {
+		return ErrAdminSelfMutation
+	}
+	var actorRole, targetRole string
+	if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 FOR UPDATE`, liftedBy).Scan(&actorRole); err != nil || actorRole != models.RoleAdmin {
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		return ErrAdminRequired
+	}
+	if err := tx.QueryRow(ctx, `SELECT role FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&targetRole); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+	if targetRole == models.RoleAdmin {
+		return ErrProtectedAdminTarget
+	}
 
 	// Clear suspension from user record
 	updateQuery := `
@@ -1425,6 +1632,13 @@ func (r *UserRepository) LiftCommentSuspension(
 	`
 	_, err = tx.Exec(ctx, historyQuery, userID, liftedBy, reason)
 	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+			INSERT INTO moderation_audit_logs
+				(id, action, entity_type, entity_id, moderator_id, actor_id, target_user_id, reason, created_at)
+			VALUES ($1, 'lift_comment_suspension', 'user', $2, $3, $3, $2, $4, NOW())`,
+		uuid.New(), userID, liftedBy, reason); err != nil {
 		return err
 	}
 

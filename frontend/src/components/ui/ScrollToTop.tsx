@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useOverlapsTwitchPlayer } from '@/hooks/useTwitchPlayerLayer';
 
 export interface ScrollToTopProps {
   /** Threshold in pixels before button appears */
@@ -9,6 +10,8 @@ export interface ScrollToTopProps {
 
 export function ScrollToTop({ threshold = 500, className = '' }: ScrollToTopProps) {
   const [isVisible, setIsVisible] = useState(false);
+  // Twitch forbids covering its players; step aside while over one.
+  const [coversPlayer, buttonRef] = useOverlapsTwitchPlayer(isVisible);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -29,18 +32,20 @@ export function ScrollToTop({ threshold = 500, className = '' }: ScrollToTopProp
 
   return (
     <button
+      ref={buttonRef}
       onClick={scrollToTop}
       className={`
-        fixed bottom-4 right-4 xs:bottom-8 xs:right-8 
+        fixed bottom-[calc(9rem+env(safe-area-inset-bottom)+var(--consent-banner-height,0px))] md:bottom-[calc(7rem+var(--consent-banner-height,0px))] right-4 xs:right-8
         w-12 h-12 xs:w-14 xs:h-14 
-        bg-primary-500 hover:bg-primary-600 
-        dark:bg-primary-600 dark:hover:bg-primary-500
-        text-white 
+        bg-primary-400 hover:bg-primary-300 
+        dark:bg-primary-400 dark:hover:bg-primary-300
+        text-background 
         rounded-full shadow-lg hover:shadow-xl
         transition-all duration-200 ease-in-out
         flex items-center justify-center 
         z-50 touch-target cursor-pointer
         group
+        ${coversPlayer ? 'invisible' : ''}
         ${className}
       `}
       aria-label="Scroll to top"

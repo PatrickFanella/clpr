@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Gamepad2, User, Tag, Search } from 'lucide-react';
 import { searchApi } from '../../lib/search-api';
 import type { SearchSuggestion } from '../../types/search';
 import { Input } from '../ui/Input';
+import { cn } from '@/lib/utils';
 
 interface SearchBarProps {
     initialQuery?: string;
@@ -141,13 +143,13 @@ export function SearchBar({
     const getSuggestionIcon = (type: string) => {
         switch (type) {
             case 'game':
-                return '🎮';
+                return <Gamepad2 size={16} strokeWidth={1.75} />;
             case 'creator':
-                return '👤';
+                return <User size={16} strokeWidth={1.75} />;
             case 'tag':
-                return '🏷️';
+                return <Tag size={16} strokeWidth={1.75} />;
             default:
-                return '🔍';
+                return <Search size={16} strokeWidth={1.75} />;
         }
     };
 
@@ -165,16 +167,19 @@ export function SearchBar({
                         onFocus={() =>
                             suggestions.length > 0 && setShowSuggestions(true)
                         }
-                        placeholder='Search clips, games, creators...'
+                        placeholder='Search clips, creators, tags, categories...'
                         aria-label='Search'
                         autoFocus={autoFocus}
-                        className='pr-10'
+                        // The custom clear button replaces the browser's native one.
+                        className={cn(
+                            query ? 'pr-24' : 'pr-12',
+                            '[&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none',
+                        )}
                         data-testid='search-input'
                     />
                     <button
                         type='submit'
-                        className='absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground'
-                        tabIndex={-1}
+                        className='absolute right-1 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground'
                         aria-label='Search'
                     >
                         <svg
@@ -201,7 +206,7 @@ export function SearchBar({
                                 setShowSuggestions(false);
                                 inputRef.current?.focus();
                             }}
-                            className='absolute right-10 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground'
+                            className='absolute right-12 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground'
                             aria-label='Clear search'
                         >
                             <svg
@@ -251,7 +256,7 @@ export function SearchBar({
                                                 : ''
                                         }`}
                                     >
-                                        <span className='text-lg'>
+                                        <span className='flex-shrink-0'>
                                             {getSuggestionIcon(suggestion.type)}
                                         </span>
                                         <div className='flex-1 min-w-0'>

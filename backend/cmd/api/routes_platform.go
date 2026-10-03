@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/middleware"
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/internal/middleware"
 )
 
 func registerPlatformRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, infra *Infrastructure) {
@@ -23,8 +23,10 @@ func registerPlatformRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, in
 			streams.DELETE("/:streamer/follow", middleware.AuthMiddleware(svcs.Auth), h.Stream.UnfollowStreamer)
 			streams.GET("/:streamer/follow-status", middleware.AuthMiddleware(svcs.Auth), h.Stream.GetStreamFollowStatus)
 
-			// Protected stream clip creation endpoint (authenticated, rate limited)
-			streams.POST("/:streamer/clips", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 10, time.Hour), h.Stream.CreateClipFromStream)
+			// Stream clipping is incomplete and remains absent unless explicitly enabled.
+			if infra.Config.FeatureFlags.StreamClipCreation {
+				streams.POST("/:streamer/clips", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 10, time.Hour), h.Stream.CreateClipFromStream)
+			}
 		}
 	}
 
@@ -44,6 +46,25 @@ func registerPlatformRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, in
 		}
 	}
 
+	if h.StreamerClipRoom != nil {
+		streamerClipRooms := v1.Group("/streamer-clip-rooms")
+		streamerClipRooms.Use(middleware.AuthMiddleware(svcs.Auth))
+		{
+			streamerClipRooms.GET("/:channel", h.StreamerClipRoom.GetRoom)
+			streamerClipRooms.POST("/:channel/start", middleware.RateLimitMiddleware(infra.Redis, 10, time.Minute), h.StreamerClipRoom.StartRoom)
+			streamerClipRooms.POST("/:channel/stop", h.StreamerClipRoom.StopRoom)
+			streamerClipRooms.PUT("/:channel/submissions", middleware.RateLimitMiddleware(infra.Redis, 60, time.Minute), h.StreamerClipRoom.UpdateSubmissions)
+			// Gin requires sibling wildcard routes to use the same parameter name.
+			// These routes still expose the API contract shape `/:roomId/...`; the
+			// shared internal name avoids registration conflicts with `/:channel`.
+			streamerClipRooms.GET("/:channel/items", h.StreamerClipRoom.ListItems)
+			streamerClipRooms.POST("/:channel/items/:itemId/approve", middleware.RateLimitMiddleware(infra.Redis, 120, time.Minute), h.StreamerClipRoom.ApproveItem)
+			streamerClipRooms.POST("/:channel/items/:itemId/reject", middleware.RateLimitMiddleware(infra.Redis, 120, time.Minute), h.StreamerClipRoom.RejectItem)
+			streamerClipRooms.PUT("/:channel/items/order", h.StreamerClipRoom.ReorderItems)
+			streamerClipRooms.GET("/:channel/ws", h.StreamerClipRoom.WebSocket)
+		}
+	}
+
 	// Game routes
 	games := v1.Group("/games")
 	{
@@ -55,6 +76,17 @@ func registerPlatformRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, in
 		// Protected game endpoints (require authentication)
 		games.POST("/:gameId/follow", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 20, time.Minute), h.Game.FollowGame)
 		games.DELETE("/:gameId/follow", middleware.AuthMiddleware(svcs.Auth), h.Game.UnfollowGame)
+	}
+
+	// Canonical creator-first name for Twitch's upstream category resource.
+	// Legacy /games endpoints remain available during the deprecation window.
+	twitchCategories := v1.Group("/twitch-categories")
+	{
+		twitchCategories.GET("/trending", h.Game.GetTrendingGames)
+		twitchCategories.GET("/:gameId", middleware.OptionalAuthMiddleware(svcs.Auth), h.Game.GetGame)
+		twitchCategories.GET("/:gameId/clips", publicCache(infra), h.Game.ListGameClips)
+		twitchCategories.POST("/:gameId/follow", middleware.AuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 20, time.Minute), h.Game.FollowGame)
+		twitchCategories.DELETE("/:gameId/follow", middleware.AuthMiddleware(svcs.Auth), h.Game.UnfollowGame)
 	}
 
 	// Discovery list routes
@@ -90,7 +122,7 @@ func registerPlatformRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, in
 		feeds.GET("/search", middleware.RateLimitMiddleware(infra.Redis, 60, time.Minute), h.Feed.SearchFeeds)
 
 		// Comprehensive feed filtering endpoint
-		feeds.GET("/clips", middleware.OptionalAuthMiddleware(svcs.Auth), h.Feed.GetFilteredClips)
+		feeds.GET("/clips", middleware.OptionalAuthMiddleware(svcs.Auth), publicCache(infra), h.Feed.GetFilteredClips)
 
 		// Following feed (authenticated)
 		feeds.GET("/following", middleware.AuthMiddleware(svcs.Auth), h.Feed.GetFollowingFeed)
@@ -104,7 +136,7 @@ func registerPlatformRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, in
 	v1.POST("/events", middleware.RateLimitMiddleware(infra.Redis, 100, time.Minute), h.Event.TrackEvent)
 
 	// Live feed (authenticated)
-	if h.LiveStatus != nil {
+	if h.LiveStatus != nil && infra.Config.FeatureFlags.LiveFeed {
 		v1.GET("/feed/live", middleware.AuthMiddleware(svcs.Auth), h.LiveStatus.GetFollowedLiveBroadcasters)
 	}
 
@@ -176,24 +208,8 @@ func registerPlatformRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, in
 		verification.GET("/applications/me", h.Verification.GetApplication)
 	}
 
-	// Subscription routes
-	subscriptions := v1.Group("/subscriptions")
-	{
-		// Webhook endpoint (public, no auth required)
-		v1.POST("/webhooks/stripe", h.Subscription.HandleWebhook)
-		// SendGrid webhook endpoint (public, no auth required, signature verified internally)
-		v1.POST("/webhooks/sendgrid", h.SendGridWebhook.HandleWebhook)
-
-		// Protected subscription endpoints (require authentication)
-		subscriptions.Use(middleware.AuthMiddleware(svcs.Auth))
-		subscriptions.GET("/me", h.Subscription.GetSubscription)
-		subscriptions.POST("/checkout", middleware.RateLimitMiddleware(infra.Redis, 5, time.Minute), h.Subscription.CreateCheckoutSession)
-		subscriptions.POST("/portal", middleware.RateLimitMiddleware(infra.Redis, 10, time.Minute), h.Subscription.CreatePortalSession)
-		subscriptions.POST("/change-plan", middleware.RateLimitMiddleware(infra.Redis, 5, time.Minute), h.Subscription.ChangeSubscriptionPlan)
-		subscriptions.POST("/cancel", middleware.RateLimitMiddleware(infra.Redis, 5, time.Minute), h.Subscription.CancelSubscription)
-		subscriptions.POST("/reactivate", middleware.RateLimitMiddleware(infra.Redis, 5, time.Minute), h.Subscription.ReactivateSubscription)
-		subscriptions.GET("/invoices", middleware.RateLimitMiddleware(infra.Redis, 10, time.Minute), h.Subscription.GetInvoices)
-	}
+	// SendGrid verifies its provider signature internally.
+	v1.POST("/webhooks/sendgrid", h.SendGridWebhook.HandleWebhook)
 
 	// Outbound webhook subscription routes
 	webhooks := v1.Group("/webhooks")
@@ -229,7 +245,7 @@ func registerPlatformRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, in
 	ads := v1.Group("/ads")
 	{
 		// Ad selection endpoint - rate limited to prevent abuse
-		ads.GET("/select", middleware.RateLimitMiddleware(infra.Redis, 60, time.Minute), h.Ad.SelectAd)
+		ads.GET("/select", middleware.OptionalAuthMiddleware(svcs.Auth), middleware.RateLimitMiddleware(infra.Redis, 60, time.Minute), h.Ad.SelectAd)
 		// Ad tracking endpoint - higher rate limit for tracking callbacks
 		ads.POST("/track/:id", middleware.RateLimitMiddleware(infra.Redis, 120, time.Minute), h.Ad.TrackImpression)
 		// Get ad by ID (public)
@@ -241,6 +257,7 @@ func registerPlatformRoutes(v1 *gin.RouterGroup, h *Handlers, svcs *Services, in
 	{
 		docs.GET("", h.Docs.GetDocsList)
 		docs.GET("/search", middleware.RateLimitMiddleware(infra.Redis, 60, time.Minute), h.Docs.SearchDocs)
+		docs.GET("/content/*path", h.Docs.GetDoc)
 		// Catch-all route must be last
 		docs.GET("/:path", h.Docs.GetDoc) // Changed from /*path to /:path to avoid conflict
 	}

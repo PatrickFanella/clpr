@@ -4,9 +4,6 @@
  * Only registers in production builds to avoid caching issues during development
  */
 
-// Module-level flag to prevent multiple reloads on controller change
-let refreshing = false;
-
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
     // Only register service worker in production
     if (import.meta.env.DEV) {
@@ -24,7 +21,10 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 
     try {
         // Register the service worker
-        const registration = await navigator.serviceWorker.register('/sw.js', {
+        // The query string is part of Cloudflare's cache key. Bump it with the
+        // worker's CACHE_NAME so returning visitors never get a stale edge copy
+        // of /sw.js, which was once cached with a year-long immutable header.
+        const registration = await navigator.serviceWorker.register('/sw.js?v=5', {
             scope: '/',
         });
 
@@ -33,41 +33,38 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
             registration
         );
 
-        // Check for updates on page load
-        registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            if (!newWorker) return;
-
-            newWorker.addEventListener('statechange', () => {
-                if (
-                    newWorker.state === 'installed' &&
-                    navigator.serviceWorker.controller
-                ) {
-                    // New service worker available, prompt user to reload
-                    console.log(
-                        '[SW] New version available! Please reload the page.'
-                    );
-
-                    // Optionally show a notification to the user
-                    if (
-                        window.confirm(
-                            'A new version of Clipper is available. Reload to update?'
-                        )
-                    ) {
-                        newWorker.postMessage({ type: 'SKIP_WAITING' });
-                        window.location.reload();
-                    }
-                }
-            });
-        });
-
-        // Listen for controller change (new service worker activated)
+        // Only an update accepted in this page may reload it. Initial activation
+        // and updates accepted in another tab must preserve unfinished input.
+        let reloadRequested = false;
+        let refreshing = false;
+        const promptedWorkers = new WeakSet<ServiceWorker>();
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (refreshing) return;
+            if (!reloadRequested || refreshing) return;
             refreshing = true;
-            console.log('[SW] Controller changed, reloading page');
             window.location.reload();
         });
+
+        const offerUpdate = (worker: ServiceWorker) => {
+            if (!navigator.serviceWorker.controller || promptedWorkers.has(worker)) return;
+            promptedWorkers.add(worker);
+            if (window.confirm('A new version of clpr is available. Reload to update?')) {
+                reloadRequested = true;
+                worker.postMessage({ type: 'SKIP_WAITING' });
+            }
+        };
+        const watchInstallingWorker = () => {
+            const worker = registration.installing;
+            if (!worker) return;
+            worker.addEventListener('statechange', () => {
+                if (worker.state === 'installed') offerUpdate(worker);
+            });
+        };
+
+        registration.addEventListener('updatefound', watchInstallingWorker);
+        // Registration can resolve after an installation has already started,
+        // or with an update that was left waiting by a previous page visit.
+        watchInstallingWorker();
+        if (registration.waiting) offerUpdate(registration.waiting);
 
         return registration;
     } catch (error) {

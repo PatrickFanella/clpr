@@ -13,11 +13,12 @@ import {
     initiateOAuth,
     testLogin,
 } from '../lib/auth-api';
+import { useQueryClient } from '@tanstack/react-query';
 import { isModeratorOrAdmin } from '../lib/roles';
 import {
     setUser as setSentryUser,
     clearUser as clearSentryUser,
-} from '../lib/sentry';
+} from '../lib/sentry-client';
 import {
     resetUser,
     identifyUser,
@@ -27,6 +28,11 @@ import {
 import type { User } from '../lib/auth-api';
 import type { UserProperties } from '../lib/telemetry';
 import { setUnauthorizedHandler } from '../lib/api';
+import {
+    clearAuthStorage,
+    readAuthSessionHint,
+    markAuthSession,
+} from '../lib/auth-storage';
 
 export interface AuthContextType {
     user: User | null;
@@ -43,25 +49,42 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const queryClient = useQueryClient();
+    const principalRef = useRef<string | null | undefined>(undefined);
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const autoLoginAttemptedRef = useRef(false);
     const unauthorizedHandledRef = useRef(false);
 
+    const clearUserContext = useCallback(() => {
+        // Public routes can display private or personalized cached responses.
+        // Removing queries also cancels in-flight work from the old session.
+        // An anonymous visitor has no private cache to drop; clearing anyway
+        // refetches every mounted query (and does so twice under StrictMode).
+        if (principalRef.current) queryClient.clear();
+        principalRef.current = null;
+        setUser(null);
+        clearSentryUser();
+        resetUser();
+    }, [queryClient]);
+
     const applyUserContext = useCallback((currentUser: User) => {
+        if (principalRef.current !== undefined && principalRef.current !== currentUser.id) {
+            queryClient.clear();
+        }
+        principalRef.current = currentUser.id;
         setUser(currentUser);
+        markAuthSession();
         unauthorizedHandledRef.current = false;
         setSentryUser(currentUser.id, currentUser.username);
         const userProperties: UserProperties = {
             user_id: currentUser.id,
             username: currentUser.username,
-            is_premium: currentUser.is_premium || false,
-            premium_tier: currentUser.premium_tier,
             signup_date: currentUser.created_at,
             is_verified: currentUser.is_verified || false,
         };
         identifyUser(currentUser.id, userProperties);
-    }, []);
+    }, [queryClient]);
 
     const autoLoginEnabled = import.meta.env.VITE_E2E_TEST_LOGIN === 'true';
     const autoLoginUser = import.meta.env.VITE_E2E_TEST_USER || 'user1_e2e';
@@ -88,14 +111,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Check for existing session on mount
     const checkAuth = useCallback(async () => {
+        const sessionHint = readAuthSessionHint();
+        if (sessionHint === false && !autoLoginEnabled) {
+            // Every sign-in records the hint, so without it the visitor is
+            // logged out. Skipping /auth/me avoids a 401 that browsers log as
+            // a console error on every anonymous page load.
+            clearUserContext();
+            setIsLoading(false);
+            return;
+        }
+
         try {
-            const currentUser = await getCurrentUser();
+            const currentUser = await getCurrentUser({
+                anonymousProbe: sessionHint !== true,
+            });
             applyUserContext(currentUser);
         } catch {
             // Not authenticated or session expired
             try {
-                const { clearAuthStorage } =
-                    await import('../lib/auth-storage');
                 await clearAuthStorage();
             } catch (e) {
                 console.warn(
@@ -105,14 +138,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
             const autoLoggedInUser = await tryAutoLogin();
             if (!autoLoggedInUser) {
-                setUser(null);
-                clearSentryUser();
-                resetUser();
+                clearUserContext();
             }
         } finally {
             setIsLoading(false);
         }
-    }, [applyUserContext, tryAutoLogin]);
+    }, [applyUserContext, autoLoginEnabled, clearUserContext, tryAutoLogin]);
 
     useEffect(() => {
         checkAuth();
@@ -125,7 +156,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         unauthorizedHandledRef.current = true;
         try {
-            const { clearAuthStorage } = await import('../lib/auth-storage');
             await clearAuthStorage();
         } catch (e) {
             console.warn(
@@ -133,10 +163,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 e,
             );
         }
-        setUser(null);
-        clearSentryUser();
-        resetUser();
-    }, []);
+        clearUserContext();
+    }, [clearUserContext]);
 
     useEffect(() => {
         setUnauthorizedHandler(() => {
@@ -171,18 +199,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } finally {
             // Clear any persisted auth/session tokens in this browser context
             try {
-                const { clearAuthStorage } =
-                    await import('../lib/auth-storage');
                 await clearAuthStorage();
             } catch (e) {
                 // Non-fatal: ensure logout continues even if storage cleanup fails
                 console.warn('[AuthContext] clearAuthStorage failed:', e);
             }
-            setUser(null);
-            clearSentryUser();
-            resetUser();
+            clearUserContext();
         }
-    }, []);
+    }, [clearUserContext]);
 
     // Refresh user data
     const refreshUser = useCallback(async () => {
@@ -191,11 +215,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             applyUserContext(currentUser);
         } catch (error) {
             console.error('Failed to refresh user:', error);
-            setUser(null);
-            clearSentryUser();
-            resetUser();
+            clearUserContext();
         }
-    }, [applyUserContext]);
+    }, [applyUserContext, clearUserContext]);
 
     const isAuthenticated = user !== null;
     const isAdmin = user?.role === 'admin';

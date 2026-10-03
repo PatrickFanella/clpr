@@ -198,7 +198,7 @@ export function UserSubmissionsPage() {
                                             )}
                                             {submission.game_name && (
                                                 <p>
-                                                    Game: {submission.game_name}
+                                                    Twitch category: {submission.game_name}
                                                 </p>
                                             )}
                                             <p>
@@ -225,7 +225,7 @@ export function UserSubmissionsPage() {
                                                         (tag) => (
                                                             <span
                                                                 key={tag}
-                                                                className='bg-primary/10 text-primary px-2 py-1 text-xs rounded'
+                                                                className='bg-primary/10 text-link px-2 py-1 text-xs rounded'
                                                             >
                                                                 {tag}
                                                             </span>

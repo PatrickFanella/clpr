@@ -1,13 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-    usePlaylist,
+    useInfinitePlaylist,
     useRemoveClipFromPlaylist,
     useReorderPlaylistClips,
 } from '@/hooks/usePlaylist';
 import { PlaylistTheatreMode } from '@/components/playlist/PlaylistTheatreMode';
-import { Spinner } from '@/components/ui';
+import { ResourceUnavailable, Spinner } from '@/components/ui';
+import { isNotFoundError } from '@/lib/error-utils';
 import { SEO } from '@/components/SEO';
 import type { PlaylistItem } from '@/components/playlist/PlaylistTheatreMode';
 
@@ -15,30 +16,40 @@ export function PlaylistTheatrePage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const {
-        data: playlist,
+        data: playlistPages,
         isLoading,
         isError,
-    } = usePlaylist(id || '', 1, 500);
+        error,
+        hasNextPage,
+        isFetchingNextPage,
+        fetchNextPage,
+        refetch,
+    } = useInfinitePlaylist(id || '', 100);
     const removeClip = useRemoveClipFromPlaylist();
     const reorderClips = useReorderPlaylistClips();
     const queryClient = useQueryClient();
 
-    const [currentItemId, setCurrentItemId] = useState<string | null>(null);
+    const [selectedItemId, setCurrentItemId] = useState<string | null>(null);
 
     // Convert playlist clips to playlist items format
-    const playlistData = playlist?.data;
-    const playlistItems: PlaylistItem[] =
-        playlistData?.clips?.map(clip => ({
-            id: `${playlistData.id}-${clip.id}`, // Composite ID
-            clip,
-            clip_id: clip.id,
-            order: clip.order,
-        })) || [];
-
-    // Set first item as current if none selected
-    if (!currentItemId && playlistItems.length > 0) {
-        setCurrentItemId(playlistItems[0].id);
-    }
+    const playlistData = playlistPages?.pages[0]?.data;
+    const playlistItems: PlaylistItem[] = useMemo(
+        () =>
+            playlistPages?.pages.flatMap(page =>
+                (page.data.clips ?? []).map(clip => ({
+                    id: `${page.data.id}-${clip.id}`,
+                    clip,
+                    clip_id: clip.id,
+                    order: clip.order,
+                })),
+            ) ?? [],
+        [playlistPages],
+    );
+    const currentItemId =
+        selectedItemId &&
+        playlistItems.some(item => item.id === selectedItemId)
+            ? selectedItemId
+            : (playlistItems[0]?.id ?? null);
 
     const handleItemClick = useCallback((item: PlaylistItem) => {
         setCurrentItemId(item.id);
@@ -103,6 +114,17 @@ export function PlaylistTheatrePage() {
         queryClient.invalidateQueries({ queryKey: ['playlist', id] });
     }, [id, queryClient]);
 
+    const handleReachEnd = useCallback(async () => {
+        if (!hasNextPage || isFetchingNextPage) return;
+        const result = await fetchNextPage();
+        const pages = result.data?.pages;
+        const nextPage = pages?.[pages.length - 1];
+        const firstNewClip = nextPage?.data.clips?.[0];
+        if (firstNewClip && nextPage) {
+            setCurrentItemId(`${nextPage.data.id}-${firstNewClip.id}`);
+        }
+    }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
     if (isLoading) {
         return (
             <>
@@ -114,19 +136,46 @@ export function PlaylistTheatrePage() {
         );
     }
 
-    if (isError || !playlist) {
+    if (isNotFoundError(error)) {
+        return (
+            <>
+                <SEO title='Playlist Theatre Mode' />
+                <div className='min-h-screen bg-background px-4 py-8'>
+                    <ResourceUnavailable
+                        kind='not-found'
+                        title="This playlist isn't here"
+                        description='It may be private, or its owner may have deleted it.'
+                        links={[
+                            { label: 'Browse playlists', href: '/discover/lists' },
+                            { label: 'Back to the feed', href: '/' },
+                        ]}
+                    />
+                </div>
+            </>
+        );
+    }
+
+    if (isError || !playlistPages) {
         return (
             <>
                 <SEO title='Playlist Theatre Mode' />
                 <div className='fixed inset-0 bg-black flex items-center justify-center text-white'>
                     <div className='text-center'>
                         <p className='text-xl mb-4'>Failed to load playlist</p>
-                        <button
-                            onClick={() => navigate('/playlists')}
-                            className='px-4 py-2 bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors'
-                        >
-                            Back to Playlists
-                        </button>
+                        <div className='flex flex-wrap justify-center gap-3'>
+                            <button
+                                onClick={() => void refetch()}
+                                className='min-h-11 px-4 py-2 border border-white/40 rounded-lg transition-colors'
+                            >
+                                Retry
+                            </button>
+                            <button
+                                onClick={() => navigate('/playlists')}
+                                className='min-h-11 px-4 py-2 bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors'
+                            >
+                                Back to Playlists
+                            </button>
+                        </div>
                     </div>
                 </div>
             </>
@@ -172,6 +221,7 @@ export function PlaylistTheatrePage() {
                     onItemRemove={handleItemRemove}
                     onReorder={handleReorder}
                     onClipUpdated={handleClipUpdated}
+                    onReachEnd={() => void handleReachEnd()}
                     onClose={handleClose}
                     isQueue={false}
                     contained={false}

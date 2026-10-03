@@ -25,7 +25,7 @@ export function AdminDiscoveryListFormPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const isEditing = id !== 'new';
+  const isEditing = Boolean(id && id !== 'new');
 
   // Form state
   const [name, setName] = useState('');
@@ -208,7 +208,7 @@ export function AdminDiscoveryListFormPage() {
       <div className="mb-6">
         <Link to="/admin/discovery-lists" className="flex items-center text-sm text-muted-foreground hover:text-foreground mb-2">
           <ArrowLeft className="w-4 h-4 mr-1" />
-          Back to Discovery Lists
+          Back to Curated Collections
         </Link>
         <h1 className="text-3xl font-bold">
           {isEditing ? 'Edit Discovery List' : 'Create Discovery List'}
@@ -230,7 +230,7 @@ export function AdminDiscoveryListFormPage() {
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Epic Gaming Moments"
+                placeholder="e.g., Wildest Live Moments"
                 required
                 maxLength={200}
               />
@@ -256,7 +256,7 @@ export function AdminDiscoveryListFormPage() {
                 id="isFeatured"
                 checked={isFeatured}
                 onChange={(e) => setIsFeatured(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                className="w-4 h-4 rounded border-gray-300 text-link focus:ring-primary"
               />
               <label htmlFor="isFeatured" className="text-sm font-medium">
                 Featured List

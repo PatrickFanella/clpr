@@ -104,7 +104,7 @@ All moderation actions are logged, including:
 ```bash
 # Set environment
 export API_TOKEN="your_jwt_token"
-export API_BASE="https://api.clpr.tv/api/v1/moderation"
+export API_BASE="https://clpr.tv/api/v1/moderation"
 
 # Get last 20 audit logs
 curl -s -H "Authorization: Bearer $API_TOKEN" \
@@ -187,7 +187,7 @@ curl -s -H "Authorization: Bearer $API_TOKEN" \
 # Get actor ID from username first
 ACTOR_USERNAME="suspicious_mod"
 ACTOR_ID=$(curl -s -H "Authorization: Bearer $API_TOKEN" \
-  "https://api.clpr.tv/api/v1/users/by-username/$ACTOR_USERNAME" | jq -r '.id')
+  "https://clpr.tv/api/v1/users/by-username/$ACTOR_USERNAME" | jq -r '.id')
 
 # Then get their actions
 curl -s -H "Authorization: Bearer $API_TOKEN" \
@@ -282,13 +282,13 @@ curl -s -H "Authorization: Bearer $API_TOKEN" \
 
 ```bash
 #!/bin/bash
-# /opt/clipper/scripts/daily-audit-export.sh
+# /opt/clpr/scripts/daily-audit-export.sh
 
 set -euo pipefail
 
 API_TOKEN="${API_TOKEN}"
-API_BASE="https://api.clpr.tv/api/v1/moderation"
-EXPORT_DIR="/var/log/clipper/audit-exports"
+API_BASE="https://clpr.tv/api/v1/moderation"
+EXPORT_DIR="/var/log/clpr/audit-exports"
 
 # Create export directory if it doesn't exist
 mkdir -p "$EXPORT_DIR"
@@ -337,7 +337,7 @@ echo "Export complete: $EXPORT_DIR/audit-logs-$DATE_LABEL.*"
 crontab -e
 
 # Run daily at 2 AM UTC
-0 2 * * * /opt/clipper/scripts/daily-audit-export.sh >> /var/log/clipper/audit-export.log 2>&1
+0 2 * * * /opt/clpr/scripts/daily-audit-export.sh >> /var/log/clpr/audit-export.log 2>&1
 ```
 
 ---
@@ -469,11 +469,11 @@ if [ -z "$USERNAME" ]; then
 fi
 
 API_TOKEN="${API_TOKEN}"
-API_BASE="https://api.clpr.tv/api/v1/moderation"
+API_BASE="https://clpr.tv/api/v1/moderation"
 
 # Get user ID
 USER_ID=$(curl -s -H "Authorization: Bearer $API_TOKEN" \
-  "https://api.clpr.tv/api/v1/users/by-username/$USERNAME" | jq -r '.id')
+  "https://clpr.tv/api/v1/users/by-username/$USERNAME" | jq -r '.id')
 
 echo "User: $USERNAME (ID: $USER_ID)"
 echo "==================================="
@@ -569,7 +569,7 @@ fi
 
 # Get user ID from email
 USER_ID=$(curl -s -H "Authorization: Bearer $API_TOKEN" \
-  "https://api.clpr.tv/api/v1/users?email=$USER_EMAIL" | jq -r '.[0].id')
+  "https://clpr.tv/api/v1/users?email=$USER_EMAIL" | jq -r '.[0].id')
 
 # Export all audit logs where user is actor or resource
 curl -s -H "Authorization: Bearer $API_TOKEN" \
@@ -610,7 +610,7 @@ curl -s -H "Authorization: Bearer $API_TOKEN" \
 
 # Upload to S3
 aws s3 cp "archive-${CUTOFF_DATE}.json.gz" \
-  "s3://clipper-audit-archives/$(date +%Y)/" \
+  "s3://clpr-audit-archives/$(date +%Y)/" \
   --storage-class GLACIER
 
 # Mark as archived in database (if API supports)

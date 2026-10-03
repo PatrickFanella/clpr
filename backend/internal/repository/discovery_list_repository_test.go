@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
+	"git.subcult.tv/subculture-collective/clpr/internal/testutil"
 	"github.com/google/uuid"
-	"github.com/subculture-collective/clipper/internal/models"
-	"github.com/subculture-collective/clipper/internal/testutil"
 )
 
 func TestDiscoveryListRepository_CreateList(t *testing.T) {
@@ -72,8 +72,10 @@ func TestDiscoveryListRepository_GetDiscoveryList(t *testing.T) {
 	userID := uuid.New()
 	insertTestUser(t, pool, userID)
 
-	// Create a test list
-	list, err := repo.CreateList(ctx, "Test List", "test-list", "Test description", false, userID)
+	// Other tests in this package also create "test-list" and slugs are not
+	// unique, so use a slug that only this list can match.
+	slug := "test-list-" + userID.String()[:8]
+	list, err := repo.CreateList(ctx, "Test List", slug, "Test description", false, userID)
 	if err != nil {
 		t.Fatalf("Failed to create discovery list: %v", err)
 	}
@@ -89,7 +91,7 @@ func TestDiscoveryListRepository_GetDiscoveryList(t *testing.T) {
 	}
 
 	// Test getting by slug
-	retrievedBySlug, err := repo.GetDiscoveryList(ctx, "test-list", nil)
+	retrievedBySlug, err := repo.GetDiscoveryList(ctx, slug, nil)
 	if err != nil {
 		t.Fatalf("Failed to get discovery list by slug: %v", err)
 	}
@@ -131,7 +133,7 @@ func TestDiscoveryListRepository_UpdateList(t *testing.T) {
 	newDesc := "Updated description"
 	isFeatured := true
 
-	updated, err := repo.UpdateList(ctx, list.ID, &newName, &newDesc, &isFeatured)
+	updated, err := repo.UpdateList(ctx, list.ID, &newName, &newDesc, &isFeatured, nil)
 	if err != nil {
 		t.Fatalf("Failed to update discovery list: %v", err)
 	}
@@ -147,13 +149,13 @@ func TestDiscoveryListRepository_UpdateList(t *testing.T) {
 	}
 
 	// Test updating non-existent list
-	_, err = repo.UpdateList(ctx, uuid.New(), &newName, nil, nil)
+	_, err = repo.UpdateList(ctx, uuid.New(), &newName, nil, nil, nil)
 	if err != ErrDiscoveryListNotFound {
 		t.Errorf("Expected ErrDiscoveryListNotFound, got %v", err)
 	}
 
 	// Test updating with no fields (should return error)
-	_, err = repo.UpdateList(ctx, list.ID, nil, nil, nil)
+	_, err = repo.UpdateList(ctx, list.ID, nil, nil, nil, nil)
 	if err == nil {
 		t.Error("Expected error when updating with no fields, got nil")
 	}
@@ -409,10 +411,10 @@ func TestDiscoveryListRepository_FollowAndUnfollow(t *testing.T) {
 		t.Error("Expected IsFollowing to be false")
 	}
 
-	// Unfollow again (should error)
+	// Unfollow again (idempotent)
 	err = repo.UnfollowList(ctx, followerID, list.ID)
-	if err == nil {
-		t.Error("Expected error when unfollowing a list not followed")
+	if err != nil {
+		t.Fatalf("Expected repeated unfollow to succeed: %v", err)
 	}
 }
 
@@ -475,10 +477,10 @@ func TestDiscoveryListRepository_BookmarkAndUnbookmark(t *testing.T) {
 		t.Error("Expected IsBookmarked to be false")
 	}
 
-	// Unbookmark again (should error)
+	// Unbookmark again (idempotent)
 	err = repo.UnbookmarkList(ctx, bookmarkerID, list.ID)
-	if err == nil {
-		t.Error("Expected error when unbookmarking a list not bookmarked")
+	if err != nil {
+		t.Fatalf("Expected repeated unbookmark to succeed: %v", err)
 	}
 }
 
@@ -588,6 +590,14 @@ func TestDiscoveryListRepository_ListDiscoveryLists(t *testing.T) {
 		t.Fatalf("Failed to create list: %v", err)
 	}
 
+	legacyID := uuid.New()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO playlists (id, user_id, title, slug, is_curated, visibility)
+		VALUES ($1, $2, 'Legacy list', NULL, TRUE, 'public')
+	`, legacyID, userID); err != nil {
+		t.Fatalf("create legacy list without slug: %v", err)
+	}
+
 	// List all lists
 	lists, err := repo.ListDiscoveryLists(ctx, false, nil, 10, 0)
 	if err != nil {
@@ -596,6 +606,18 @@ func TestDiscoveryListRepository_ListDiscoveryLists(t *testing.T) {
 
 	if len(lists) < 3 {
 		t.Errorf("Expected at least 3 lists, got %d", len(lists))
+	}
+	var foundLegacy bool
+	for _, list := range lists {
+		if list.ID == legacyID {
+			foundLegacy = true
+			if list.Slug != legacyID.String() {
+				t.Errorf("legacy slug = %q, want UUID fallback", list.Slug)
+			}
+		}
+	}
+	if !foundLegacy {
+		t.Error("legacy list without slug was omitted")
 	}
 
 	// List only featured

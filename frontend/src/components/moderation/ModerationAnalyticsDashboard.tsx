@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { subDays } from 'date-fns';
+import { Gavel, Clock, Users, BarChart3 } from 'lucide-react';
 import {
     getModerationAnalytics,
     type ModerationAnalytics,
@@ -97,7 +98,7 @@ export function ModerationAnalyticsDashboard() {
         : 'N/A';
 
     return (
-        <div className="container mx-auto space-y-6 py-6">
+        <div className="page-container mx-auto space-y-6 py-6">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold text-gray-900">
                     Moderation Analytics
@@ -115,22 +116,22 @@ export function ModerationAnalyticsDashboard() {
                 <MetricCard
                     title="Total Actions"
                     value={analytics.total_actions}
-                    icon={<span className="text-2xl">🔨</span>}
+                    icon={<Gavel size={20} />}
                 />
                 <MetricCard
                     title="Avg Response Time"
                     value={avgResponseTime}
-                    icon={<span className="text-2xl">⏱️</span>}
+                    icon={<Clock size={20} />}
                 />
                 <MetricCard
                     title="Active Moderators"
                     value={activeModerators}
-                    icon={<span className="text-2xl">👥</span>}
+                    icon={<Users size={20} />}
                 />
                 <MetricCard
                     title="False Positive Rate"
                     value={falsePositiveRate}
-                    icon={<span className="text-2xl">📊</span>}
+                    icon={<BarChart3 size={20} />}
                 />
             </div>
 
@@ -143,43 +144,18 @@ export function ModerationAnalyticsDashboard() {
                 />
 
                 {/* Top Moderators */}
-                <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                    <h3 className="mb-4 text-lg font-bold text-gray-900">
-                        Top Moderators
-                    </h3>
-                    <BarChartComponent
-                        data={moderatorData}
-                        xAxisKey="name"
-                        yAxisKey="value"
-                        barColor="#3b82f6"
-                    />
-                </div>
+                <BarChartComponent data={moderatorData} title="Top Moderators" color="#3b82f6" />
 
                 {/* Content Type Breakdown */}
-                <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                    <h3 className="mb-4 text-lg font-bold text-gray-900">
-                        Content Type Breakdown
-                    </h3>
-                    <BarChartComponent
-                        data={contentTypeData}
-                        xAxisKey="name"
-                        yAxisKey="value"
-                        barColor="#10b981"
-                    />
-                </div>
+                <BarChartComponent data={contentTypeData} title="Content Type Breakdown" color="#10b981" />
 
                 {/* Actions Over Time */}
-                <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-                    <h3 className="mb-4 text-lg font-bold text-gray-900">
-                        Actions Over Time
-                    </h3>
-                    <LineChartComponent
-                        data={analytics.actions_over_time}
-                        xAxisKey="date"
-                        yAxisKey="count"
-                        lineColor="#8b5cf6"
-                    />
-                </div>
+                <LineChartComponent
+                    data={analytics.actions_over_time.map(point => ({ date: point.date, value: point.count }))}
+                    title="Actions Over Time"
+                    valueLabel="Actions"
+                    color="#8b5cf6"
+                />
 
                 {/* Ban Reasons Distribution */}
                 {banReasonsData.length > 0 && (

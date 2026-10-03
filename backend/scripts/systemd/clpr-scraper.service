@@ -1,0 +1,41 @@
+[Unit]
+Description=Clpr Targeted Clip Scraper
+Documentation=https://git.subcult.tv/subculture-collective/clpr
+After=network-online.target postgresql.service redis.service
+Wants=network-online.target
+Requires=postgresql.service redis.service
+
+[Service]
+Type=oneshot
+User=clpr
+Group=clpr
+WorkingDirectory=/opt/clpr/backend
+
+# Environment setup
+Environment="PATH=/usr/local/go/bin:/usr/bin:/bin"
+EnvironmentFile=-/opt/clpr/backend/.env
+
+# Main command
+ExecStart=/opt/clpr/backend/bin/scrape_clips
+
+# Resource limits
+MemoryLimit=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clpr-scraper
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+# Restart policy (for failures)
+Restart=on-failure
+RestartSec=30s
+
+[Install]
+WantedBy=multi-user.target

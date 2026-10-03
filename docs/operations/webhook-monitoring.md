@@ -25,7 +25,7 @@ This guide covers the webhook monitoring infrastructure, metrics, alerts, and tr
 
 ### Dashboard Access
 
-- **Webhook Monitoring Dashboard**: `https://grafana.clipper.com/d/webhook-monitoring/webhook-monitoring-dashboard`
+- **Webhook Monitoring Dashboard**: `https://grafana.clpr.com/d/webhook-monitoring/webhook-monitoring-dashboard`
 - **System Health**: Available via Grafana → Dashboards → "System Health Dashboard"
 
 ## Key Metrics
@@ -542,13 +542,13 @@ The Webhook Monitoring Dashboard includes:
 
 - **Slack Channel**: `#alerts-webhooks`
 - **On-Call**: PagerDuty rotation "Webhook Delivery"
-- **Documentation**: [Webhook Integration Guide](../backend/webhooks.md)
+- **Documentation**: Webhook Integration Guide
 - **Escalation**: Engineering Manager (after 15 minutes for P1 alerts)
 
 ## References
 
-- [Webhook Integration Guide](../backend/webhooks.md)
-- [Webhook Retry System](../backend/webhook-retry.md)
-- [Prometheus Configuration](../../monitoring/prometheus.yml)
-- [Alert Rules](../../monitoring/alerts.yml)
-- [Grafana Dashboard](../../monitoring/dashboards/webhook-monitoring.json)
+- Webhook Integration Guide
+- Webhook Retry System
+- Prometheus Configuration
+- Alert Rules
+- Grafana Dashboard

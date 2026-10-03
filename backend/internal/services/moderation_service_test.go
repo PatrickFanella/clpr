@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/subculture-collective/clipper/internal/models"
 )
 
 // MockCommunityRepository is a mock implementation of CommunityRepository
@@ -97,6 +97,15 @@ type MockModerationAuditLogRepository struct {
 
 func (m *MockModerationAuditLogRepository) Create(ctx context.Context, log *models.ModerationAuditLog) error {
 	args := m.Called(ctx, log)
+	return args.Error(0)
+}
+
+type MockModerationBanUnitOfWork struct {
+	mock.Mock
+}
+
+func (m *MockModerationBanUnitOfWork) CreateBanWithAudit(ctx context.Context, ban *models.CommunityBan, audit *models.ModerationAuditLog) error {
+	args := m.Called(ctx, ban, audit)
 	return args.Error(0)
 }
 
@@ -319,33 +328,6 @@ func TestModerationService_GetBans_Success(t *testing.T) {
 	service := &ModerationService{
 		communityRepo: mockCommunityRepo,
 		userRepo:      mockUserRepo,
-	}
-
-	// Validate permission and scope
-	err := service.validateModerationPermission(ctx, siteMod, communityID)
-	assert.NoError(t, err)
-}
-
-func TestModerationService_UpdateBan_Success(t *testing.T) {
-	ctx := context.Background()
-	communityID := uuid.New()
-	targetUserID := uuid.New()
-	siteMod := createSiteModerator()
-
-	mockCommunityRepo := new(MockCommunityRepository)
-	mockUserRepo := new(MockModerationUserRepository)
-	mockAuditLogRepo := new(MockModerationAuditLogRepository)
-
-	mockUserRepo.On("GetByID", ctx, siteMod.ID).Return(siteMod, nil)
-	mockCommunityRepo.On("IsBanned", ctx, communityID, targetUserID).Return(true, nil)
-	mockCommunityRepo.On("UnbanMember", ctx, communityID, targetUserID).Return(nil)
-	mockCommunityRepo.On("BanMember", ctx, mock.AnythingOfType("*models.CommunityBan")).Return(nil)
-	mockAuditLogRepo.On("Create", ctx, mock.AnythingOfType("*models.ModerationAuditLog")).Return(nil)
-
-	service := &ModerationService{
-		communityRepo: mockCommunityRepo,
-		userRepo:      mockUserRepo,
-		auditLogRepo:  mockAuditLogRepo,
 	}
 
 	// Validate permission and scope
@@ -656,81 +638,6 @@ func TestModerationService_GetBans_MaxLimit(t *testing.T) {
 	mockCommunityRepo.AssertExpectations(t)
 }
 
-// TestModerationService_UpdateBan_FullFlow tests the complete update ban flow
-func TestModerationService_UpdateBan_FullFlow(t *testing.T) {
-	ctx := context.Background()
-	communityID := uuid.New()
-	moderatorID := uuid.New()
-	targetUserID := uuid.New()
-	newReason := "updated reason"
-
-	mockCommunityRepo := new(MockCommunityRepository)
-	mockUserRepo := new(MockModerationUserRepository)
-	mockAuditLogRepo := new(MockModerationAuditLogRepository)
-
-	siteMod := &models.User{
-		ID:             moderatorID,
-		Username:       "sitemod",
-		AccountType:    models.AccountTypeModerator,
-		ModeratorScope: models.ModeratorScopeSite,
-	}
-
-	// Setup mocks
-	mockUserRepo.On("GetByID", ctx, moderatorID).Return(siteMod, nil)
-	mockCommunityRepo.On("IsBanned", ctx, communityID, targetUserID).Return(true, nil)
-	mockCommunityRepo.On("UnbanMember", ctx, communityID, targetUserID).Return(nil)
-	mockCommunityRepo.On("BanMember", ctx, mock.AnythingOfType("*models.CommunityBan")).Return(nil)
-	mockAuditLogRepo.On("Create", ctx, mock.AnythingOfType("*models.ModerationAuditLog")).Return(nil)
-
-	service := &ModerationService{
-		communityRepo: mockCommunityRepo,
-		userRepo:      mockUserRepo,
-		auditLogRepo:  mockAuditLogRepo,
-	}
-
-	err := service.UpdateBan(ctx, communityID, moderatorID, targetUserID, &newReason)
-	assert.NoError(t, err)
-
-	mockUserRepo.AssertExpectations(t)
-	mockCommunityRepo.AssertExpectations(t)
-	mockAuditLogRepo.AssertExpectations(t)
-}
-
-// TestModerationService_UpdateBan_UserNotBanned tests updating ban when user isn't banned
-func TestModerationService_UpdateBan_UserNotBanned(t *testing.T) {
-	ctx := context.Background()
-	communityID := uuid.New()
-	moderatorID := uuid.New()
-	targetUserID := uuid.New()
-	newReason := "updated reason"
-
-	mockCommunityRepo := new(MockCommunityRepository)
-	mockUserRepo := new(MockModerationUserRepository)
-
-	siteMod := &models.User{
-		ID:             moderatorID,
-		Username:       "sitemod",
-		AccountType:    models.AccountTypeModerator,
-		ModeratorScope: models.ModeratorScopeSite,
-	}
-
-	// Setup mocks - user is not banned
-	mockUserRepo.On("GetByID", ctx, moderatorID).Return(siteMod, nil)
-	mockCommunityRepo.On("IsBanned", ctx, communityID, targetUserID).Return(false, nil)
-
-	service := &ModerationService{
-		communityRepo: mockCommunityRepo,
-		userRepo:      mockUserRepo,
-	}
-
-	err := service.UpdateBan(ctx, communityID, moderatorID, targetUserID, &newReason)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not banned")
-
-	mockUserRepo.AssertExpectations(t)
-	mockCommunityRepo.AssertExpectations(t)
-}
-
 // TestModerationService_NewModerationService tests service creation
 func TestModerationService_NewModerationService(t *testing.T) {
 	mockCommunityRepo := new(MockCommunityRepository)
@@ -919,11 +826,75 @@ func TestModerationService_BanUser_AuditLogError(t *testing.T) {
 
 	err := service.BanUser(ctx, communityID, moderatorID, targetUserID, nil)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create audit log")
+	assert.Contains(t, err.Error(), "failed to create ban and audit log")
 
 	mockUserRepo.AssertExpectations(t)
 	mockCommunityRepo.AssertExpectations(t)
 	mockAuditLogRepo.AssertExpectations(t)
+}
+
+func TestModerationService_BanUserWithResult_UsesAtomicWriter(t *testing.T) {
+	ctx := context.Background()
+	communityID := uuid.New()
+	moderatorID := uuid.New()
+	targetUserID := uuid.New()
+	reason := "repeated harassment"
+
+	communityRepo := new(MockCommunityRepository)
+	userRepo := new(MockModerationUserRepository)
+	banWriter := new(MockModerationBanUnitOfWork)
+	moderator := &models.User{
+		ID:             moderatorID,
+		AccountType:    models.AccountTypeModerator,
+		ModeratorScope: models.ModeratorScopeSite,
+	}
+
+	userRepo.On("GetByID", ctx, moderatorID).Return(moderator, nil)
+	communityRepo.On("GetCommunityByID", ctx, communityID).Return(&models.Community{ID: communityID, OwnerID: uuid.New()}, nil)
+	banWriter.On("CreateBanWithAudit", ctx, mock.AnythingOfType("*models.CommunityBan"), mock.AnythingOfType("*models.ModerationAuditLog")).Return(nil)
+
+	service := &ModerationService{communityRepo: communityRepo, userRepo: userRepo, banWriter: banWriter}
+	created, err := service.BanUserWithResult(ctx, communityID, moderatorID, targetUserID, &reason)
+
+	assert.NoError(t, err)
+	if assert.NotNil(t, created) {
+		assert.Equal(t, communityID, created.CommunityID)
+		assert.Equal(t, targetUserID, created.BannedUserID)
+		assert.Equal(t, moderatorID, *created.BannedByUserID)
+		assert.Equal(t, reason, *created.Reason)
+	}
+	communityRepo.AssertNotCalled(t, "RemoveMember", mock.Anything, mock.Anything, mock.Anything)
+	communityRepo.AssertNotCalled(t, "BanMember", mock.Anything, mock.Anything)
+	banWriter.AssertExpectations(t)
+}
+
+func TestModerationService_BanUserWithResult_AtomicWriterFailureReturnsNoBan(t *testing.T) {
+	ctx := context.Background()
+	communityID := uuid.New()
+	moderatorID := uuid.New()
+	targetUserID := uuid.New()
+
+	communityRepo := new(MockCommunityRepository)
+	userRepo := new(MockModerationUserRepository)
+	banWriter := new(MockModerationBanUnitOfWork)
+	moderator := &models.User{
+		ID:             moderatorID,
+		AccountType:    models.AccountTypeModerator,
+		ModeratorScope: models.ModeratorScopeSite,
+	}
+
+	userRepo.On("GetByID", ctx, moderatorID).Return(moderator, nil)
+	communityRepo.On("GetCommunityByID", ctx, communityID).Return(&models.Community{ID: communityID, OwnerID: uuid.New()}, nil)
+	banWriter.On("CreateBanWithAudit", ctx, mock.AnythingOfType("*models.CommunityBan"), mock.AnythingOfType("*models.ModerationAuditLog")).Return(errors.New("audit insert failed"))
+
+	service := &ModerationService{communityRepo: communityRepo, userRepo: userRepo, banWriter: banWriter}
+	created, err := service.BanUserWithResult(ctx, communityID, moderatorID, targetUserID, nil)
+
+	assert.Nil(t, created)
+	assert.ErrorContains(t, err, "failed to create ban and audit log")
+	communityRepo.AssertNotCalled(t, "RemoveMember", mock.Anything, mock.Anything, mock.Anything)
+	communityRepo.AssertNotCalled(t, "BanMember", mock.Anything, mock.Anything)
+	banWriter.AssertExpectations(t)
 }
 
 // TestModerationService_UnbanUser_GetModeratorError tests error when fetching moderator for unban
@@ -1047,176 +1018,6 @@ func TestModerationService_UnbanUser_AuditLogError(t *testing.T) {
 	}
 
 	err := service.UnbanUser(ctx, communityID, moderatorID, targetUserID)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create audit log")
-
-	mockUserRepo.AssertExpectations(t)
-	mockCommunityRepo.AssertExpectations(t)
-	mockAuditLogRepo.AssertExpectations(t)
-}
-
-// TestModerationService_UpdateBan_GetModeratorError tests error when fetching moderator for update
-func TestModerationService_UpdateBan_GetModeratorError(t *testing.T) {
-	ctx := context.Background()
-	communityID := uuid.New()
-	moderatorID := uuid.New()
-	targetUserID := uuid.New()
-	newReason := "updated reason"
-
-	mockCommunityRepo := new(MockCommunityRepository)
-	mockUserRepo := new(MockModerationUserRepository)
-
-	mockUserRepo.On("GetByID", ctx, moderatorID).Return(nil, errors.New("db error"))
-
-	service := &ModerationService{
-		communityRepo: mockCommunityRepo,
-		userRepo:      mockUserRepo,
-	}
-
-	err := service.UpdateBan(ctx, communityID, moderatorID, targetUserID, &newReason)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get moderator")
-
-	mockUserRepo.AssertExpectations(t)
-}
-
-// TestModerationService_UpdateBan_IsBannedError tests error checking ban status for update
-func TestModerationService_UpdateBan_IsBannedError(t *testing.T) {
-	ctx := context.Background()
-	communityID := uuid.New()
-	moderatorID := uuid.New()
-	targetUserID := uuid.New()
-	newReason := "updated reason"
-
-	mockCommunityRepo := new(MockCommunityRepository)
-	mockUserRepo := new(MockModerationUserRepository)
-
-	siteMod := &models.User{
-		ID:             moderatorID,
-		Username:       "sitemod",
-		AccountType:    models.AccountTypeModerator,
-		ModeratorScope: models.ModeratorScopeSite,
-	}
-
-	mockUserRepo.On("GetByID", ctx, moderatorID).Return(siteMod, nil)
-	mockCommunityRepo.On("IsBanned", ctx, communityID, targetUserID).Return(false, errors.New("db error"))
-
-	service := &ModerationService{
-		communityRepo: mockCommunityRepo,
-		userRepo:      mockUserRepo,
-	}
-
-	err := service.UpdateBan(ctx, communityID, moderatorID, targetUserID, &newReason)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to check ban status")
-
-	mockUserRepo.AssertExpectations(t)
-	mockCommunityRepo.AssertExpectations(t)
-}
-
-// TestModerationService_UpdateBan_UnbanError tests error when removing old ban during update
-func TestModerationService_UpdateBan_UnbanError(t *testing.T) {
-	ctx := context.Background()
-	communityID := uuid.New()
-	moderatorID := uuid.New()
-	targetUserID := uuid.New()
-	newReason := "updated reason"
-
-	mockCommunityRepo := new(MockCommunityRepository)
-	mockUserRepo := new(MockModerationUserRepository)
-
-	siteMod := &models.User{
-		ID:             moderatorID,
-		Username:       "sitemod",
-		AccountType:    models.AccountTypeModerator,
-		ModeratorScope: models.ModeratorScopeSite,
-	}
-
-	mockUserRepo.On("GetByID", ctx, moderatorID).Return(siteMod, nil)
-	mockCommunityRepo.On("IsBanned", ctx, communityID, targetUserID).Return(true, nil)
-	mockCommunityRepo.On("UnbanMember", ctx, communityID, targetUserID).Return(errors.New("db error"))
-
-	service := &ModerationService{
-		communityRepo: mockCommunityRepo,
-		userRepo:      mockUserRepo,
-	}
-
-	err := service.UpdateBan(ctx, communityID, moderatorID, targetUserID, &newReason)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to remove old ban")
-
-	mockUserRepo.AssertExpectations(t)
-	mockCommunityRepo.AssertExpectations(t)
-}
-
-// TestModerationService_UpdateBan_CreateBanError tests error when creating new ban during update
-func TestModerationService_UpdateBan_CreateBanError(t *testing.T) {
-	ctx := context.Background()
-	communityID := uuid.New()
-	moderatorID := uuid.New()
-	targetUserID := uuid.New()
-	newReason := "updated reason"
-
-	mockCommunityRepo := new(MockCommunityRepository)
-	mockUserRepo := new(MockModerationUserRepository)
-
-	siteMod := &models.User{
-		ID:             moderatorID,
-		Username:       "sitemod",
-		AccountType:    models.AccountTypeModerator,
-		ModeratorScope: models.ModeratorScopeSite,
-	}
-
-	mockUserRepo.On("GetByID", ctx, moderatorID).Return(siteMod, nil)
-	mockCommunityRepo.On("IsBanned", ctx, communityID, targetUserID).Return(true, nil)
-	mockCommunityRepo.On("UnbanMember", ctx, communityID, targetUserID).Return(nil)
-	mockCommunityRepo.On("BanMember", ctx, mock.AnythingOfType("*models.CommunityBan")).Return(errors.New("db error"))
-
-	service := &ModerationService{
-		communityRepo: mockCommunityRepo,
-		userRepo:      mockUserRepo,
-	}
-
-	err := service.UpdateBan(ctx, communityID, moderatorID, targetUserID, &newReason)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create updated ban")
-
-	mockUserRepo.AssertExpectations(t)
-	mockCommunityRepo.AssertExpectations(t)
-}
-
-// TestModerationService_UpdateBan_AuditLogError tests error when creating audit log for update
-func TestModerationService_UpdateBan_AuditLogError(t *testing.T) {
-	ctx := context.Background()
-	communityID := uuid.New()
-	moderatorID := uuid.New()
-	targetUserID := uuid.New()
-	newReason := "updated reason"
-
-	mockCommunityRepo := new(MockCommunityRepository)
-	mockUserRepo := new(MockModerationUserRepository)
-	mockAuditLogRepo := new(MockModerationAuditLogRepository)
-
-	siteMod := &models.User{
-		ID:             moderatorID,
-		Username:       "sitemod",
-		AccountType:    models.AccountTypeModerator,
-		ModeratorScope: models.ModeratorScopeSite,
-	}
-
-	mockUserRepo.On("GetByID", ctx, moderatorID).Return(siteMod, nil)
-	mockCommunityRepo.On("IsBanned", ctx, communityID, targetUserID).Return(true, nil)
-	mockCommunityRepo.On("UnbanMember", ctx, communityID, targetUserID).Return(nil)
-	mockCommunityRepo.On("BanMember", ctx, mock.AnythingOfType("*models.CommunityBan")).Return(nil)
-	mockAuditLogRepo.On("Create", ctx, mock.AnythingOfType("*models.ModerationAuditLog")).Return(errors.New("audit error"))
-
-	service := &ModerationService{
-		communityRepo: mockCommunityRepo,
-		userRepo:      mockUserRepo,
-		auditLogRepo:  mockAuditLogRepo,
-	}
-
-	err := service.UpdateBan(ctx, communityID, moderatorID, targetUserID, &newReason)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create audit log")
 

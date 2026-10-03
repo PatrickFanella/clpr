@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { registerServiceWorker, unregisterServiceWorker, isPWAInstalled, canInstallPWA } from './sw-register';
 
 describe('sw-register', () => {
@@ -8,9 +10,11 @@ describe('sw-register', () => {
   beforeEach(() => {
     // Reset all mocks before each test
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     // Restore original navigator and window
     Object.defineProperty(globalThis, 'navigator', {
       value: originalNavigator,
@@ -29,6 +33,80 @@ describe('sw-register', () => {
       // In test/dev mode, it should return null
       const result = await registerServiceWorker();
       expect(result).toBeNull();
+    });
+
+    function productionRegistration(controlled = false) {
+      vi.stubEnv('DEV', false);
+      const worker = Object.assign(new EventTarget(), {
+        state: 'installing',
+        postMessage: vi.fn(),
+      });
+      const registration = Object.assign(new EventTarget(), {
+        installing: worker,
+        waiting: null as typeof worker | null,
+      });
+      const container = Object.assign(new EventTarget(), {
+        controller: controlled ? worker : null,
+        register: vi.fn().mockResolvedValue(registration),
+      });
+      const reload = vi.fn();
+      const confirm = vi.fn().mockReturnValue(false);
+      Object.defineProperty(globalThis, 'navigator', {
+        value: { serviceWorker: container }, configurable: true,
+      });
+      Object.defineProperty(globalThis, 'window', {
+        value: { location: { reload }, confirm }, configurable: true,
+      });
+      return { worker, registration, container, reload, confirm };
+    }
+
+    it('registers the worker under a query version that matches its cache name', async () => {
+      const { container } = productionRegistration();
+      await registerServiceWorker();
+      const [url] = container.register.mock.calls[0];
+      const source = readFileSync(resolve(__dirname, '../../public/sw.js'), 'utf8');
+      const cacheVersion = source.match(/CACHE_NAME = 'clpr-v(\d+)'/)?.[1];
+      expect(cacheVersion).toBeDefined();
+      expect(url).toBe(`/sw.js?v=${cacheVersion}`);
+    });
+
+    it('preserves the page when its first worker claims control', async () => {
+      const { container, worker, reload, confirm } = productionRegistration();
+      await registerServiceWorker();
+      container.controller = worker;
+      container.dispatchEvent(new Event('controllerchange'));
+      expect(reload).not.toHaveBeenCalled();
+      expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it.each(['waiting', 'installing'] as const)(
+      'activates an accepted %s update and reloads once after activation',
+      async (state) => {
+        const { registration, worker, container, reload, confirm } = productionRegistration(true);
+        confirm.mockReturnValue(true);
+        if (state === 'waiting') registration.waiting = worker;
+        await registerServiceWorker();
+        if (state === 'installing') {
+          registration.dispatchEvent(new Event('updatefound'));
+          worker.state = 'installed';
+          worker.dispatchEvent(new Event('statechange'));
+        }
+        expect(worker.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'SKIP_WAITING' });
+        expect(reload).not.toHaveBeenCalled();
+        container.dispatchEvent(new Event('controllerchange'));
+        container.dispatchEvent(new Event('controllerchange'));
+        expect(reload).toHaveBeenCalledTimes(1);
+      }
+    );
+
+    it('keeps the current page when an update is declined or another tab activates it', async () => {
+      const { registration, worker, container, reload, confirm } = productionRegistration(true);
+      registration.waiting = worker;
+      await registerServiceWorker();
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(worker.postMessage).not.toHaveBeenCalled();
+      container.dispatchEvent(new Event('controllerchange'));
+      expect(reload).not.toHaveBeenCalled();
     });
 
     it('should return null when service workers are not supported', async () => {

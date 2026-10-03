@@ -1,30 +1,33 @@
-import { Badge, Button } from '@/components/ui';
-import { useAuth, useToast } from '@/hooks';
+import { Badge, ResourceUnavailable } from '@/components/ui';
+import { useAuth, useIsAuthenticated, useToast } from '@/hooks';
 import {
-    usePlaylist,
+    useInfinitePlaylist,
     useUpdatePlaylist,
     useCopyPlaylist,
     useLikePlaylist,
     useUnlikePlaylist,
+    useBookmarkPlaylist,
+    useUnbookmarkPlaylist,
     useRemoveClipFromPlaylist,
     useReorderPlaylistClips,
 } from '@/hooks/usePlaylist';
+import apiClient from '@/lib/api';
+import { getHttpStatus } from '@/lib/error-utils';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Heart,
     Lock,
     Globe,
     Users,
-    Maximize2,
-    Share2,
     Copy,
+    Bookmark,
 } from 'lucide-react';
-import { formatTimestamp } from '@/lib/utils';
+import { cn, formatRelativeTimestamp } from '@/lib/utils';
 import { PlaylistTheatreMode } from './PlaylistTheatreMode';
 import type { PlaylistItem } from './PlaylistTheatreMode';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ShareModal } from './ShareModal';
+import { ShareButton } from '../clip/ShareButton';
 import { CollaboratorManager } from './CollaboratorManager';
 import { PlaylistCopyModal } from './PlaylistCopyModal';
 
@@ -32,20 +35,46 @@ export function PlaylistDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { data, isLoading } = usePlaylist(id || '', 1, 500);
+    const isAuthenticated = useIsAuthenticated();
+    const playlistQuery = useInfinitePlaylist(id || '');
+    const {
+        isLoading,
+        isError,
+        error,
+        refetch,
+        hasNextPage,
+        fetchNextPage,
+        isFetchingNextPage,
+    } = playlistQuery;
+    const data = useMemo(() => {
+        const pages = playlistQuery.data?.pages;
+        const first = pages?.[0];
+        if (!first || !pages) return undefined;
+        return {
+            ...first,
+            data: {
+                ...first.data,
+                clips: pages.flatMap(
+                    page => page.data.clips ?? [],
+                ),
+            },
+        };
+    }, [playlistQuery.data]);
     const likeMutation = useLikePlaylist();
     const unlikeMutation = useUnlikePlaylist();
+    const bookmarkMutation = useBookmarkPlaylist();
+    const unbookmarkMutation = useUnbookmarkPlaylist();
     const removeClip = useRemoveClipFromPlaylist();
     const reorderClips = useReorderPlaylistClips();
     const updatePlaylist = useUpdatePlaylist();
     const copyPlaylist = useCopyPlaylist();
     const toast = useToast();
-    const [currentItemId, setCurrentItemId] = useState<string | null>(null);
-    const [showShareModal, setShowShareModal] = useState(false);
+    const [selectedItemId, setCurrentItemId] = useState<string | null>(null);
     const [showCopyModal, setShowCopyModal] = useState(false);
-    const [visibility, setVisibility] = useState<
-        'private' | 'public' | 'unlisted'
-    >('private');
+    const [visibilityOverride, setVisibilityOverride] = useState<{
+        playlistId: string;
+        value: 'private' | 'public' | 'unlisted';
+    } | null>(null);
     const queryClient = useQueryClient();
 
     // Convert playlist clips to playlist items format
@@ -59,22 +88,31 @@ export function PlaylistDetail() {
         }));
     }, [data]);
 
-    // Set first item as current if none selected
-    useEffect(() => {
-        if (!currentItemId && playlistItems.length > 0) {
-            setCurrentItemId(playlistItems[0].id);
-        }
-    }, [currentItemId, playlistItems]);
-
-    useEffect(() => {
-        if (data?.data?.visibility) {
-            setVisibility(data.data.visibility);
-        }
-    }, [data?.data?.visibility]);
+    const currentItemId =
+        selectedItemId &&
+        playlistItems.some(item => item.id === selectedItemId)
+            ? selectedItemId
+            : (playlistItems[0]?.id ?? null);
+    const visibility =
+        visibilityOverride && visibilityOverride.playlistId === id
+            ? visibilityOverride.value
+            : (data?.data?.visibility ?? 'private');
 
     const handleItemClick = useCallback((item: PlaylistItem) => {
         setCurrentItemId(item.id);
     }, []);
+
+    const loadNextPage = () => {
+        if (!hasNextPage || isFetchingNextPage) return;
+        const previousCount = playlistItems.length;
+        void fetchNextPage().then(result => {
+            const clips = result.data?.pages.flatMap(page => page.data.clips ?? []) ?? [];
+            const nextClip = clips[previousCount];
+            if (nextClip && data?.data.id) {
+                setCurrentItemId(`${data.data.id}-${nextClip.id}`);
+            }
+        });
+    };
 
     const handleItemRemove = useCallback(
         (itemId: string) => {
@@ -119,49 +157,77 @@ export function PlaylistDetail() {
         [id, playlistItems, reorderClips],
     );
 
-    const handleLike = useCallback(async () => {
-        if (!id) return;
+    const handleLike = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!isAuthenticated || !id) {
+            toast.info('Please log in to like playlists');
+            return;
+        }
+
         try {
             if (data?.data?.is_liked) {
                 await unlikeMutation.mutateAsync(id);
-                toast.success('Playlist unliked');
             } else {
                 await likeMutation.mutateAsync(id);
-                toast.success('Playlist liked');
             }
         } catch {
             toast.error('Failed to update like status');
         }
-    }, [id, data?.data?.is_liked, likeMutation, unlikeMutation, toast]);
+    };
+
+    const handleBookmark = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!isAuthenticated || !id) {
+            toast.info('Please log in to bookmark playlists');
+            return;
+        }
+
+        try {
+            if (data?.data?.is_bookmarked) {
+                await unbookmarkMutation.mutateAsync(id);
+                toast.success('Bookmark removed', {
+                    action: {
+                        label: 'Undo',
+                        onClick: () => bookmarkMutation.mutate(id),
+                    },
+                });
+            } else {
+                await bookmarkMutation.mutateAsync(id);
+                toast.success('Playlist bookmarked');
+            }
+        } catch {
+            toast.error('Failed to update bookmark');
+        }
+    };
 
     const handleClipUpdated = useCallback(() => {
         if (!id) return;
         queryClient.invalidateQueries({ queryKey: ['playlist', id] });
     }, [id, queryClient]);
 
-    const copyInitialValues = useMemo(
-        () =>
-            data?.data ?
-                {
-                    title: `Copy of ${data.data.title}`,
-                    description: data.data.description || '',
-                    cover_url: data.data.cover_url || '',
-                    visibility: 'private' as const,
-                }
-            :   {
-                    title: '',
-                    description: '',
-                    cover_url: '',
-                    visibility: 'private' as const,
-                },
-        [data?.data?.title, data?.data?.description, data?.data?.cover_url],
-    );
+    const copyInitialValues = data?.data
+        ? {
+              title: `Copy of ${data.data.title}`,
+              description: data.data.description || '',
+              cover_url: data.data.cover_url || '',
+              visibility: 'private' as const,
+          }
+        : {
+              title: '',
+              description: '',
+              cover_url: '',
+              visibility: 'private' as const,
+          };
 
     const handleVisibilityChange = useCallback(
         async (nextVisibility: 'private' | 'public' | 'unlisted') => {
             if (!id) return;
             const previous = visibility;
-            setVisibility(nextVisibility);
+            setVisibilityOverride({ playlistId: id, value: nextVisibility });
             try {
                 await updatePlaylist.mutateAsync({
                     id,
@@ -169,16 +235,34 @@ export function PlaylistDetail() {
                 });
                 toast.success('Visibility updated');
             } catch {
-                setVisibility(previous);
+                setVisibilityOverride({ playlistId: id, value: previous });
                 toast.error('Failed to update visibility');
             }
         },
         [id, updatePlaylist, toast, visibility],
     );
 
+    const trackShare = async (
+        platform: 'link' | 'twitter' | 'facebook' | 'reddit' | 'bluesky',
+    ) => {
+        if (!id) return;
+        const trackedPlatform =
+            platform === 'twitter' || platform === 'facebook'
+                ? platform
+                : 'link';
+        try {
+            await apiClient.post(`/playlists/${id}/track-share`, {
+                platform: trackedPlatform,
+                referrer: window.location.href,
+            });
+        } catch {
+            // Tracking failure shouldn't block sharing.
+        }
+    };
+
     if (!id) {
         return (
-            <div className='text-center py-12 text-zinc-500'>
+            <div className='text-center py-12 text-muted-foreground'>
                 Playlist not found
             </div>
         );
@@ -186,13 +270,50 @@ export function PlaylistDetail() {
 
     if (isLoading) {
         return (
-            <div className='text-center py-12 text-zinc-500'>Loading...</div>
+            <div className='text-center py-12 text-muted-foreground'>
+                Loading...
+            </div>
+        );
+    }
+
+    if (isError) {
+        const status = getHttpStatus(error);
+        const links = [{ label: 'Browse playlists', href: '/playlists/discover' }];
+        if (status === 404 || status === 400) {
+            return (
+                <ResourceUnavailable
+                    kind='not-found'
+                    title="This playlist isn't here"
+                    description='It may have been deleted, or the link is incomplete.'
+                    links={links}
+                />
+            );
+        }
+        if (status === 403) {
+            return (
+                <ResourceUnavailable
+                    kind='not-found'
+                    kicker='Private'
+                    title='This playlist is private'
+                    description="Its owner hasn't shared it with you."
+                    links={links}
+                />
+            );
+        }
+        return (
+            <ResourceUnavailable
+                kind='error'
+                title="We couldn't load this playlist"
+                description='Check your connection and try again.'
+                onRetry={() => void refetch()}
+                links={links}
+            />
         );
     }
 
     if (!data?.data) {
         return (
-            <div className='text-center py-12 text-zinc-500'>
+            <div className='text-center py-12 text-muted-foreground'>
                 Playlist not found
             </div>
         );
@@ -206,20 +327,20 @@ export function PlaylistDetail() {
         currentPermission === 'edit' ||
         currentPermission === 'admin';
     const canManageCollaborators = isOwner || currentPermission === 'admin';
-    const canShare =
-        isOwner ||
-        currentPermission === 'edit' ||
-        currentPermission === 'admin';
     const canCopy = !!user;
+    const isLiked = Boolean(playlist.is_liked);
+    const isBookmarked = Boolean(playlist.is_bookmarked);
+    const createdAt = formatRelativeTimestamp(playlist.created_at);
 
+    const visibilityIconClass = 'h-2.5 w-2.5';
     const getVisibilityIcon = () => {
         switch (playlist.visibility) {
             case 'private':
-                return <Lock className='h-4 w-4' />;
+                return <Lock className={visibilityIconClass} />;
             case 'public':
-                return <Globe className='h-4 w-4' />;
+                return <Globe className={visibilityIconClass} />;
             case 'unlisted':
-                return <Users className='h-4 w-4' />;
+                return <Users className={visibilityIconClass} />;
             default:
                 return null;
         }
@@ -242,7 +363,7 @@ export function PlaylistDetail() {
         <div className='w-full'>
             {/* Theatre Mode Player */}
             {playlistItems.length > 0 && (
-                <div className='mb-8'>
+                <div className='mb-6'>
                     <PlaylistTheatreMode
                         title={playlist.title}
                         items={playlistItems}
@@ -251,151 +372,201 @@ export function PlaylistDetail() {
                         onItemRemove={canEdit ? handleItemRemove : undefined}
                         onReorder={canEdit ? handleReorder : undefined}
                         onClipUpdated={handleClipUpdated}
+                        onReachEnd={loadNextPage}
                         onClose={() => navigate(`/playlists/${id}/theatre`)}
                         isQueue={false}
                         contained={true}
                     />
+                    {hasNextPage && (
+                        <div className='mt-4 flex justify-center'>
+                            <button
+                                type='button'
+                                className='min-h-11 rounded-md border border-border px-5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-400 disabled:opacity-60'
+                                disabled={isFetchingNextPage}
+                                onClick={loadNextPage}
+                            >
+                                {isFetchingNextPage ? 'Loading…' : 'Load more clips'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* Header */}
-            <div className='mb-8'>
-                {/* Title and Metadata */}
-                <div className='flex items-start justify-between'>
-                    <div className='flex-1'>
-                        <h1 className='text-3xl font-bold text-zinc-100 mb-2'>
-                            {playlist.title}
-                        </h1>
+            {/* Header — compact, card-like */}
+            <div className='mb-6'>
+                {/* Title + description */}
+                <h1 className='text-xl font-semibold text-foreground mb-1 leading-tight'>
+                    {playlist.title}
+                </h1>
 
-                        {playlist.description && (
-                            <p className='text-zinc-400 mb-4'>
-                                {playlist.description}
-                            </p>
-                        )}
+                {playlist.description && (
+                    <p className='text-sm text-muted-foreground mb-3'>
+                        {playlist.description}
+                    </p>
+                )}
 
-                        {/* Creator Info */}
-                        {playlist.creator && (
-                            <div className='flex items-center gap-2 text-sm text-zinc-500 mb-3'>
-                                <span>Created by</span>
-                                <span className='text-zinc-300 font-medium'>
-                                    {playlist.creator.display_name}
-                                </span>
-                                <span>•</span>
-                                <span
-                                    title={
-                                        formatTimestamp(playlist.created_at)
-                                            .title
-                                    }
-                                >
-                                    {
-                                        formatTimestamp(playlist.created_at)
-                                            .display
-                                    }
-                                </span>
-                            </div>
-                        )}
-
-                        {/* Stats */}
-                        <div className='flex items-center gap-4 text-sm text-zinc-500 mb-4'>
-                            <span>{playlist.clip_count} clips</span>
-                            <div className='flex items-center gap-1'>
-                                <Heart className='h-4 w-4' />
-                                <span>{playlist.like_count}</span>
-                            </div>
-                            <Badge
-                                variant='default'
-                                className='flex items-center gap-1'
-                            >
-                                {getVisibilityIcon()}
-                                <span>{getVisibilityLabel()}</span>
-                            </Badge>
-                            {isOwner && (
-                                <select
-                                    value={visibility}
-                                    onChange={e =>
-                                        handleVisibilityChange(
-                                            e.target.value as typeof visibility,
-                                        )
-                                    }
-                                    className='bg-zinc-900 text-white border border-zinc-700 rounded px-2 py-1 text-xs'
-                                >
-                                    <option value='private'>Private</option>
-                                    <option value='unlisted'>Unlisted</option>
-                                    <option value='public'>Public</option>
-                                </select>
-                            )}
-                            {playlist.script_id && (
-                                <Badge
-                                    variant='secondary'
-                                    className='flex items-center gap-1 border-purple-500/40 text-purple-300/80'
-                                >
-                                    Scripted
-                                </Badge>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className='flex gap-2'>
-                        <Button
-                            onClick={() => navigate(`/playlists/${id}/theatre`)}
+                {/* Badges row */}
+                <div className='flex items-center gap-2 mb-3'>
+                    {playlist.script_id && (
+                        <Badge
                             variant='secondary'
+                            size='sm'
+                            className='shrink-0 border border-violet-400/40 bg-violet-500/12 text-[11px] text-violet-100 shadow-xs'
                         >
-                            <Maximize2 className='h-4 w-4 mr-2' />
-                            Full Screen
-                        </Button>
-                        {canShare && (
-                            <Button
-                                onClick={() => setShowShareModal(true)}
-                                variant='secondary'
-                            >
-                                <Share2 className='h-4 w-4 mr-2' />
-                                Share
-                            </Button>
-                        )}
-                        {canCopy && (
-                            <Button
-                                onClick={() => setShowCopyModal(true)}
-                                variant='secondary'
-                            >
-                                <Copy className='h-4 w-4 mr-2' />
-                                Copy
-                            </Button>
-                        )}
-                        <Button
-                            onClick={handleLike}
-                            variant={
-                                playlist.is_liked ? 'primary' : 'secondary'
+                            Auto-updated
+                        </Badge>
+                    )}
+
+                    <Badge
+                        variant='secondary'
+                        size='sm'
+                        className='shrink-0 border border-border bg-background/90 text-[11px] text-foreground shadow-xs'
+                    >
+                        {getVisibilityIcon()}
+                        <span>{getVisibilityLabel()}</span>
+                    </Badge>
+
+                    {isOwner && (
+                        <select
+                            value={visibility}
+                            onChange={e =>
+                                handleVisibilityChange(
+                                    e.target.value as typeof visibility,
+                                )
                             }
+                            className='bg-background text-foreground border border-border rounded px-2 py-0.5 text-xs'
+                        >
+                            <option value='private'>Private</option>
+                            <option value='unlisted'>Unlisted</option>
+                            <option value='public'>Public</option>
+                        </select>
+                    )}
+                </div>
+
+                {/* Stats + actions row (matches PlaylistCard footer style) */}
+                <div className='flex items-center justify-between gap-2 text-xs text-muted-foreground'>
+                    <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+                        {/* Clip count */}
+                        <span className='inline-flex items-center gap-1'>
+                            <span className='font-medium text-foreground/90'>
+                                {playlist.clip_count}
+                            </span>
+                            <span>clips</span>
+                        </span>
+
+                        {/* Like */}
+                        <button
+                            type='button'
+                            onClick={handleLike}
                             disabled={
                                 likeMutation.isPending ||
                                 unlikeMutation.isPending
                             }
+                            className='inline-flex items-center gap-1 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-link disabled:cursor-not-allowed disabled:opacity-60'
+                            title={
+                                isAuthenticated
+                                    ? isLiked
+                                        ? 'Unlike playlist'
+                                        : 'Like playlist'
+                                    : 'Log in to like playlists'
+                            }
                         >
                             <Heart
-                                className={`h-4 w-4 mr-2 ${playlist.is_liked ? 'fill-current' : ''}`}
+                                className={cn(
+                                    'h-3.5 w-3.5',
+                                    isLiked &&
+                                        'fill-current text-link',
+                                )}
                             />
-                            {playlist.is_liked ? 'Liked' : 'Like'}
-                        </Button>
+                            <span className='font-medium text-foreground/90'>
+                                {playlist.like_count}
+                            </span>
+                        </button>
+
+                        {/* Bookmark */}
+                        <button
+                            type='button'
+                            onClick={handleBookmark}
+                            disabled={
+                                bookmarkMutation.isPending ||
+                                unbookmarkMutation.isPending
+                            }
+                            className='inline-flex items-center gap-1 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-link disabled:cursor-not-allowed disabled:opacity-60'
+                            title={
+                                isAuthenticated
+                                    ? isBookmarked
+                                        ? 'Remove bookmark'
+                                        : 'Bookmark playlist'
+                                    : 'Log in to bookmark playlists'
+                            }
+                        >
+                            <Bookmark
+                                className={cn(
+                                    'h-3.5 w-3.5',
+                                    isBookmarked &&
+                                        'fill-current text-link',
+                                )}
+                            />
+                            <span className='font-medium text-foreground/90'>
+                                {playlist.bookmark_count}
+                            </span>
+                        </button>
+
+                        {/* Share */}
+                        {playlist.visibility !== 'private' && (
+                            <ShareButton
+                                shareUrl={`${window.location.origin}/playlists/${playlist.id}`}
+                                shareTitle={
+                                    playlist.title ||
+                                    playlist.description ||
+                                    'Check out this playlist!'
+                                }
+                                onShare={trackShare}
+                                showLabel={false}
+                                buttonClassName='inline-flex min-h-0 items-center rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-link'
+                                iconClassName='h-3.5 w-3.5'
+                            />
+                        )}
+
+                        {/* Copy Playlist */}
+                        {canCopy && (
+                            <button
+                                type='button'
+                                onClick={() => setShowCopyModal(true)}
+                                className='inline-flex items-center gap-1 rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-link cursor-pointer'
+                                title='Copy playlist'
+                            >
+                                <Copy className='h-3.5 w-3.5' />
+                                <span>Copy Playlist</span>
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Right side: creator + timestamp */}
+                    <div className='flex items-center gap-1.5 shrink-0 text-right'>
+                        {playlist.creator && (
+                            <>
+                                <span className='text-foreground/80'>
+                                    {playlist.creator.display_name}
+                                </span>
+                                <span>·</span>
+                            </>
+                        )}
+                        <span title={createdAt.title}>
+                            {createdAt.display}
+                        </span>
                     </div>
                 </div>
             </div>
 
             {(isOwner || currentPermission) && (
-                <div className='mb-8'>
+                <div className='mb-6'>
                     <CollaboratorManager
                         playlistId={playlist.id}
                         isOwner={isOwner}
                         canManageCollaborators={canManageCollaborators}
                     />
                 </div>
-            )}
-
-            {showShareModal && (
-                <ShareModal
-                    playlistId={playlist.id}
-                    onClose={() => setShowShareModal(false)}
-                />
             )}
 
             {showCopyModal && (

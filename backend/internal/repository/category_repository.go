@@ -2,13 +2,17 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/subculture-collective/clipper/internal/models"
 )
+
+// ErrCategoryNotFound is returned when no category matches the lookup.
+var ErrCategoryNotFound = errors.New("category not found")
 
 // CategoryRepository handles database operations for categories
 type CategoryRepository struct {
@@ -23,15 +27,15 @@ func NewCategoryRepository(pool *pgxpool.Pool) *CategoryRepository {
 }
 
 // List retrieves categories ordered by position with optional filters
-func (r *CategoryRepository) List(ctx context.Context, categoryType *string, featured *bool) ([]*models.Category, error) {
+func (r *CategoryRepository) List(ctx context.Context, categoryType *string, featured, public *bool) ([]*models.Category, error) {
 	baseQuery := `
 		SELECT id, name, slug, description, icon, position,
-		       category_type, is_featured, is_custom, created_by_user_id,
+		       category_type, is_featured, is_custom, is_public, created_by_user_id,
 		       created_at, updated_at
 		FROM categories
 	`
 
-	whereClause := "WHERE 1=1"
+	whereClause := "WHERE is_active = TRUE"
 	args := []interface{}{}
 
 	if categoryType != nil && *categoryType != "" {
@@ -41,6 +45,10 @@ func (r *CategoryRepository) List(ctx context.Context, categoryType *string, fea
 	if featured != nil {
 		args = append(args, *featured)
 		whereClause += fmt.Sprintf(" AND is_featured = $%d", len(args))
+	}
+	if public != nil {
+		args = append(args, *public)
+		whereClause += fmt.Sprintf(" AND is_public = $%d", len(args))
 	}
 
 	query := fmt.Sprintf("%s %s ORDER BY position ASC, name ASC", baseQuery, whereClause)
@@ -57,7 +65,7 @@ func (r *CategoryRepository) List(ctx context.Context, categoryType *string, fea
 		err := rows.Scan(
 			&category.ID, &category.Name, &category.Slug, &category.Description,
 			&category.Icon, &category.Position,
-			&category.CategoryType, &category.IsFeatured, &category.IsCustom, &category.CreatedByUserID,
+			&category.CategoryType, &category.IsFeatured, &category.IsCustom, &category.IsPublic, &category.CreatedByUserID,
 			&category.CreatedAt, &category.UpdatedAt,
 		)
 		if err != nil {
@@ -77,23 +85,23 @@ func (r *CategoryRepository) List(ctx context.Context, categoryType *string, fea
 func (r *CategoryRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Category, error) {
 	query := `
 		SELECT id, name, slug, description, icon, position,
-		       category_type, is_featured, is_custom, created_by_user_id,
+		       category_type, is_featured, is_custom, is_public, created_by_user_id,
 		       created_at, updated_at
 		FROM categories
-		WHERE id = $1
+		WHERE id = $1 AND is_active = TRUE
 	`
 
 	var category models.Category
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&category.ID, &category.Name, &category.Slug, &category.Description,
 		&category.Icon, &category.Position,
-		&category.CategoryType, &category.IsFeatured, &category.IsCustom, &category.CreatedByUserID,
+		&category.CategoryType, &category.IsFeatured, &category.IsCustom, &category.IsPublic, &category.CreatedByUserID,
 		&category.CreatedAt, &category.UpdatedAt,
 	)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("category not found")
+			return nil, ErrCategoryNotFound
 		}
 		return nil, fmt.Errorf("failed to get category by ID: %w", err)
 	}
@@ -105,23 +113,23 @@ func (r *CategoryRepository) GetByID(ctx context.Context, id uuid.UUID) (*models
 func (r *CategoryRepository) GetBySlug(ctx context.Context, slug string) (*models.Category, error) {
 	query := `
 		SELECT id, name, slug, description, icon, position,
-		       category_type, is_featured, is_custom, created_by_user_id,
+		       category_type, is_featured, is_custom, is_public, created_by_user_id,
 		       created_at, updated_at
 		FROM categories
-		WHERE slug = $1
+		WHERE slug = $1 AND is_active = TRUE
 	`
 
 	var category models.Category
 	err := r.pool.QueryRow(ctx, query, slug).Scan(
 		&category.ID, &category.Name, &category.Slug, &category.Description,
 		&category.Icon, &category.Position,
-		&category.CategoryType, &category.IsFeatured, &category.IsCustom, &category.CreatedByUserID,
+		&category.CategoryType, &category.IsFeatured, &category.IsCustom, &category.IsPublic, &category.CreatedByUserID,
 		&category.CreatedAt, &category.UpdatedAt,
 	)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("category not found")
+			return nil, ErrCategoryNotFound
 		}
 		return nil, fmt.Errorf("failed to get category by slug: %w", err)
 	}
@@ -140,7 +148,7 @@ func (r *CategoryRepository) GetGamesInCategory(ctx context.Context, categoryID 
 			BOOL_OR(ugf.id IS NOT NULL) as is_following
 		FROM games g
 		INNER JOIN category_games cg ON g.id = cg.game_id
-		LEFT JOIN clips c ON c.game_id = g.twitch_game_id AND c.is_removed = false
+		LEFT JOIN clips c ON c.game_id = g.twitch_game_id AND c.is_removed = false AND c.is_hidden = false
 		LEFT JOIN game_follows gf ON gf.game_id = g.id
 		LEFT JOIN game_follows ugf ON ugf.game_id = g.id AND ugf.user_id = $2
 		WHERE cg.category_id = $1

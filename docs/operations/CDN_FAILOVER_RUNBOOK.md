@@ -124,18 +124,15 @@ location @origin_fallback {
 
 ### Running Tests
 
-#### Backend Integration Tests
+#### Backend Tests
+
+The backend CDN failover integration suite (`backend/tests/integration/cdn/`)
+was removed in February 2026. CDN URL generation and cache headers are covered
+by unit tests that need no services:
 
 ```bash
-# Start test infrastructure
-make test-setup
-
-# Run CDN failover tests
 cd backend
-go test -v -tags=integration ./tests/integration/cdn/...
-
-# Cleanup
-docker compose -f docker-compose.test.yml down
+go test -v ./internal/services -run 'CDN|Provider'
 ```
 
 #### Frontend E2E Tests
@@ -313,10 +310,10 @@ annotations:
 3. **Check Logs**
    ```bash
    # Tail CDN failover logs
-   kubectl logs -l app=clipper-backend --tail=100 | grep "cdn_failover"
+   kubectl logs -l app=clpr-backend --tail=100 | grep "cdn_failover"
    
    # Count recent failovers
-   kubectl logs -l app=clipper-backend --since=10m | grep "cdn_failover" | wc -l
+   kubectl logs -l app=clpr-backend --since=10m | grep "cdn_failover" | wc -l
    ```
 
 #### Resolution Steps
@@ -348,14 +345,14 @@ If CDN is causing issues, temporarily disable it:
 export CDN_ENABLED=false
 
 # Restart application
-kubectl rollout restart deployment/clipper-backend
+kubectl rollout restart deployment/clpr-backend
 
 # Or update ConfigMap
-kubectl edit configmap clipper-config
+kubectl edit configmap clpr-config
 # Set CDN_ENABLED: "false"
 
 # Restart pods to pick up new config
-kubectl rollout restart deployment/clipper-backend
+kubectl rollout restart deployment/clpr-backend
 ```
 
 ### Enable CDN After Outage
@@ -367,7 +364,7 @@ Once CDN provider is healthy:
 export CDN_ENABLED=true
 
 # Restart application
-kubectl rollout restart deployment/clipper-backend
+kubectl rollout restart deployment/clpr-backend
 
 # Monitor metrics for any issues
 watch -n 5 'curl -s http://localhost:9090/metrics | grep cdn_'
@@ -423,11 +420,10 @@ curl -X POST http://localhost:8080/api/v1/admin/cdn/purge-all \
 
 ## Related Documentation
 
-- [Backend HLS Implementation](archive/BACKEND_HLS_IMPLEMENTATION.md)
-- [Testing Guide](testing/TESTING.md)
-- [Search Failover Tests](testing/TESTING.md#search-failover-tests)
+- [Testing Guide](../testing/TESTING.md)
+- [Search Failover Tests](../testing/TESTING.md)
 
 ## Related Issues
 
-- [#689 Watch Parties Sync](https://github.com/subculture-collective/clipper/issues/689)
-- [#694 Chat/WebSocket Backend](https://github.com/subculture-collective/clipper/issues/694)
+- [#689 Watch Parties Sync](https://git.subcult.tv/subculture-collective/clpr/issues/689)
+- [#694 Chat/WebSocket Backend](https://git.subcult.tv/subculture-collective/clpr/issues/694)

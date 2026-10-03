@@ -6,6 +6,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Plus } from 'lucide-react';
+import { listChannels } from '../lib/chat-api';
 
 /**
  * ChatPage - Main page for the live chat system
@@ -32,24 +33,16 @@ export function ChatPage() {
       setLoading(true);
       setError(null);
 
-      // Fetch channels from API
-      const response = await fetch('/api/chat/channels');
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch channels');
-      }
-
-      const data = await response.json();
-      setChannels(data.channels || data || []);
+      const data = await listChannels();
+      setChannels(data);
 
       // Auto-select first channel if available
-      if ((data.channels || data).length > 0 && !selectedChannel) {
-        setSelectedChannel((data.channels || data)[0].id);
+      if (data.length > 0 && !selectedChannel) {
+        setSelectedChannel(data[0].id);
       }
     } catch (err) {
       console.error('Error fetching channels:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      setError(`Failed to load channels: ${errorMessage}. Please check your connection and try again.`);
+      setError("We couldn't load chat channels. Check your connection and try again.");
 
       // For development: Create mock channels if API fails
       if (import.meta.env.DEV) {
@@ -114,7 +107,7 @@ export function ChatPage() {
       setSelectedChannel(channelId);
     } catch (err) {
       console.error('Error refreshing channels after creation:', err);
-      setError(err instanceof Error ? err.message : 'Failed to refresh channel list. Please reload the page.');
+      setError("We couldn't refresh the channel list. Reload the page to see the new channel.");
     }
   };
 
@@ -140,7 +133,7 @@ export function ChatPage() {
       {/* Mobile sidebar toggle button */}
       <button
         onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-        className="md:hidden fixed bottom-4 right-4 z-50 bg-primary-600 text-white p-3 rounded-full shadow-lg"
+        className="md:hidden fixed bottom-4 right-4 z-50 bg-primary-400 text-background p-3 rounded-full shadow-lg"
         aria-label="Toggle channel list"
       >
         <svg

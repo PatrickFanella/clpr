@@ -1,7 +1,10 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -122,6 +125,7 @@ type Clip struct {
 	Title                string     `json:"title" db:"title"`
 	CreatorName          string     `json:"creator_name" db:"creator_name"`
 	CreatorID            *string    `json:"creator_id,omitempty" db:"creator_id"`
+	CreatorAccountID     *uuid.UUID `json:"creator_account_id,omitempty" db:"creator_account_id"`
 	BroadcasterName      string     `json:"broadcaster_name" db:"broadcaster_name"`
 	BroadcasterID        *string    `json:"broadcaster_id,omitempty" db:"broadcaster_id"`
 	GameID               *string    `json:"game_id,omitempty" db:"game_id"`
@@ -155,6 +159,20 @@ type Clip struct {
 	DMCANoticeID     *uuid.UUID `json:"dmca_notice_id,omitempty" db:"dmca_notice_id"`
 	DMCARemovedAt    *time.Time `json:"dmca_removed_at,omitempty" db:"dmca_removed_at"`
 	DMCAReinstatedAt *time.Time `json:"dmca_reinstated_at,omitempty" db:"dmca_reinstated_at"`
+	// Generalized source and upload fields
+	SourceType       string          `json:"source_type" db:"source_type"`
+	SourcePlatform   string          `json:"source_platform" db:"source_platform"`
+	SourceURL        *string         `json:"source_url,omitempty" db:"source_url"`
+	SourceID         *string         `json:"source_id,omitempty" db:"source_id"`
+	SourceMetadata   json.RawMessage `json:"source_metadata,omitempty" db:"source_metadata"`
+	DurationSeconds  *int            `json:"duration_seconds,omitempty" db:"duration_seconds"`
+	DurationVerified bool            `json:"duration_verified" db:"duration_verified"`
+	StorageProvider  *string         `json:"storage_provider,omitempty" db:"storage_provider"`
+	StorageBucket    *string         `json:"storage_bucket,omitempty" db:"storage_bucket"`
+	StorageKey       *string         `json:"storage_key,omitempty" db:"storage_key"`
+	OriginalFilename *string         `json:"original_filename,omitempty" db:"original_filename"`
+	MimeType         *string         `json:"mime_type,omitempty" db:"mime_type"`
+	FileSizeBytes    *int64          `json:"file_size_bytes,omitempty" db:"file_size_bytes"`
 	// Stream clip fields
 	StreamSource *string    `json:"stream_source,omitempty" db:"stream_source"` // 'twitch' or 'stream'
 	Status       *string    `json:"status,omitempty" db:"status"`               // 'ready', 'processing', 'failed'
@@ -171,6 +189,47 @@ type Clip struct {
 	LastMirrorSyncAt *time.Time `json:"last_mirror_sync_at,omitempty" db:"last_mirror_sync_at"`
 	// Watch progress (populated from watch history, not in database)
 	WatchProgress *WatchProgressInfo `json:"watch_progress,omitempty" db:"-"`
+}
+
+func clipWireValue(clip Clip) struct {
+	clipAlias
+	TwitchCategoryID   *string `json:"twitch_category_id,omitempty"`
+	TwitchCategoryName *string `json:"twitch_category_name,omitempty"`
+} {
+	return struct {
+		clipAlias
+		TwitchCategoryID   *string `json:"twitch_category_id,omitempty"`
+		TwitchCategoryName *string `json:"twitch_category_name,omitempty"`
+	}{clipAlias: clipAlias(clip), TwitchCategoryID: clip.GameID, TwitchCategoryName: clip.GameName}
+}
+
+type clipAlias Clip
+
+// MarshalJSON exposes creator-first Twitch category aliases while retaining
+// the legacy game_* fields during the compatibility window.
+func (c Clip) MarshalJSON() ([]byte, error) {
+	return json.Marshal(clipWireValue(c))
+}
+
+// ClipEnrichment records the model output and whether the deterministic title
+// policy accepted it. Keeping this separate from Clip preserves provenance.
+type ClipEnrichment struct {
+	ClipID         uuid.UUID
+	SourceTitle    string
+	SuggestedTitle string
+	Confidence     float64
+	Basis          string
+	Evidence       []string
+	Tags           []string
+	TitleAccepted  bool
+}
+
+type ClipTranscript struct {
+	ClipID   uuid.UUID
+	Language string
+	FullText string
+	Segments json.RawMessage
+	Source   string
 }
 
 // WatchProgressInfo represents watch progress for a clip (used in API responses)
@@ -253,13 +312,17 @@ type Favorite struct {
 
 // Tag represents a categorization tag
 type Tag struct {
-	ID          uuid.UUID `json:"id" db:"id"`
-	Name        string    `json:"name" db:"name"`
-	Slug        string    `json:"slug" db:"slug"`
-	Description *string   `json:"description,omitempty" db:"description"`
-	Color       *string   `json:"color,omitempty" db:"color"`
-	UsageCount  int       `json:"usage_count" db:"usage_count"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	ID                uuid.UUID  `json:"id" db:"id"`
+	Name              string     `json:"name" db:"name"`
+	Slug              string     `json:"slug" db:"slug"`
+	ParentSlug        *string    `json:"parent_slug,omitempty" db:"parent_slug"`
+	Description       *string    `json:"description,omitempty" db:"description"`
+	Color             *string    `json:"color,omitempty" db:"color"`
+	UsageCount        int        `json:"usage_count" db:"usage_count"`
+	CreatedAt         time.Time  `json:"created_at" db:"created_at"`
+	SuppressedAt      *time.Time `json:"suppressed_at,omitempty" db:"suppressed_at"`
+	SuppressedBy      *uuid.UUID `json:"suppressed_by,omitempty" db:"suppressed_by"`
+	SuppressionReason *string    `json:"suppression_reason,omitempty" db:"suppression_reason"`
 }
 
 // ClipTag represents the many-to-many relationship between clips and tags
@@ -267,6 +330,38 @@ type ClipTag struct {
 	ClipID    uuid.UUID `json:"clip_id" db:"clip_id"`
 	TagID     uuid.UUID `json:"tag_id" db:"tag_id"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// BlacklistedTag represents a tag pattern that should be excluded from listings
+type BlacklistedTag struct {
+	ID        uuid.UUID  `json:"id" db:"id"`
+	Pattern   string     `json:"pattern" db:"pattern"`
+	Reason    *string    `json:"reason,omitempty" db:"reason"`
+	CreatedBy *uuid.UUID `json:"created_by,omitempty" db:"created_by"`
+	CreatedAt time.Time  `json:"created_at" db:"created_at"`
+}
+
+// TagPromotionQueueItem represents a user-created tag awaiting moderator review
+type TagPromotionQueueItem struct {
+	ID          uuid.UUID  `json:"id" db:"id"`
+	TagSlug     string     `json:"tag_slug" db:"tag_slug"`
+	UsageCount  int        `json:"usage_count" db:"usage_count"`
+	UniqueUsers int        `json:"unique_users" db:"unique_users"`
+	Status      string     `json:"status" db:"status"` // pending, approved, rejected
+	ReviewedBy  *uuid.UUID `json:"reviewed_by,omitempty" db:"reviewed_by"`
+	ReviewedAt  *time.Time `json:"reviewed_at,omitempty" db:"reviewed_at"`
+	PromotedAt  *time.Time `json:"promoted_at,omitempty" db:"promoted_at"`
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// TagPromotionCandidate represents a row from the tag_promotion_candidates view
+type TagPromotionCandidate struct {
+	Slug        string  `json:"slug" db:"slug"`
+	Name        string  `json:"name" db:"name"`
+	ClipCount   int     `json:"clip_count" db:"clip_count"`
+	UniqueUsers int     `json:"unique_users" db:"unique_users"`
+	ParentSlug  *string `json:"parent_slug,omitempty" db:"parent_slug"`
 }
 
 // Report represents a user report for moderation
@@ -289,6 +384,16 @@ type ClipWithHotScore struct {
 	HotScore float64 `json:"hot_score" db:"hot_score"`
 }
 
+func (c ClipWithHotScore) MarshalJSON() ([]byte, error) {
+	wire := clipWireValue(c.Clip)
+	return json.Marshal(struct {
+		clipAlias
+		TwitchCategoryID   *string `json:"twitch_category_id,omitempty"`
+		TwitchCategoryName *string `json:"twitch_category_name,omitempty"`
+		HotScore           float64 `json:"hot_score"`
+	}{wire.clipAlias, wire.TwitchCategoryID, wire.TwitchCategoryName, c.HotScore})
+}
+
 // ClipSubmitterInfo represents basic info about the user who submitted a clip
 type ClipSubmitterInfo struct {
 	ID          uuid.UUID `json:"id"`
@@ -303,20 +408,31 @@ type ClipWithSubmitter struct {
 	SubmittedBy *ClipSubmitterInfo `json:"submitted_by,omitempty"`
 }
 
+func (c ClipWithSubmitter) MarshalJSON() ([]byte, error) {
+	wire := clipWireValue(c.Clip)
+	return json.Marshal(struct {
+		clipAlias
+		TwitchCategoryID   *string            `json:"twitch_category_id,omitempty"`
+		TwitchCategoryName *string            `json:"twitch_category_name,omitempty"`
+		SubmittedBy        *ClipSubmitterInfo `json:"submitted_by,omitempty"`
+	}{wire.clipAlias, wire.TwitchCategoryID, wire.TwitchCategoryName, c.SubmittedBy})
+}
+
 // SearchRequest represents a search query request
 type SearchRequest struct {
-	Query     string   `json:"query" form:"q"`
-	Type      string   `json:"type" form:"type"` // clips, creators, games, tags, all
-	Sort      string   `json:"sort" form:"sort"` // relevance (default), recent, popular
-	GameID    *string  `json:"game_id" form:"game_id"`
-	CreatorID *string  `json:"creator_id" form:"creator_id"`
-	Language  *string  `json:"language" form:"language"`
-	Tags      []string `json:"tags" form:"tags"`
-	MinVotes  *int     `json:"min_votes" form:"min_votes"`
-	DateFrom  *string  `json:"date_from" form:"date_from"`
-	DateTo    *string  `json:"date_to" form:"date_to"`
-	Page      int      `json:"page" form:"page"`
-	Limit     int      `json:"limit" form:"limit"`
+	Query            string   `json:"query" form:"q"`
+	Type             string   `json:"type" form:"type"` // clips, creators, games, tags, all
+	Sort             string   `json:"sort" form:"sort"` // relevance (default), recent, popular
+	GameID           *string  `json:"game_id" form:"game_id"`
+	TwitchCategoryID *string  `json:"twitch_category_id" form:"twitch_category_id"`
+	CreatorID        *string  `json:"creator_id" form:"creator_id"`
+	Language         *string  `json:"language" form:"language"`
+	Tags             []string `json:"tags" form:"tags"`
+	MinVotes         *int     `json:"min_votes" form:"min_votes"`
+	DateFrom         *string  `json:"date_from" form:"date_from"`
+	DateTo           *string  `json:"date_to" form:"date_to"`
+	Page             int      `json:"page" form:"page"`
+	Limit            int      `json:"limit" form:"limit"`
 }
 
 // SearchResponse represents search results
@@ -330,18 +446,55 @@ type SearchResponse struct {
 
 // SearchResultsByType groups results by type
 type SearchResultsByType struct {
-	Clips    []Clip             `json:"clips,omitempty"`
-	Creators []User             `json:"creators,omitempty"`
-	Games    []GameSearchResult `json:"games,omitempty"`
-	Tags     []Tag              `json:"tags,omitempty"`
+	Clips            []Clip             `json:"clips"`
+	Creators         []User             `json:"creators"`
+	Games            []GameSearchResult `json:"games"`
+	TwitchCategories []GameSearchResult `json:"twitch_categories"`
+	Tags             []Tag              `json:"tags"`
+}
+
+// EmptySearchResults returns the stable wire representation for an empty
+// universal search. All collections are non-nil so JSON clients receive []
+// instead of null regardless of which search implementation served a request.
+func EmptySearchResults() SearchResultsByType {
+	return SearchResultsByType{
+		Clips:            []Clip{},
+		Creators:         []User{},
+		Games:            []GameSearchResult{},
+		TwitchCategories: []GameSearchResult{},
+		Tags:             []Tag{},
+	}
+}
+
+// Normalize replaces nil result collections returned by legacy providers.
+func (r *SearchResultsByType) Normalize() {
+	if r.Clips == nil {
+		r.Clips = []Clip{}
+	}
+	if r.Creators == nil {
+		r.Creators = []User{}
+	}
+	if r.Games == nil {
+		r.Games = []GameSearchResult{}
+	}
+	if r.TwitchCategories == nil {
+		r.TwitchCategories = r.Games
+	}
+	if len(r.Games) == 0 && len(r.TwitchCategories) > 0 {
+		r.Games = r.TwitchCategories
+	}
+	if r.Tags == nil {
+		r.Tags = []Tag{}
+	}
 }
 
 // SearchCounts holds counts for each result type
 type SearchCounts struct {
-	Clips    int `json:"clips"`
-	Creators int `json:"creators"`
-	Games    int `json:"games"`
-	Tags     int `json:"tags"`
+	Clips            int `json:"clips"`
+	Creators         int `json:"creators"`
+	Games            int `json:"games"`
+	TwitchCategories int `json:"twitch_categories"`
+	Tags             int `json:"tags"`
 }
 
 // SearchMeta holds pagination and other metadata
@@ -354,10 +507,27 @@ type SearchMeta struct {
 
 // SearchFacets holds aggregated facet data for filtering
 type SearchFacets struct {
-	Languages []FacetBucket  `json:"languages,omitempty"`
-	Games     []FacetBucket  `json:"games,omitempty"`
-	Tags      []FacetBucket  `json:"tags,omitempty"`
-	DateRange DateRangeFacet `json:"date_range,omitempty"`
+	Languages        []FacetBucket  `json:"languages,omitempty"`
+	Games            []FacetBucket  `json:"games,omitempty"`
+	TwitchCategories []FacetBucket  `json:"twitch_categories,omitempty"`
+	Tags             []FacetBucket  `json:"tags,omitempty"`
+	DateRange        DateRangeFacet `json:"date_range,omitempty"`
+}
+
+func (r *SearchRequest) SyncTwitchCategoryAliases() {
+	if r.TwitchCategoryID != nil {
+		r.GameID = r.TwitchCategoryID
+	}
+	if r.Type == "twitch_categories" {
+		r.Type = "games"
+	}
+}
+
+func (r *SearchResponse) SyncTwitchCategoryAliases() {
+	r.Results.Normalize()
+	r.Results.TwitchCategories = r.Results.Games
+	r.Counts.TwitchCategories = r.Counts.Games
+	r.Facets.TwitchCategories = r.Facets.Games
 }
 
 // FacetBucket represents a single facet value with its count
@@ -382,6 +552,10 @@ type GameSearchResult struct {
 	Name      string `json:"name" db:"game_name"`
 	ClipCount int    `json:"clip_count" db:"clip_count"`
 }
+
+// TwitchCategorySearchResult is the creator-first name for Twitch's upstream
+// category search result. GameSearchResult remains for wire compatibility.
+type TwitchCategorySearchResult = GameSearchResult
 
 // SearchSuggestion represents an autocomplete suggestion
 type SearchSuggestion struct {
@@ -464,22 +638,99 @@ type ClipSubmission struct {
 	ReviewedAt              *time.Time `json:"reviewed_at,omitempty" db:"reviewed_at"`
 	CreatedAt               time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt               time.Time  `json:"updated_at" db:"updated_at"`
+	// Generalized source and upload fields
+	SourceType              string          `json:"source_type" db:"source_type"`
+	SourcePlatform          string          `json:"source_platform" db:"source_platform"`
+	SourceURL               *string         `json:"source_url,omitempty" db:"source_url"`
+	SourceID                *string         `json:"source_id,omitempty" db:"source_id"`
+	SourceMetadata          json.RawMessage `json:"source_metadata,omitempty" db:"source_metadata"`
+	DurationSeconds         *int            `json:"duration_seconds,omitempty" db:"duration_seconds"`
+	DurationVerified        bool            `json:"duration_verified" db:"duration_verified"`
+	StorageProvider         *string         `json:"storage_provider,omitempty" db:"storage_provider"`
+	StorageBucket           *string         `json:"storage_bucket,omitempty" db:"storage_bucket"`
+	StorageKey              *string         `json:"storage_key,omitempty" db:"storage_key"`
+	OriginalFilename        *string         `json:"original_filename,omitempty" db:"original_filename"`
+	MimeType                *string         `json:"mime_type,omitempty" db:"mime_type"`
+	FileSizeBytes           *int64          `json:"file_size_bytes,omitempty" db:"file_size_bytes"`
+	UploadStatus            string          `json:"upload_status" db:"upload_status"`
+	DurationValidationError *string         `json:"duration_validation_error,omitempty" db:"duration_validation_error"`
+	StorageVisibility       string          `json:"storage_visibility" db:"storage_visibility"`
 	// Metadata from Twitch
-	CreatorName     *string  `json:"creator_name,omitempty" db:"creator_name"`
-	CreatorID       *string  `json:"creator_id,omitempty" db:"creator_id"`
-	BroadcasterName *string  `json:"broadcaster_name,omitempty" db:"broadcaster_name"`
-	BroadcasterID   *string  `json:"broadcaster_id,omitempty" db:"broadcaster_id"`
-	GameID          *string  `json:"game_id,omitempty" db:"game_id"`
-	GameName        *string  `json:"game_name,omitempty" db:"game_name"`
-	ThumbnailURL    *string  `json:"thumbnail_url,omitempty" db:"thumbnail_url"`
-	Duration        *float64 `json:"duration,omitempty" db:"duration"`
-	ViewCount       int      `json:"view_count" db:"view_count"`
+	CreatorName      *string    `json:"creator_name,omitempty" db:"creator_name"`
+	CreatorID        *string    `json:"creator_id,omitempty" db:"creator_id"`
+	CreatorAccountID *uuid.UUID `json:"creator_account_id,omitempty" db:"creator_account_id"`
+	BroadcasterName  *string    `json:"broadcaster_name,omitempty" db:"broadcaster_name"`
+	BroadcasterID    *string    `json:"broadcaster_id,omitempty" db:"broadcaster_id"`
+	GameID           *string    `json:"game_id,omitempty" db:"game_id"`
+	GameName         *string    `json:"game_name,omitempty" db:"game_name"`
+	ThumbnailURL     *string    `json:"thumbnail_url,omitempty" db:"thumbnail_url"`
+	Duration         *float64   `json:"duration,omitempty" db:"duration"`
+	ViewCount        int        `json:"view_count" db:"view_count"`
 }
 
 // ClipSubmissionWithUser includes user information
 type ClipSubmissionWithUser struct {
 	ClipSubmission
 	User *User `json:"user,omitempty"`
+}
+
+// CreatorAccount represents a local creator identity managed by a user.
+type CreatorAccount struct {
+	ID          uuid.UUID `json:"id" db:"id"`
+	OwnerUserID uuid.UUID `json:"owner_user_id" db:"owner_user_id"`
+	DisplayName string    `json:"display_name" db:"display_name"`
+	Slug        string    `json:"slug" db:"slug"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// CreatorPlatformAccount links a creator to an external platform account.
+type CreatorPlatformAccount struct {
+	ID                    uuid.UUID  `json:"id" db:"id"`
+	CreatorID             uuid.UUID  `json:"creator_id" db:"creator_id"`
+	Platform              string     `json:"platform" db:"platform"`
+	PlatformUserID        string     `json:"platform_user_id" db:"platform_user_id"`
+	PlatformDisplayName   string     `json:"platform_display_name" db:"platform_display_name"`
+	ProfileURL            *string    `json:"profile_url,omitempty" db:"profile_url"`
+	CanImportBans         bool       `json:"can_import_bans" db:"can_import_bans"`
+	CanSyncBansOutbound   bool       `json:"can_sync_bans_outbound" db:"can_sync_bans_outbound"`
+	CanImportModerators   bool       `json:"can_import_moderators" db:"can_import_moderators"`
+	CanVerifyOwnership    bool       `json:"can_verify_ownership" db:"can_verify_ownership"`
+	CanFetchMetadata      bool       `json:"can_fetch_metadata" db:"can_fetch_metadata"`
+	AccessTokenEncrypted  *string    `json:"access_token_encrypted,omitempty" db:"access_token_encrypted"`
+	RefreshTokenEncrypted *string    `json:"refresh_token_encrypted,omitempty" db:"refresh_token_encrypted"`
+	TokenExpiresAt        *time.Time `json:"token_expires_at,omitempty" db:"token_expires_at"`
+	CreatedAt             time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// CreatorModerator represents a creator-scoped moderator assignment.
+type CreatorModerator struct {
+	ID             uuid.UUID  `json:"id" db:"id"`
+	CreatorID      uuid.UUID  `json:"creator_id" db:"creator_id"`
+	UserID         *uuid.UUID `json:"user_id,omitempty" db:"user_id"`
+	Platform       *string    `json:"platform,omitempty" db:"platform"`
+	PlatformUserID *string    `json:"platform_user_id,omitempty" db:"platform_user_id"`
+	Permissions    []string   `json:"permissions" db:"permissions"`
+	Source         string     `json:"source" db:"source"`
+	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+}
+
+// CreatorBan represents a local creator-level restriction.
+type CreatorBan struct {
+	ID                   uuid.UUID  `json:"id" db:"id"`
+	CreatorID            uuid.UUID  `json:"creator_id" db:"creator_id"`
+	TargetUserID         *uuid.UUID `json:"target_user_id,omitempty" db:"target_user_id"`
+	TargetPlatform       *string    `json:"target_platform,omitempty" db:"target_platform"`
+	TargetPlatformUserID *string    `json:"target_platform_user_id,omitempty" db:"target_platform_user_id"`
+	Source               string     `json:"source" db:"source"`
+	Reason               *string    `json:"reason,omitempty" db:"reason"`
+	Scopes               []string   `json:"scopes" db:"scopes"`
+	ExpiresAt            *time.Time `json:"expires_at,omitempty" db:"expires_at"`
+	CreatedByUserID      *uuid.UUID `json:"created_by_user_id,omitempty" db:"created_by_user_id"`
+	SyncStatus           string     `json:"sync_status" db:"sync_status"`
+	CreatedAt            time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // SubmissionStats represents submission statistics for a user
@@ -717,13 +968,7 @@ const (
 	NotificationTypeNewReport            = "new_report"
 	NotificationTypePendingSubmissions   = "pending_submissions"
 	NotificationTypeSystemAlert          = "system_alert"
-	// Dunning notification types
-	NotificationTypePaymentFailed          = "payment_failed"
-	NotificationTypePaymentRetry           = "payment_retry"
-	NotificationTypeGracePeriodWarning     = "grace_period_warning"
-	NotificationTypeSubscriptionDowngraded = "subscription_downgraded"
 	// Invoice notification types
-	NotificationTypeInvoiceFinalized = "invoice_finalized"
 	// Export notification types
 	NotificationTypeExportCompleted = "export_completed"
 	NotificationTypeExportFailed    = "export_failed"
@@ -862,6 +1107,17 @@ type CreatorTopClip struct {
 	EngagementRate float64 `json:"engagement_rate"`
 }
 
+func (c CreatorTopClip) MarshalJSON() ([]byte, error) {
+	wire := clipWireValue(c.Clip)
+	return json.Marshal(struct {
+		clipAlias
+		TwitchCategoryID   *string `json:"twitch_category_id,omitempty"`
+		TwitchCategoryName *string `json:"twitch_category_name,omitempty"`
+		Views              int64   `json:"views"`
+		EngagementRate     float64 `json:"engagement_rate"`
+	}{wire.clipAlias, wire.TwitchCategoryID, wire.TwitchCategoryName, c.Views, c.EngagementRate})
+}
+
 // TrendDataPoint represents a data point in a time series
 type TrendDataPoint struct {
 	Date  time.Time `json:"date"`
@@ -870,14 +1126,24 @@ type TrendDataPoint struct {
 
 // PlatformOverviewMetrics represents KPIs for admin dashboard
 type PlatformOverviewMetrics struct {
-	TotalUsers         int64   `json:"total_users"`
-	ActiveUsersDaily   int     `json:"active_users_daily"`
-	ActiveUsersMonthly int     `json:"active_users_monthly"`
-	TotalClips         int64   `json:"total_clips"`
-	ClipsAddedToday    int     `json:"clips_added_today"`
-	TotalVotes         int64   `json:"total_votes"`
-	TotalComments      int64   `json:"total_comments"`
-	AvgSessionDuration float64 `json:"avg_session_duration"`
+	TotalUsers         int64     `json:"total_users"`
+	ActiveUsersDaily   *int      `json:"active_users_daily"`
+	ActiveUsersMonthly *int      `json:"active_users_monthly"`
+	TotalClips         int64     `json:"total_clips"`
+	ClipsAddedToday    int       `json:"clips_added_today"`
+	TotalVotes         int64     `json:"total_votes"`
+	TotalComments      int64     `json:"total_comments"`
+	AvgSessionDuration *float64  `json:"avg_session_duration"`
+	GeneratedAt        time.Time `json:"generated_at"`
+	Source             string    `json:"source"`
+}
+
+// AdminIdentitySummary separates product users from imported creator and staff identities.
+type AdminIdentitySummary struct {
+	SignedInUsers     int64 `json:"signed_in_users"`
+	UnclaimedCreators int64 `json:"unclaimed_creators"`
+	Staff             int64 `json:"staff"`
+	Other             int64 `json:"other"`
 }
 
 // ContentMetrics represents content-related metrics for admin dashboard
@@ -1053,127 +1319,30 @@ type DeviceMetric struct {
 
 // CreatorAudienceInsights represents audience insights for a creator
 type CreatorAudienceInsights struct {
-	TopCountries []GeographyMetric `json:"top_countries"` // Top countries by view count
+	TopCountries []GeographyMetric `json:"top_countries"` // Empty until a real GeoIP provider is configured
 	DeviceTypes  []DeviceMetric    `json:"device_types"`  // Distribution by device type
 	TotalViews   int64             `json:"total_views"`   // Total views analyzed
 }
 
 // Subscription represents a user's subscription status
 type Subscription struct {
-	ID                   uuid.UUID  `json:"id" db:"id"`
-	UserID               uuid.UUID  `json:"user_id" db:"user_id"`
-	StripeCustomerID     string     `json:"stripe_customer_id" db:"stripe_customer_id"`
-	StripeSubscriptionID *string    `json:"stripe_subscription_id,omitempty" db:"stripe_subscription_id"`
-	StripePriceID        *string    `json:"stripe_price_id,omitempty" db:"stripe_price_id"`
-	Status               string     `json:"status" db:"status"` // inactive, active, trialing, past_due, canceled, unpaid
-	Tier                 string     `json:"tier" db:"tier"`     // free, pro
-	CurrentPeriodStart   *time.Time `json:"current_period_start,omitempty" db:"current_period_start"`
-	CurrentPeriodEnd     *time.Time `json:"current_period_end,omitempty" db:"current_period_end"`
-	CancelAtPeriodEnd    bool       `json:"cancel_at_period_end" db:"cancel_at_period_end"`
-	CanceledAt           *time.Time `json:"canceled_at,omitempty" db:"canceled_at"`
-	TrialStart           *time.Time `json:"trial_start,omitempty" db:"trial_start"`
-	TrialEnd             *time.Time `json:"trial_end,omitempty" db:"trial_end"`
-	GracePeriodEnd       *time.Time `json:"grace_period_end,omitempty" db:"grace_period_end"`
-	CreatedAt            time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at" db:"updated_at"`
-}
-
-// SubscriptionEvent represents an event in subscription lifecycle for audit logging
-type SubscriptionEvent struct {
-	ID             uuid.UUID  `json:"id" db:"id"`
-	SubscriptionID *uuid.UUID `json:"subscription_id,omitempty" db:"subscription_id"`
-	EventType      string     `json:"event_type" db:"event_type"`
-	StripeEventID  *string    `json:"stripe_event_id,omitempty" db:"stripe_event_id"`
-	Payload        string     `json:"payload" db:"payload"` // JSONB stored as string
-	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
-}
-
-// WebhookRetryQueue represents a webhook event pending retry
-type WebhookRetryQueue struct {
-	ID            uuid.UUID  `json:"id" db:"id"`
-	StripeEventID string     `json:"stripe_event_id" db:"stripe_event_id"`
-	EventType     string     `json:"event_type" db:"event_type"`
-	Payload       string     `json:"payload" db:"payload"` // JSONB stored as string
-	RetryCount    int        `json:"retry_count" db:"retry_count"`
-	MaxRetries    int        `json:"max_retries" db:"max_retries"`
-	NextRetryAt   *time.Time `json:"next_retry_at,omitempty" db:"next_retry_at"`
-	LastError     *string    `json:"last_error,omitempty" db:"last_error"`
-	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
-}
-
-// WebhookDeadLetterQueue represents a permanently failed webhook event
-type WebhookDeadLetterQueue struct {
-	ID                uuid.UUID `json:"id" db:"id"`
-	StripeEventID     string    `json:"stripe_event_id" db:"stripe_event_id"`
-	EventType         string    `json:"event_type" db:"event_type"`
-	Payload           string    `json:"payload" db:"payload"` // JSONB stored as string
-	RetryCount        int       `json:"retry_count" db:"retry_count"`
-	Error             string    `json:"error" db:"error"`
-	OriginalTimestamp time.Time `json:"original_timestamp" db:"original_timestamp"`
-	CreatedAt         time.Time `json:"created_at" db:"created_at"`
-}
-
-// UserWithSubscription represents a user with their subscription information
-type UserWithSubscription struct {
-	User
-	Subscription *Subscription `json:"subscription,omitempty"`
-}
-
-// CreateCheckoutSessionRequest represents a request to create a Stripe checkout session
-type CreateCheckoutSessionRequest struct {
-	PriceID    string  `json:"price_id" binding:"required"`
-	CouponCode *string `json:"coupon_code,omitempty"`
-}
-
-// ChangeSubscriptionPlanRequest represents a request to change subscription plan
-type ChangeSubscriptionPlanRequest struct {
-	PriceID string `json:"price_id" binding:"required"`
-}
-
-// CancelSubscriptionRequest represents a request to cancel a subscription
-type CancelSubscriptionRequest struct {
-	Immediate bool `json:"immediate"` // If true, cancel immediately. Otherwise, cancel at period end.
-}
-
-// CreateCheckoutSessionResponse represents the response with checkout session URL
-type CreateCheckoutSessionResponse struct {
-	SessionID  string `json:"session_id"`
-	SessionURL string `json:"session_url"`
-}
-
-// CreatePortalSessionResponse represents the response with portal session URL
-type CreatePortalSessionResponse struct {
-	PortalURL string `json:"portal_url"`
-}
-
-// PaymentFailure represents a failed payment attempt for a subscription
-type PaymentFailure struct {
-	ID                    uuid.UUID  `json:"id" db:"id"`
-	SubscriptionID        uuid.UUID  `json:"subscription_id" db:"subscription_id"`
-	StripeInvoiceID       string     `json:"stripe_invoice_id" db:"stripe_invoice_id"`
-	StripePaymentIntentID *string    `json:"stripe_payment_intent_id,omitempty" db:"stripe_payment_intent_id"`
-	AmountDue             int64      `json:"amount_due" db:"amount_due"` // Amount in cents
-	Currency              string     `json:"currency" db:"currency"`
-	AttemptCount          int        `json:"attempt_count" db:"attempt_count"`
-	FailureReason         *string    `json:"failure_reason,omitempty" db:"failure_reason"`
-	NextRetryAt           *time.Time `json:"next_retry_at,omitempty" db:"next_retry_at"`
-	Resolved              bool       `json:"resolved" db:"resolved"`
-	ResolvedAt            *time.Time `json:"resolved_at,omitempty" db:"resolved_at"`
-	CreatedAt             time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt             time.Time  `json:"updated_at" db:"updated_at"`
-}
-
-// DunningAttempt represents a communication attempt to a user about failed payment
-type DunningAttempt struct {
-	ID               uuid.UUID  `json:"id" db:"id"`
-	PaymentFailureID uuid.UUID  `json:"payment_failure_id" db:"payment_failure_id"`
-	UserID           uuid.UUID  `json:"user_id" db:"user_id"`
-	AttemptNumber    int        `json:"attempt_number" db:"attempt_number"`
-	NotificationType string     `json:"notification_type" db:"notification_type"` // payment_failed, payment_retry, grace_period_warning, subscription_downgraded
-	EmailSent        bool       `json:"email_sent" db:"email_sent"`
-	EmailSentAt      *time.Time `json:"email_sent_at,omitempty" db:"email_sent_at"`
-	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
+	ID                     uuid.UUID  `json:"id" db:"id"`
+	UserID                 uuid.UUID  `json:"user_id" db:"user_id"`
+	StripeCustomerID       string     `json:"stripe_customer_id" db:"stripe_customer_id"`
+	StripeSubscriptionID   *string    `json:"stripe_subscription_id,omitempty" db:"stripe_subscription_id"`
+	StripePriceID          *string    `json:"stripe_price_id,omitempty" db:"stripe_price_id"`
+	Status                 string     `json:"status" db:"status"` // inactive, active, trialing, past_due, canceled, unpaid
+	Tier                   string     `json:"tier" db:"tier"`     // free, pro
+	CurrentPeriodStart     *time.Time `json:"current_period_start,omitempty" db:"current_period_start"`
+	CurrentPeriodEnd       *time.Time `json:"current_period_end,omitempty" db:"current_period_end"`
+	CancelAtPeriodEnd      bool       `json:"cancel_at_period_end" db:"cancel_at_period_end"`
+	CanceledAt             *time.Time `json:"canceled_at,omitempty" db:"canceled_at"`
+	TrialStart             *time.Time `json:"trial_start,omitempty" db:"trial_start"`
+	TrialEnd               *time.Time `json:"trial_end,omitempty" db:"trial_end"`
+	GracePeriodEnd         *time.Time `json:"grace_period_end,omitempty" db:"grace_period_end"`
+	LastStripeEventCreated int64      `json:"-" db:"last_stripe_event_created"`
+	CreatedAt              time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt              time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // ContactMessage represents a contact form submission
@@ -1246,64 +1415,13 @@ const (
 
 // RegisterDeviceTokenRequest represents the request to register a device token
 type RegisterDeviceTokenRequest struct {
-	DeviceToken    string `json:"device_token" binding:"required"`
+	DeviceToken    string `json:"device_token" binding:"required,max=4096"`
 	DevicePlatform string `json:"device_platform" binding:"required,oneof=ios android web"`
 }
 
 // UnregisterDeviceTokenRequest represents the request to unregister a device token
 type UnregisterDeviceTokenRequest struct {
-	DeviceToken string `json:"device_token" binding:"required"`
-}
-
-// RevenueMetrics represents subscription revenue metrics for admin dashboard
-type RevenueMetrics struct {
-	MRR                  float64                  `json:"mrr"`                    // Monthly Recurring Revenue in cents
-	Churn                float64                  `json:"churn"`                  // Churn rate as percentage
-	ARPU                 float64                  `json:"arpu"`                   // Average Revenue Per User in cents
-	ActiveSubscribers    int                      `json:"active_subscribers"`     // Total active subscribers
-	TotalRevenue         float64                  `json:"total_revenue"`          // Total revenue to date in cents
-	PlanDistribution     []PlanDistributionMetric `json:"plan_distribution"`      // Distribution by plan
-	CohortRetention      []CohortRetentionMetric  `json:"cohort_retention"`       // Cohort retention data
-	ChurnedSubscribers   int                      `json:"churned_subscribers"`    // Subscribers churned this month
-	NewSubscribers       int                      `json:"new_subscribers"`        // New subscribers this month
-	TrialConversionRate  float64                  `json:"trial_conversion_rate"`  // Trial to paid conversion rate
-	GracePeriodRecovery  float64                  `json:"grace_period_recovery"`  // Grace period recovery rate
-	AverageLifetimeValue float64                  `json:"average_lifetime_value"` // Average customer LTV in cents
-	RevenueByMonth       []RevenueByMonthMetric   `json:"revenue_by_month"`       // Revenue trend by month
-	SubscriberGrowth     []SubscriberGrowthMetric `json:"subscriber_growth"`      // Subscriber growth trend
-	UpdatedAt            time.Time                `json:"updated_at"`
-}
-
-// PlanDistributionMetric represents distribution of subscribers by plan
-type PlanDistributionMetric struct {
-	PlanID       string  `json:"plan_id"`
-	PlanName     string  `json:"plan_name"`
-	Subscribers  int     `json:"subscribers"`
-	Percentage   float64 `json:"percentage"`
-	MonthlyValue float64 `json:"monthly_value"` // in cents
-}
-
-// CohortRetentionMetric represents retention data for a specific cohort
-type CohortRetentionMetric struct {
-	CohortMonth    string    `json:"cohort_month"`    // YYYY-MM format
-	InitialSize    int       `json:"initial_size"`    // Number of subscribers in cohort
-	RetentionRates []float64 `json:"retention_rates"` // Retention % for each month after signup
-}
-
-// RevenueByMonthMetric represents revenue data for a specific month
-type RevenueByMonthMetric struct {
-	Month   string  `json:"month"`   // YYYY-MM format
-	Revenue float64 `json:"revenue"` // Revenue in cents
-	MRR     float64 `json:"mrr"`     // MRR at end of month in cents
-}
-
-// SubscriberGrowthMetric represents subscriber growth data for a specific month
-type SubscriberGrowthMetric struct {
-	Month     string `json:"month"`      // YYYY-MM format
-	Total     int    `json:"total"`      // Total subscribers at end of month
-	New       int    `json:"new"`        // New subscribers that month
-	Churned   int    `json:"churned"`    // Churned subscribers that month
-	NetChange int    `json:"net_change"` // Net subscriber change
+	DeviceToken string `json:"device_token" binding:"required,max=4096"`
 }
 
 // ExportRequest represents a creator's data export request
@@ -1313,11 +1431,11 @@ type ExportRequest struct {
 	CreatorName   string     `json:"creator_name" db:"creator_name"`
 	Format        string     `json:"format" db:"format"` // csv, json
 	Status        string     `json:"status" db:"status"` // pending, processing, completed, failed, expired
-	FilePath      *string    `json:"file_path,omitempty" db:"file_path"`
+	FilePath      *string    `json:"-" db:"file_path"`
 	FileSizeBytes *int64     `json:"file_size_bytes,omitempty" db:"file_size_bytes"`
-	ErrorMessage  *string    `json:"error_message,omitempty" db:"error_message"`
+	ErrorMessage  *string    `json:"-" db:"error_message"`
 	ExpiresAt     *time.Time `json:"expires_at,omitempty" db:"expires_at"`
-	EmailSent     bool       `json:"email_sent" db:"email_sent"`
+	EmailSent     bool       `json:"-" db:"email_sent"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
 	CompletedAt   *time.Time `json:"completed_at,omitempty" db:"completed_at"`
@@ -1379,6 +1497,30 @@ type Ad struct {
 	UpdatedAt         time.Time  `json:"updated_at" db:"updated_at"`
 }
 
+// PublicAd is the creative payload exposed to viewers. Campaign budgets,
+// spend, targeting rules, and experiment assignments remain administrative.
+type PublicAd struct {
+	ID             uuid.UUID `json:"id"`
+	Name           string    `json:"name"`
+	AdvertiserName string    `json:"advertiser_name"`
+	AdType         string    `json:"ad_type"`
+	ContentURL     string    `json:"content_url"`
+	ClickURL       *string   `json:"click_url,omitempty"`
+	AltText        *string   `json:"alt_text,omitempty"`
+	Width          *int      `json:"width,omitempty"`
+	Height         *int      `json:"height,omitempty"`
+	Priority       int       `json:"priority"`
+	Weight         int       `json:"weight"`
+}
+
+func (a Ad) Public() PublicAd {
+	return PublicAd{
+		ID: a.ID, Name: a.Name, AdvertiserName: a.AdvertiserName, AdType: a.AdType,
+		ContentURL: a.ContentURL, ClickURL: a.ClickURL, AltText: a.AltText,
+		Width: a.Width, Height: a.Height, Priority: a.Priority, Weight: a.Weight,
+	}
+}
+
 // AdImpression represents a tracked ad impression
 type AdImpression struct {
 	ID                uuid.UUID  `json:"id" db:"id"`
@@ -1428,33 +1570,33 @@ type AdFrequencyLimit struct {
 // AdSelectionRequest represents a request to select an ad
 type AdSelectionRequest struct {
 	Platform  string  `json:"platform" form:"platform" binding:"required,oneof=web ios android"`
-	PageURL   *string `json:"page_url,omitempty" form:"page_url"`
-	AdType    *string `json:"ad_type,omitempty" form:"ad_type"` // Filter by ad type
-	Width     *int    `json:"width,omitempty" form:"width"`     // Filter by dimensions
-	Height    *int    `json:"height,omitempty" form:"height"`
-	SessionID *string `json:"session_id,omitempty" form:"session_id"` // For anonymous users
-	GameID    *string `json:"game_id,omitempty" form:"game_id"`       // For targeting
-	Language  *string `json:"language,omitempty" form:"language"`
+	PageURL   *string `json:"page_url,omitempty" form:"page_url" binding:"omitempty,max=2048"`
+	AdType    *string `json:"ad_type,omitempty" form:"ad_type" binding:"omitempty,max=50"` // Filter by ad type
+	Width     *int    `json:"width,omitempty" form:"width" binding:"omitempty,min=1,max=10000"`
+	Height    *int    `json:"height,omitempty" form:"height" binding:"omitempty,min=1,max=10000"`
+	SessionID *string `json:"session_id,omitempty" form:"session_id" binding:"omitempty,max=128"`
+	GameID    *string `json:"game_id,omitempty" form:"game_id" binding:"omitempty,max=128"`
+	Language  *string `json:"language,omitempty" form:"language" binding:"omitempty,min=2,max=16"`
 	// Enhanced targeting fields
-	SlotID     *string  `json:"slot_id,omitempty" form:"slot_id"`         // Ad placement slot identifier
-	Country    *string  `json:"country,omitempty" form:"country"`         // ISO 3166-1 alpha-2 country code
-	DeviceType *string  `json:"device_type,omitempty" form:"device_type"` // desktop, mobile, tablet
-	Interests  []string `json:"interests,omitempty" form:"interests"`     // User interest categories
+	SlotID     *string  `json:"slot_id,omitempty" form:"slot_id" binding:"omitempty,max=100"`
+	Country    *string  `json:"country,omitempty" form:"country" binding:"omitempty,len=2"`
+	DeviceType *string  `json:"device_type,omitempty" form:"device_type" binding:"omitempty,oneof=desktop mobile tablet"`
+	Interests  []string `json:"interests,omitempty" form:"interests" binding:"max=20,dive,min=1,max=50"`
 	// Privacy/consent fields
 	Personalized *bool `json:"personalized,omitempty" form:"personalized"` // Whether user consented to personalized ads
 }
 
 // AdSelectionResponse represents a selected ad for display
 type AdSelectionResponse struct {
-	Ad           *Ad    `json:"ad,omitempty"`
-	ImpressionID string `json:"impression_id,omitempty"` // UUID for tracking
-	TrackingURL  string `json:"tracking_url,omitempty"`  // URL to call for viewability
+	Ad           *PublicAd `json:"ad,omitempty"`
+	ImpressionID string    `json:"impression_id,omitempty"` // UUID for tracking
+	TrackingURL  string    `json:"tracking_url,omitempty"`  // URL to call for viewability
 }
 
 // AdTrackingRequest represents a tracking update for an impression
 type AdTrackingRequest struct {
-	ImpressionID      string `json:"impression_id" binding:"required"`
-	ViewabilityTimeMs int    `json:"viewability_time_ms"`
+	ImpressionID      string `json:"-"`
+	ViewabilityTimeMs int    `json:"viewability_time_ms" binding:"min=0,max=86400000"`
 	IsViewable        bool   `json:"is_viewable"`
 	IsClicked         bool   `json:"is_clicked"`
 }
@@ -1826,6 +1968,21 @@ type PopularBroadcaster struct {
 	ClipCount       int    `json:"clip_count"`
 }
 
+// BroadcasterRanking represents a broadcaster's engagement-weighted rank
+type BroadcasterRanking struct {
+	BroadcasterID       string    `json:"broadcaster_id" db:"broadcaster_id"`
+	BroadcasterName     string    `json:"broadcaster_name" db:"broadcaster_name"`
+	TotalClips          int       `json:"total_clips" db:"total_clips"`
+	HumanSubmittedClips int       `json:"human_submitted_clips" db:"human_submitted_clips"`
+	TotalVoteScore      int64     `json:"total_vote_score" db:"total_vote_score"`
+	TotalViews          int64     `json:"total_views" db:"total_views"`
+	TotalComments       int64     `json:"total_comments" db:"total_comments"`
+	UniqueCommenters    int64     `json:"unique_commenters" db:"unique_commenters"`
+	EngagementScore     float64   `json:"engagement_score" db:"engagement_score"`
+	FollowerCount       int       `json:"follower_count" db:"follower_count"`
+	LastCalculated      time.Time `json:"last_calculated" db:"last_calculated"`
+}
+
 // EmailLog represents a comprehensive email event log from SendGrid webhooks
 type EmailLog struct {
 	ID                uuid.UUID  `json:"id" db:"id"`
@@ -1967,7 +2124,14 @@ type Feed struct {
 // FeedWithOwner includes owner information
 type FeedWithOwner struct {
 	Feed
-	Owner *User `json:"owner,omitempty"`
+	Owner *FeedOwner `json:"owner,omitempty"`
+}
+
+type FeedOwner struct {
+	ID          uuid.UUID `json:"id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+	AvatarURL   *string   `json:"avatar_url,omitempty"`
 }
 
 // FeedItem represents a clip in a feed
@@ -2009,6 +2173,13 @@ type UpdateFeedRequest struct {
 	IsPublic    *bool   `json:"is_public,omitempty"`
 }
 
+func (r *UpdateFeedRequest) Validate() error {
+	if r.Name == nil && r.Description == nil && r.Icon == nil && r.IsPublic == nil {
+		return fmt.Errorf("at least one field must be provided")
+	}
+	return nil
+}
+
 // AddClipToFeedRequest represents the request to add a clip to a feed
 type AddClipToFeedRequest struct {
 	ClipID uuid.UUID `json:"clip_id" binding:"required"`
@@ -2016,7 +2187,7 @@ type AddClipToFeedRequest struct {
 
 // ReorderFeedClipsRequest represents the request to reorder clips in a feed
 type ReorderFeedClipsRequest struct {
-	ClipIDs []uuid.UUID `json:"clip_ids" binding:"required"`
+	ClipIDs []uuid.UUID `json:"clip_ids" binding:"required,min=1,max=500,unique"`
 }
 
 // UserFollow represents a user following another user
@@ -2127,18 +2298,19 @@ type FollowerUser struct {
 
 // Category represents a high-level content category
 type Category struct {
-	ID          uuid.UUID `json:"id" db:"id"`
-	Name        string    `json:"name" db:"name"`
-	Slug        string    `json:"slug" db:"slug"`
-	Description *string   `json:"description,omitempty" db:"description"`
-	Icon        *string   `json:"icon,omitempty" db:"icon"`
-	Position    int       `json:"position" db:"position"`
-	CategoryType string   `json:"category_type" db:"category_type"`
-	IsFeatured   bool     `json:"is_featured" db:"is_featured"`
-	IsCustom     bool     `json:"is_custom" db:"is_custom"`
+	ID              uuid.UUID  `json:"id" db:"id"`
+	Name            string     `json:"name" db:"name"`
+	Slug            string     `json:"slug" db:"slug"`
+	Description     *string    `json:"description,omitempty" db:"description"`
+	Icon            *string    `json:"icon,omitempty" db:"icon"`
+	Position        int        `json:"position" db:"position"`
+	CategoryType    string     `json:"category_type" db:"category_type"`
+	IsFeatured      bool       `json:"is_featured" db:"is_featured"`
+	IsCustom        bool       `json:"is_custom" db:"is_custom"`
+	IsPublic        bool       `json:"is_public" db:"is_public"`
 	CreatedByUserID *uuid.UUID `json:"created_by_user_id,omitempty" db:"created_by_user_id"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // GameEntity represents a full game entity from Twitch (with database fields)
@@ -2155,6 +2327,8 @@ type GameEntity struct {
 
 // Game is an alias for GameEntity for backward compatibility
 type Game = GameEntity
+
+type TwitchCategoryEntity = GameEntity
 
 // GameWithStats represents a game with additional statistics
 type GameWithStats struct {
@@ -2254,6 +2428,7 @@ type BroadcasterLiveStatus struct {
 	UserLogin     *string    `json:"user_login,omitempty" db:"user_login"`
 	UserName      *string    `json:"user_name,omitempty" db:"user_name"`
 	IsLive        bool       `json:"is_live" db:"is_live"`
+	IsStale       bool       `json:"is_stale" db:"-"`
 	StreamTitle   *string    `json:"stream_title,omitempty" db:"stream_title"`
 	GameName      *string    `json:"game_name,omitempty" db:"game_name"`
 	ViewerCount   int        `json:"viewer_count" db:"viewer_count"`
@@ -3031,6 +3206,34 @@ type CreateVerificationApplicationRequest struct {
 	SocialMediaLinks   map[string]string `json:"social_media_links,omitempty"`
 }
 
+func (r *CreateVerificationApplicationRequest) Validate() error {
+	parsed, err := url.Parse(r.TwitchChannelURL)
+	if err != nil || parsed.Scheme != "https" || (strings.ToLower(parsed.Hostname()) != "twitch.tv" && strings.ToLower(parsed.Hostname()) != "www.twitch.tv") {
+		return fmt.Errorf("twitch_channel_url must be an HTTPS Twitch channel URL")
+	}
+	if strings.Trim(parsed.Path, "/") == "" || strings.Contains(strings.Trim(parsed.Path, "/"), "/") {
+		return fmt.Errorf("twitch_channel_url must identify one channel")
+	}
+	for _, value := range []*int{r.FollowerCount, r.SubscriberCount, r.AvgViewers} {
+		if value != nil && *value > 1_000_000_000 {
+			return fmt.Errorf("audience metrics are too large")
+		}
+	}
+	if len(r.SocialMediaLinks) > 10 {
+		return fmt.Errorf("social_media_links cannot contain more than 10 entries")
+	}
+	for key, value := range r.SocialMediaLinks {
+		if len(key) < 1 || len(key) > 50 || len(value) > 500 {
+			return fmt.Errorf("invalid social media link")
+		}
+		parsed, err := url.Parse(value)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+			return fmt.Errorf("social media links must use HTTPS")
+		}
+	}
+	return nil
+}
+
 // ReviewVerificationApplicationRequest represents admin request to review an application
 type ReviewVerificationApplicationRequest struct {
 	Decision string  `json:"decision" binding:"required,oneof=approved rejected"`
@@ -3262,6 +3465,15 @@ type UserFilterPreset struct {
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
+type PublicFilterPreset struct {
+	ID        uuid.UUID           `json:"id"`
+	UserID    uuid.UUID           `json:"user_id"`
+	Name      string              `json:"name"`
+	Filters   FilterPresetFilters `json:"filters"`
+	CreatedAt time.Time           `json:"created_at"`
+	UpdatedAt time.Time           `json:"updated_at"`
+}
+
 // FilterPresetFilters represents the filter configuration in a preset
 type FilterPresetFilters struct {
 	Games       []string `json:"games,omitempty"`
@@ -3285,6 +3497,65 @@ type CreateFilterPresetRequest struct {
 type UpdateFilterPresetRequest struct {
 	Name    *string              `json:"name,omitempty" binding:"omitempty,min=1,max=100"`
 	Filters *FilterPresetFilters `json:"filters,omitempty"`
+}
+
+func (r *UpdateFilterPresetRequest) Validate() error {
+	if r.Name == nil && r.Filters == nil {
+		return fmt.Errorf("at least one field must be provided")
+	}
+	if r.Filters != nil {
+		return r.Filters.Validate()
+	}
+	return nil
+}
+
+func (f *FilterPresetFilters) Validate() error {
+	if f == nil {
+		return fmt.Errorf("filters are required")
+	}
+	for name, values := range map[string][]string{"games": f.Games, "streamers": f.Streamers, "tags": f.Tags, "exclude_tags": f.ExcludeTags} {
+		if len(values) > 20 {
+			return fmt.Errorf("%s cannot contain more than 20 values", name)
+		}
+		seen := map[string]struct{}{}
+		for _, value := range values {
+			value = strings.TrimSpace(value)
+			if value == "" || len(value) > 100 {
+				return fmt.Errorf("%s values must be between 1 and 100 characters", name)
+			}
+			if _, ok := seen[value]; ok {
+				return fmt.Errorf("%s values must be unique", name)
+			}
+			seen[value] = struct{}{}
+		}
+	}
+	if f.Sort != nil {
+		valid := map[string]bool{"trending": true, "popular": true, "new": true, "top": true, "discussed": true, "hot": true, "rising": true}
+		if !valid[*f.Sort] {
+			return fmt.Errorf("invalid sort")
+		}
+	}
+	if f.Language != nil && (len(*f.Language) < 2 || len(*f.Language) > 10) {
+		return fmt.Errorf("language must be between 2 and 10 characters")
+	}
+	var from, to time.Time
+	var err error
+	if f.DateFrom != nil {
+		from, err = time.Parse(time.RFC3339, *f.DateFrom)
+		if err != nil {
+			return fmt.Errorf("invalid date_from")
+		}
+	}
+	if f.DateTo != nil {
+		to, err = time.Parse(time.RFC3339, *f.DateTo)
+		if err != nil {
+			return fmt.Errorf("invalid date_to")
+		}
+	}
+	if !from.IsZero() && !to.IsZero() && from.After(to) {
+		return fmt.Errorf("date_from must not be after date_to")
+	}
+	return nil
 }
 
 // ClipFiltersResponse represents enhanced clip feed response with filter metadata
@@ -3311,12 +3582,21 @@ type UserPreference struct {
 	FavoriteGames         []string    `json:"favorite_games" db:"favorite_games"`
 	FollowedStreamers     []string    `json:"followed_streamers" db:"followed_streamers"`
 	PreferredCategories   []string    `json:"preferred_categories" db:"preferred_categories"`
+	TwitchCategories      []string    `json:"twitch_categories" db:"-"`
+	FollowedCreators      []string    `json:"followed_creators" db:"-"`
+	PreferredTopics       []string    `json:"preferred_topics" db:"-"`
 	PreferredTags         []uuid.UUID `json:"preferred_tags" db:"preferred_tags"`
 	OnboardingCompleted   bool        `json:"onboarding_completed" db:"onboarding_completed"`
 	OnboardingCompletedAt *time.Time  `json:"onboarding_completed_at,omitempty" db:"onboarding_completed_at"`
 	ColdStartSource       *string     `json:"cold_start_source,omitempty" db:"cold_start_source"` // 'onboarding', 'inferred', 'default'
 	UpdatedAt             time.Time   `json:"updated_at" db:"updated_at"`
 	CreatedAt             time.Time   `json:"created_at" db:"created_at"`
+}
+
+func (p *UserPreference) SyncCreatorFirstAliases() {
+	p.TwitchCategories = p.FavoriteGames
+	p.FollowedCreators = p.FollowedStreamers
+	p.PreferredTopics = p.PreferredCategories
 }
 
 // UserClipInteraction represents a user's interaction with a clip
@@ -3335,6 +3615,18 @@ type ClipRecommendation struct {
 	Score     float64 `json:"score" db:"score"`
 	Reason    string  `json:"reason" db:"reason"`
 	Algorithm string  `json:"algorithm" db:"algorithm"`
+}
+
+func (c ClipRecommendation) MarshalJSON() ([]byte, error) {
+	wire := clipWireValue(c.Clip)
+	return json.Marshal(struct {
+		clipAlias
+		TwitchCategoryID   *string `json:"twitch_category_id,omitempty"`
+		TwitchCategoryName *string `json:"twitch_category_name,omitempty"`
+		Score              float64 `json:"score"`
+		Reason             string  `json:"reason"`
+		Algorithm          string  `json:"algorithm"`
+	}{wire.clipAlias, wire.TwitchCategoryID, wire.TwitchCategoryName, c.Score, c.Reason, c.Algorithm})
 }
 
 // RecommendationRequest represents a request for clip recommendations
@@ -3365,8 +3657,8 @@ type RecommendationFeedback struct {
 	UserID       uuid.UUID `json:"user_id" db:"user_id"`
 	ClipID       uuid.UUID `json:"clip_id" db:"clip_id"`
 	FeedbackType string    `json:"feedback_type" db:"feedback_type"` // 'positive', 'negative'
-	Algorithm    string    `json:"algorithm" db:"algorithm"`
-	Score        float64   `json:"score" db:"score"`
+	Algorithm    *string   `json:"algorithm,omitempty" db:"algorithm"`
+	Score        *float64  `json:"score,omitempty" db:"score"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 }
 
@@ -3374,31 +3666,50 @@ type RecommendationFeedback struct {
 type SubmitFeedbackRequest struct {
 	ClipID       uuid.UUID `json:"clip_id" binding:"required"`
 	FeedbackType string    `json:"feedback_type" binding:"required,oneof=positive negative"`
-	Algorithm    *string   `json:"algorithm,omitempty"`
-	Score        *float64  `json:"score,omitempty"`
+	Algorithm    *string   `json:"algorithm,omitempty" binding:"omitempty,oneof=content collaborative hybrid trending"`
+	Score        *float64  `json:"score,omitempty" binding:"omitempty,min=0,max=1"`
 }
 
 // UpdatePreferencesRequest represents a request to update user preferences
 type UpdatePreferencesRequest struct {
-	FavoriteGames       *[]string    `json:"favorite_games,omitempty"`
-	FollowedStreamers   *[]string    `json:"followed_streamers,omitempty"`
-	PreferredCategories *[]string    `json:"preferred_categories,omitempty"`
-	PreferredTags       *[]uuid.UUID `json:"preferred_tags,omitempty"`
+	FavoriteGames       *[]string    `json:"favorite_games,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
+	FollowedStreamers   *[]string    `json:"followed_streamers,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
+	PreferredCategories *[]string    `json:"preferred_categories,omitempty" binding:"omitempty,max=5,dive,required,max=100"`
+	TwitchCategories    *[]string    `json:"twitch_categories,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
+	FollowedCreators    *[]string    `json:"followed_creators,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
+	PreferredTopics     *[]string    `json:"preferred_topics,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
+	PreferredTags       *[]uuid.UUID `json:"preferred_tags,omitempty" binding:"omitempty,max=10"`
+}
+
+func (r *UpdatePreferencesRequest) Validate() error {
+	if r.FavoriteGames == nil && r.FollowedStreamers == nil && r.PreferredCategories == nil &&
+		r.TwitchCategories == nil && r.FollowedCreators == nil && r.PreferredTopics == nil && r.PreferredTags == nil {
+		return fmt.Errorf("at least one preference field must be provided")
+	}
+	return nil
+}
+
+type TrackRecommendationViewRequest struct {
+	DwellTime *int `json:"dwell_time,omitempty" binding:"omitempty,min=0,max=86400"`
 }
 
 // OnboardingPreferencesRequest represents initial onboarding preferences
 // At least one preference type (games, streamers, categories, or tags) must be provided
 type OnboardingPreferencesRequest struct {
-	FavoriteGames       []string    `json:"favorite_games,omitempty" binding:"omitempty,max=10,dive,required"`
-	FollowedStreamers   []string    `json:"followed_streamers,omitempty" binding:"omitempty,max=10,dive,required"`
-	PreferredCategories []string    `json:"preferred_categories,omitempty" binding:"omitempty,max=5,dive,required"`
+	FavoriteGames       []string    `json:"favorite_games,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
+	FollowedStreamers   []string    `json:"followed_streamers,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
+	PreferredCategories []string    `json:"preferred_categories,omitempty" binding:"omitempty,max=5,dive,required,max=100"`
+	TwitchCategories    []string    `json:"twitch_categories,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
+	FollowedCreators    []string    `json:"followed_creators,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
+	PreferredTopics     []string    `json:"preferred_topics,omitempty" binding:"omitempty,max=10,dive,required,max=100"`
 	PreferredTags       []uuid.UUID `json:"preferred_tags,omitempty" binding:"omitempty,max=10"`
 }
 
 // Validate ensures at least one preference type is provided
 func (r *OnboardingPreferencesRequest) Validate() error {
-	if len(r.FavoriteGames) == 0 && len(r.FollowedStreamers) == 0 &&
-		len(r.PreferredCategories) == 0 && len(r.PreferredTags) == 0 {
+	if len(r.FavoriteGames) == 0 && len(r.FollowedStreamers) == 0 && len(r.PreferredCategories) == 0 &&
+		len(r.TwitchCategories) == 0 && len(r.FollowedCreators) == 0 && len(r.PreferredTopics) == 0 &&
+		len(r.PreferredTags) == 0 {
 		return fmt.Errorf("at least one preference type must be provided")
 	}
 	return nil
@@ -3447,7 +3758,7 @@ type HourlyMetric struct {
 
 // TrackEventRequest represents a request to track an event
 type TrackEventRequest struct {
-	EventType  string                 `json:"event_type" binding:"required"`
+	EventType  string                 `json:"event_type" binding:"required,max=100"`
 	Properties map[string]interface{} `json:"properties,omitempty"`
 }
 
@@ -3471,26 +3782,26 @@ const (
 
 // Playlist represents a user-created collection of clips
 type Playlist struct {
-	ID             uuid.UUID  `json:"id" db:"id"`
-	UserID         uuid.UUID  `json:"user_id" db:"user_id"`
-	Title          string     `json:"title" db:"title"`
-	Description    *string    `json:"description,omitempty" db:"description"`
-	CoverURL       *string    `json:"cover_url,omitempty" db:"cover_url"`
-	Visibility     string     `json:"visibility" db:"visibility"` // private, public, unlisted
-	ShareToken     *string    `json:"share_token,omitempty" db:"share_token"`
-	ViewCount      int        `json:"view_count" db:"view_count"`
-	ShareCount     int        `json:"share_count" db:"share_count"`
-	LikeCount      int        `json:"like_count" db:"like_count"`
-	FollowerCount  int        `json:"follower_count" db:"follower_count"`
-	BookmarkCount  int        `json:"bookmark_count" db:"bookmark_count"`
-	IsCurated      bool       `json:"is_curated" db:"is_curated"`
-	IsFeatured     bool       `json:"is_featured" db:"is_featured"`
-	DisplayOrder   int        `json:"display_order" db:"display_order"`
-	ScriptID       *uuid.UUID `json:"script_id,omitempty" db:"script_id"`
-	Slug           *string    `json:"slug,omitempty" db:"slug"`
-	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
-	DeletedAt      *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
+	ID            uuid.UUID  `json:"id" db:"id"`
+	UserID        uuid.UUID  `json:"user_id" db:"user_id"`
+	Title         string     `json:"title" db:"title"`
+	Description   *string    `json:"description,omitempty" db:"description"`
+	CoverURL      *string    `json:"cover_url,omitempty" db:"cover_url"`
+	Visibility    string     `json:"visibility" db:"visibility"` // private, public, unlisted
+	ShareToken    *string    `json:"share_token,omitempty" db:"share_token"`
+	ViewCount     int        `json:"view_count" db:"view_count"`
+	ShareCount    int        `json:"share_count" db:"share_count"`
+	LikeCount     int        `json:"like_count" db:"like_count"`
+	FollowerCount int        `json:"follower_count" db:"follower_count"`
+	BookmarkCount int        `json:"bookmark_count" db:"bookmark_count"`
+	IsCurated     bool       `json:"is_curated" db:"is_curated"`
+	IsFeatured    bool       `json:"is_featured" db:"is_featured"`
+	DisplayOrder  int        `json:"display_order" db:"display_order"`
+	ScriptID      *uuid.UUID `json:"script_id,omitempty" db:"script_id"`
+	Slug          *string    `json:"slug,omitempty" db:"slug"`
+	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+	DeletedAt     *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // PlaylistItem represents a clip in a playlist
@@ -3541,7 +3852,9 @@ type PlaylistScript struct {
 	GameID                  *string    `json:"game_id,omitempty" db:"game_id"`
 	GameIDs                 []string   `json:"game_ids,omitempty" db:"game_ids"`
 	BroadcasterID           *string    `json:"broadcaster_id,omitempty" db:"broadcaster_id"`
-	Tag                     *string    `json:"tag,omitempty" db:"tag"`
+	Tag                     *string    `json:"tag,omitempty" db:"tag"`               // DEPRECATED: use Tags instead
+	Tags                    []string   `json:"tags,omitempty" db:"tags"`             // Multiple tags with AND/OR logic
+	TagsLogic               string     `json:"tags_logic,omitempty" db:"tags_logic"` // "and" | "or", default "and"
 	ExcludeTags             []string   `json:"exclude_tags,omitempty" db:"exclude_tags"`
 	Language                *string    `json:"language,omitempty" db:"language"`
 	MinVoteScore            *int       `json:"min_vote_score,omitempty" db:"min_vote_score"`
@@ -3570,28 +3883,40 @@ type GeneratedPlaylist struct {
 // PlaylistListItem represents a playlist in list views with clip count
 type PlaylistListItem struct {
 	Playlist
-	ClipCount           int    `json:"clip_count" db:"clip_count"`
-	HasProcessingClips  bool   `json:"has_processing_clips" db:"has_processing_clips"`
-	PreviewClips        []Clip `json:"preview_clips,omitempty"`
+	ClipCount          int    `json:"clip_count" db:"clip_count"`
+	HasProcessingClips bool   `json:"has_processing_clips" db:"has_processing_clips"`
+	IsLiked            bool   `json:"is_liked"`
+	IsBookmarked       bool   `json:"is_bookmarked"`
+	PreviewClips       []Clip `json:"preview_clips,omitempty"`
 }
 
 // PlaylistWithClips represents a playlist with its clips
 type PlaylistWithClips struct {
 	Playlist
-	ClipCount    int               `json:"clip_count" db:"clip_count"`
-	Clips        []PlaylistClipRef `json:"clips,omitempty"`
-	PreviewClips []Clip            `json:"preview_clips,omitempty"`
-	IsLiked      bool              `json:"is_liked"`
-	IsFollowed   bool              `json:"is_followed"`
-	IsBookmarked bool              `json:"is_bookmarked"`
-	Creator      *User             `json:"creator,omitempty"`
-	CurrentUserPermission *string  `json:"current_user_permission,omitempty"`
+	ClipCount             int               `json:"clip_count" db:"clip_count"`
+	Clips                 []PlaylistClipRef `json:"clips,omitempty"`
+	PreviewClips          []Clip            `json:"preview_clips,omitempty"`
+	IsLiked               bool              `json:"is_liked"`
+	IsFollowed            bool              `json:"is_followed"`
+	IsBookmarked          bool              `json:"is_bookmarked"`
+	Creator               *User             `json:"creator,omitempty"`
+	CurrentUserPermission *string           `json:"current_user_permission,omitempty"`
 }
 
 // PlaylistClipRef represents a clip reference in a playlist with ordering
 type PlaylistClipRef struct {
 	Clip
 	OrderIndex int `json:"order" db:"order_index"`
+}
+
+func (c PlaylistClipRef) MarshalJSON() ([]byte, error) {
+	wire := clipWireValue(c.Clip)
+	return json.Marshal(struct {
+		clipAlias
+		TwitchCategoryID   *string `json:"twitch_category_id,omitempty"`
+		TwitchCategoryName *string `json:"twitch_category_name,omitempty"`
+		OrderIndex         int     `json:"order"`
+	}{wire.clipAlias, wire.TwitchCategoryID, wire.TwitchCategoryName, c.OrderIndex})
 }
 
 // CreatePlaylistRequest represents the request to create a playlist
@@ -3628,12 +3953,14 @@ type CreatePlaylistScriptRequest struct {
 	Visibility      *string  `json:"visibility,omitempty" binding:"omitempty,oneof=private public unlisted"`
 	IsActive        *bool    `json:"is_active,omitempty"`
 	Schedule        *string  `json:"schedule,omitempty" binding:"omitempty,oneof=manual hourly daily weekly monthly"`
-	Strategy        *string  `json:"strategy,omitempty" binding:"omitempty,oneof=standard sleeper_hits viral_velocity community_favorites deep_cuts fresh_faces similar_vibes cross_game_hits controversial binge_worthy rising_stars twitch_top_game twitch_top_broadcaster twitch_trending twitch_discovery"`
+	Strategy        *string  `json:"strategy,omitempty" binding:"omitempty,oneof=standard sleeper_hits viral_velocity community_favorites deep_cuts fresh_faces one_per_creator diversity_roulette clip_of_the_day weekend_mix similar_vibes cross_game_hits controversial binge_worthy rising_stars twitch_top_game twitch_top_broadcaster twitch_trending twitch_discovery"`
 	GameID          *string  `json:"game_id,omitempty" binding:"omitempty,max=50"`
-	GameIDs         []string `json:"game_ids,omitempty"`
+	GameIDs         []string `json:"game_ids,omitempty" binding:"omitempty,max=50,dive,max=50"`
 	BroadcasterID   *string  `json:"broadcaster_id,omitempty" binding:"omitempty,max=50"`
-	Tag             *string  `json:"tag,omitempty" binding:"omitempty,max=100"`
-	ExcludeTags     []string `json:"exclude_tags,omitempty"`
+	Tag             *string  `json:"tag,omitempty" binding:"omitempty,max=100"` // DEPRECATED: use Tags instead
+	Tags            []string `json:"tags,omitempty" binding:"omitempty,max=50,dive,min=1,max=100"`
+	TagsLogic       *string  `json:"tags_logic,omitempty" binding:"omitempty,oneof=and or"`
+	ExcludeTags     []string `json:"exclude_tags,omitempty" binding:"omitempty,max=50,dive,min=1,max=100"`
 	Language        *string  `json:"language,omitempty" binding:"omitempty,max=10"`
 	MinVoteScore    *int     `json:"min_vote_score,omitempty" binding:"omitempty,min=0"`
 	MinViewCount    *int     `json:"min_view_count,omitempty" binding:"omitempty,min=0"`
@@ -3654,12 +3981,14 @@ type UpdatePlaylistScriptRequest struct {
 	Visibility      *string  `json:"visibility,omitempty" binding:"omitempty,oneof=private public unlisted"`
 	IsActive        *bool    `json:"is_active,omitempty"`
 	Schedule        *string  `json:"schedule,omitempty" binding:"omitempty,oneof=manual hourly daily weekly monthly"`
-	Strategy        *string  `json:"strategy,omitempty" binding:"omitempty,oneof=standard sleeper_hits viral_velocity community_favorites deep_cuts fresh_faces similar_vibes cross_game_hits controversial binge_worthy rising_stars twitch_top_game twitch_top_broadcaster twitch_trending twitch_discovery"`
+	Strategy        *string  `json:"strategy,omitempty" binding:"omitempty,oneof=standard sleeper_hits viral_velocity community_favorites deep_cuts fresh_faces one_per_creator diversity_roulette clip_of_the_day weekend_mix similar_vibes cross_game_hits controversial binge_worthy rising_stars twitch_top_game twitch_top_broadcaster twitch_trending twitch_discovery"`
 	GameID          *string  `json:"game_id,omitempty" binding:"omitempty,max=50"`
-	GameIDs         []string `json:"game_ids,omitempty"`
+	GameIDs         []string `json:"game_ids,omitempty" binding:"omitempty,max=50,dive,max=50"`
 	BroadcasterID   *string  `json:"broadcaster_id,omitempty" binding:"omitempty,max=50"`
-	Tag             *string  `json:"tag,omitempty" binding:"omitempty,max=100"`
-	ExcludeTags     []string `json:"exclude_tags,omitempty"`
+	Tag             *string  `json:"tag,omitempty" binding:"omitempty,max=100"` // DEPRECATED: use Tags instead
+	Tags            []string `json:"tags,omitempty" binding:"omitempty,max=50,dive,min=1,max=100"`
+	TagsLogic       *string  `json:"tags_logic,omitempty" binding:"omitempty,oneof=and or"`
+	ExcludeTags     []string `json:"exclude_tags,omitempty" binding:"omitempty,max=50,dive,min=1,max=100"`
 	Language        *string  `json:"language,omitempty" binding:"omitempty,max=10"`
 	MinVoteScore    *int     `json:"min_vote_score,omitempty" binding:"omitempty,min=0"`
 	MinViewCount    *int     `json:"min_view_count,omitempty" binding:"omitempty,min=0"`
@@ -3672,12 +4001,12 @@ type UpdatePlaylistScriptRequest struct {
 
 // AddClipsToPlaylistRequest represents the request to add clips to a playlist
 type AddClipsToPlaylistRequest struct {
-	ClipIDs []uuid.UUID `json:"clip_ids" binding:"required,min=1,max=100"`
+	ClipIDs []uuid.UUID `json:"clip_ids" binding:"required,min=1,max=100,unique"`
 }
 
 // ReorderPlaylistClipsRequest represents the request to reorder clips in a playlist
 type ReorderPlaylistClipsRequest struct {
-	ClipIDs []uuid.UUID `json:"clip_ids" binding:"required,min=1"`
+	ClipIDs []uuid.UUID `json:"clip_ids" binding:"required,min=1,max=1000,unique"`
 }
 
 // Playlist visibility constants
@@ -3696,15 +4025,22 @@ const (
 
 // PlaylistCollaborator represents a collaborator on a playlist
 type PlaylistCollaborator struct {
-	ID         uuid.UUID  `json:"id" db:"id"`
-	PlaylistID uuid.UUID  `json:"playlist_id" db:"playlist_id"`
-	UserID     uuid.UUID  `json:"user_id" db:"user_id"`
-	User       *User      `json:"user,omitempty"`
-	Permission string     `json:"permission" db:"permission"` // view, edit, admin
-	InvitedBy  *uuid.UUID `json:"invited_by,omitempty" db:"invited_by"`
-	InvitedAt  time.Time  `json:"invited_at" db:"invited_at"`
-	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at" db:"updated_at"`
+	ID         uuid.UUID                 `json:"id" db:"id"`
+	PlaylistID uuid.UUID                 `json:"playlist_id" db:"playlist_id"`
+	UserID     uuid.UUID                 `json:"user_id" db:"user_id"`
+	User       *PlaylistCollaboratorUser `json:"user,omitempty"`
+	Permission string                    `json:"permission" db:"permission"` // view, edit, admin
+	InvitedBy  *uuid.UUID                `json:"invited_by,omitempty" db:"invited_by"`
+	InvitedAt  time.Time                 `json:"invited_at" db:"invited_at"`
+	CreatedAt  time.Time                 `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time                 `json:"updated_at" db:"updated_at"`
+}
+
+type PlaylistCollaboratorUser struct {
+	ID          uuid.UUID `json:"id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+	AvatarURL   *string   `json:"avatar_url,omitempty"`
 }
 
 // PlaylistShare represents a share event for analytics
@@ -3736,7 +4072,7 @@ type UpdateCollaboratorRequest struct {
 // TrackShareRequest represents the request to track a share event
 type TrackShareRequest struct {
 	Platform string  `json:"platform" binding:"required,oneof=twitter facebook discord embed link"`
-	Referrer *string `json:"referrer,omitempty"`
+	Referrer *string `json:"referrer,omitempty" binding:"omitempty,max=255"`
 }
 
 // ============================================================================
@@ -3782,8 +4118,8 @@ type ReorderQueueRequest struct {
 
 // ConvertQueueToPlaylistRequest represents a request to convert queue to playlist
 type ConvertQueueToPlaylistRequest struct {
-	Title        string  `json:"title" binding:"required,min=1,max=255"`
-	Description  *string `json:"description"`
+	Title        string  `json:"title" binding:"required,min=1,max=100"`
+	Description  *string `json:"description" binding:"omitempty,max=500"`
 	OnlyUnplayed bool    `json:"only_unplayed"` // If true, only convert unplayed items
 	ClearQueue   bool    `json:"clear_queue"`   // If true, clear queue after conversion
 }
@@ -3807,7 +4143,7 @@ type WatchHistoryEntry struct {
 // RecordWatchProgressRequest represents the request to record watch progress
 type RecordWatchProgressRequest struct {
 	ClipID          string `json:"clip_id" binding:"required,uuid"`
-	ProgressSeconds int    `json:"progress_seconds" binding:"required,min=0"`
+	ProgressSeconds int    `json:"progress_seconds" binding:"min=0"`
 	DurationSeconds int    `json:"duration_seconds" binding:"required,min=1"`
 	SessionID       string `json:"session_id" binding:"required,min=1,max=100"`
 }
@@ -3986,11 +4322,13 @@ type TwitchAuth struct {
 
 // TwitchAuthStatusResponse represents the response for Twitch auth status
 type TwitchAuthStatusResponse struct {
-	Authenticated  bool       `json:"authenticated"`
-	Connected      bool       `json:"connected"`
-	TwitchUserID   *string    `json:"twitch_user_id,omitempty"`
-	TwitchUsername *string    `json:"twitch_username,omitempty"`
-	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	Authenticated          bool       `json:"authenticated"`
+	Connected              bool       `json:"connected"`
+	BotAuthorized          bool       `json:"bot_authorized"`
+	ClipDownloadAuthorized bool       `json:"clip_download_authorized"`
+	TwitchUserID           *string    `json:"twitch_user_id,omitempty"`
+	TwitchUsername         *string    `json:"twitch_username,omitempty"`
+	ExpiresAt              *time.Time `json:"expires_at,omitempty"`
 }
 
 // ============================================================================

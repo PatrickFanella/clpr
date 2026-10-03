@@ -1,11 +1,23 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useOverlapsTwitchPlayer } from '@/hooks/useTwitchPlayerLayer';
+import { cn } from '@/lib/utils';
+import { SUPPORT_URL } from '@/lib/support-link';
 
 export function MiniFooter() {
   const [isExpanded, setIsExpanded] = useState(false);
+  // Twitch forbids covering its players, so the collapsed button steps aside
+  // while it would sit on one. The page footer carries the same links.
+  const [coversPlayer, rootRef] = useOverlapsTwitchPlayer(!isExpanded);
 
   return (
-    <div className="fixed bottom-4 left-4 xs:bottom-8 xs:left-8 z-40">
+    <div
+      ref={rootRef}
+      className={cn(
+        'fixed bottom-[calc(5rem+env(safe-area-inset-bottom)+var(--consent-banner-height,0px))] md:bottom-[calc(1.5rem+var(--consent-banner-height,0px))] left-4 xs:left-8 z-40',
+        coversPlayer && 'invisible',
+      )}
+    >
       {/* Collapsed state - Icon button */}
       {!isExpanded && (
         <button
@@ -89,18 +101,18 @@ export function MiniFooter() {
               <div className="space-y-1">
                 <Link
                   to="/about"
-                  className="block text-sm text-foreground hover:text-primary-500 transition-colors"
+                  className="block text-sm text-foreground hover:text-link transition-colors"
                   onClick={() => setIsExpanded(false)}
                 >
                   About clpr
                 </Link>
                 <a
-                  href="https://github.com/subculture-collective/clipper"
+                  href={SUPPORT_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-sm text-foreground hover:text-primary-500 transition-colors"
+                  className="block text-sm text-foreground hover:text-link transition-colors"
                 >
-                  GitHub
+                  Patreon
                 </a>
               </div>
             </div>
@@ -112,21 +124,21 @@ export function MiniFooter() {
               <div className="space-y-1">
                 <Link
                   to="/privacy"
-                  className="block text-sm text-foreground hover:text-primary-500 transition-colors"
+                  className="block text-sm text-foreground hover:text-link transition-colors"
                   onClick={() => setIsExpanded(false)}
                 >
                   Privacy Policy
                 </Link>
                 <Link
                   to="/terms"
-                  className="block text-sm text-foreground hover:text-primary-500 transition-colors"
+                  className="block text-sm text-foreground hover:text-link transition-colors"
                   onClick={() => setIsExpanded(false)}
                 >
                   Terms of Service
                 </Link>
                 <Link
                   to="/legal/dmca"
-                  className="block text-sm text-foreground hover:text-primary-500 transition-colors"
+                  className="block text-sm text-foreground hover:text-link transition-colors"
                   onClick={() => setIsExpanded(false)}
                 >
                   DMCA Policy
@@ -143,7 +155,7 @@ export function MiniFooter() {
                   href="https://discord.gg/TFwB4aJRef"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-sm text-foreground hover:text-primary-500 transition-colors"
+                  className="block text-sm text-foreground hover:text-link transition-colors"
                 >
                   Discord
                 </a>
@@ -151,7 +163,7 @@ export function MiniFooter() {
                   href="https://x.com/clpr_tv"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-sm text-foreground hover:text-primary-500 transition-colors"
+                  className="block text-sm text-foreground hover:text-link transition-colors"
                 >
                   Twitter
                 </a>

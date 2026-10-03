@@ -1,16 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { XCircle } from 'lucide-react';
 import { Container, Spinner } from '../components';
 import { useAuth } from '../context/AuthContext';
 import { handleOAuthCallback } from '../lib/auth-api';
 import { trackEvent, AuthEvents } from '../lib/telemetry';
+import { fetchRecommendationPreferences } from '../lib/recommendation-api';
+import { getAuthReturnTo } from '../lib/auth-return';
 
 export function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const hasProcessedRef = useRef(false);
 
@@ -49,9 +51,6 @@ export function AuthCallbackPage() {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
-      // Only show processing state when we're actually processing
-      setIsProcessing(true);
-
       try {
         // If we have code and state, try PKCE flow
         if (code && state) {
@@ -78,8 +77,20 @@ export function AuthCallbackPage() {
         });
 
         // Get the intended destination from session storage or default to home
-        const returnTo = sessionStorage.getItem('auth_return_to') || '/';
+        const returnTo = getAuthReturnTo(sessionStorage.getItem('auth_return_to'));
         sessionStorage.removeItem('auth_return_to');
+
+        if (returnTo === '/') {
+          try {
+            const preferences = await fetchRecommendationPreferences();
+            if (!preferences.onboarding_completed) {
+              navigate('/onboarding', { replace: true });
+              return;
+            }
+          } catch {
+            // Authentication succeeded; preference setup can remain optional.
+          }
+        }
 
         navigate(returnTo, { replace: true });
       } catch (err) {
@@ -120,7 +131,7 @@ export function AuthCallbackPage() {
       <div className="text-center">
         {error ? (
           <>
-            <div className="text-4xl mb-4">❌</div>
+            <div className="mb-4 flex justify-center"><XCircle size={16} strokeWidth={1.75} /></div>
             <h1 className="text-2xl font-bold mb-2">Authentication Failed</h1>
             <p className="text-muted-foreground mb-4">{error}</p>
             <p className="text-sm text-muted-foreground">Redirecting...</p>

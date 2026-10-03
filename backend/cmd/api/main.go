@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
+	"git.subcult.tv/subculture-collective/clpr/config"
+	sentrypkg "git.subcult.tv/subculture-collective/clpr/pkg/sentry"
+	telemetrypkg "git.subcult.tv/subculture-collective/clpr/pkg/telemetry"
+	"git.subcult.tv/subculture-collective/clpr/pkg/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/config"
-	sentrypkg "github.com/subculture-collective/clipper/pkg/sentry"
-	telemetrypkg "github.com/subculture-collective/clipper/pkg/telemetry"
-	"github.com/subculture-collective/clipper/pkg/utils"
 )
 
 func main() {
@@ -75,14 +75,17 @@ func main() {
 	h := initHandlers(svcs, repos, infra)
 
 	// Initialize router
-	r := gin.New()
+	r := newRouter()
+	if err := configureClientIP(r, cfg.RateLimit.TrustedProxies); err != nil {
+		log.Fatalf("Failed to configure client IP resolution: %v", err)
+	}
 
 	// Apply global middleware (includes template loading and rate limit whitelist)
 	applyGlobalMiddleware(r, cfg, infra, svcs, logger)
 
 	// Register routes
 	v1 := r.Group("/api/v1")
-	registerPublicRoutes(r, v1, h, svcs, infra)
+	registerPublicRoutes(r, v1, h, svcs, infra, cfg)
 	registerAuthRoutes(v1, h, svcs, infra)
 	registerClipRoutes(v1, h, svcs, infra)
 	registerContentRoutes(v1, h, svcs, infra)
@@ -95,11 +98,7 @@ func main() {
 	schedulers := startSchedulers(svcs, repos, infra)
 
 	// Create HTTP server
-	srv := &http.Server{
-		Addr:              ":" + cfg.Server.Port,
-		Handler:           r,
-		ReadHeaderTimeout: 10 * time.Second, // Prevent Slowloris attacks
-	}
+	srv := newHTTPServer(cfg.Server.Port, r)
 
 	// Start server in goroutine
 	go func() {
@@ -111,4 +110,16 @@ func main() {
 
 	// Block until shutdown signal, then gracefully stop everything
 	gracefulShutdown(srv, svcs, schedulers, infra)
+}
+
+func newHTTPServer(port string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              ":" + port,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
 }

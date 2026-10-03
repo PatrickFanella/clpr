@@ -24,9 +24,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/subculture-collective/clipper/config"
-	redispkg "github.com/subculture-collective/clipper/pkg/redis"
-	"github.com/subculture-collective/clipper/pkg/utils"
+	"git.subcult.tv/subculture-collective/clpr/config"
+	redispkg "git.subcult.tv/subculture-collective/clpr/pkg/redis"
+	"git.subcult.tv/subculture-collective/clpr/pkg/utils"
 )
 
 const (
@@ -130,6 +130,13 @@ func NewClient(cfg *config.TwitchConfig, redis *redispkg.Client) (*Client, error
 		Timeout: 30 * time.Second,
 	}
 
+	if cfg.TestFixtureURL != "" {
+		transport, err := fixtureTransport(cfg.TestFixtureURL, cfg.ClientID, cfg.ClientSecret)
+		if err != nil {
+			return nil, err
+		}
+		httpClient.Transport = transport
+	}
 	cache := NewRedisCache(redis)
 	authManager := NewAuthManager(cfg.ClientID, cfg.ClientSecret, httpClient, cache)
 	rateLimiter := NewRateLimiter(rateLimitPerMin)

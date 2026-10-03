@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/subculture-collective/clipper/internal/models"
 )
 
 // PlaylistCurationRepository provides strategy-based clip queries for automated playlist curation.
@@ -43,14 +43,33 @@ func baseClipFilter(script *models.PlaylistScript) (string, []interface{}) {
 		clause += fmt.Sprintf(` AND EXISTS (
 			SELECT 1 FROM clip_tags ct JOIN tags t ON t.id = ct.tag_id
 			WHERE ct.clip_id = c.id AND t.slug = $%d
+			  AND NOT EXISTS (SELECT 1 FROM tag_suppressions s WHERE s.tag_id = t.id)
 		)`, idx)
 		args = append(args, *script.Tag)
+		idx++
+	}
+	if len(script.Tags) > 0 {
+		if script.TagsLogic == "or" {
+			clause += fmt.Sprintf(` AND EXISTS (
+				SELECT 1 FROM clip_tags ct JOIN tags t ON t.id = ct.tag_id
+				WHERE ct.clip_id = c.id AND t.slug = ANY($%d)
+				  AND NOT EXISTS (SELECT 1 FROM tag_suppressions s WHERE s.tag_id = t.id)
+			)`, idx)
+		} else {
+			clause += fmt.Sprintf(` AND (
+				SELECT COUNT(DISTINCT t.slug) FROM clip_tags ct JOIN tags t ON t.id = ct.tag_id
+				WHERE ct.clip_id = c.id AND t.slug = ANY($%d)
+				  AND NOT EXISTS (SELECT 1 FROM tag_suppressions s WHERE s.tag_id = t.id)
+			) = cardinality($%d::text[])`, idx, idx)
+		}
+		args = append(args, script.Tags)
 		idx++
 	}
 	if len(script.ExcludeTags) > 0 {
 		clause += fmt.Sprintf(` AND NOT EXISTS (
 			SELECT 1 FROM clip_tags ct JOIN tags t ON t.id = ct.tag_id
 			WHERE ct.clip_id = c.id AND t.slug = ANY($%d)
+			  AND NOT EXISTS (SELECT 1 FROM tag_suppressions s WHERE s.tag_id = t.id)
 		)`, idx)
 		args = append(args, script.ExcludeTags)
 		idx++
@@ -224,6 +243,158 @@ func (r *PlaylistCurationRepository) FreshFaces(ctx context.Context, script *mod
 		) new_creators ON new_creators.creator_id = c.creator_id
 		WHERE %s
 		ORDER BY c.vote_score DESC, c.view_count DESC
+		LIMIT $%d
+	`, where, nextArg)
+	args = append(args, script.ClipLimit)
+
+	return r.scanClipIDs(ctx, query, args)
+}
+
+// OnePerCreator finds a single standout clip per creator to maximize variety.
+func (r *PlaylistCurationRepository) OnePerCreator(ctx context.Context, script *models.PlaylistScript) ([]models.Clip, error) {
+	where, args := baseClipFilter(script)
+	where += timeframeClause(script)
+	nextArg := len(args) + 1
+
+	query := fmt.Sprintf(`
+		WITH ranked AS (
+			SELECT c.id,
+			       ROW_NUMBER() OVER (
+				   PARTITION BY COALESCE(c.creator_id, c.broadcaster_id, c.id::text)
+				   ORDER BY c.vote_score DESC, c.view_count DESC, c.created_at DESC
+			   ) AS creator_rank
+			FROM clips c
+			WHERE %s
+		)
+		SELECT id
+		FROM ranked
+		WHERE creator_rank = 1
+		LIMIT $%d
+	`, where, nextArg)
+	args = append(args, script.ClipLimit)
+
+	return r.scanClipIDs(ctx, query, args)
+}
+
+// DiversityRoulette produces a lightly shuffled creator-first mix with a soft
+// cap per directly classified semantic topic.
+func (r *PlaylistCurationRepository) DiversityRoulette(ctx context.Context, script *models.PlaylistScript) ([]models.Clip, error) {
+	where, args := baseClipFilter(script)
+	where += timeframeClause(script)
+	nextArg := len(args) + 1
+
+	query := fmt.Sprintf(`
+		WITH eligible AS (
+			SELECT c.id,
+			       COALESCE(NULLIF(c.broadcaster_id, ''), NULLIF(c.creator_id, ''), c.id::text) AS creator_key,
+			       COALESCE(topic.slug, 'unclassified:' || COALESCE(NULLIF(c.broadcaster_id, ''), c.id::text)) AS topic_key,
+			       (
+				   COALESCE(c.view_velocity, 0) * 8
+				   + LN(GREATEST(c.view_count, 0) + 1) * 4
+				   + GREATEST(0, 48 - EXTRACT(EPOCH FROM (NOW() - c.created_at)) / 3600)
+			   ) * (0.9 + random() * 0.2) AS rank_score
+			FROM clips c
+			LEFT JOIN LATERAL (
+				SELECT category.slug
+				FROM clip_topics ct
+				JOIN categories category ON category.id = ct.topic_id
+				WHERE ct.clip_id = c.id AND category.is_active = TRUE
+				ORDER BY ct.confidence DESC, category.position, category.slug
+				LIMIT 1
+			) topic ON true
+			WHERE %s
+		), creator_ranked AS (
+			SELECT id,
+			       topic_key,
+			       rank_score,
+			       ROW_NUMBER() OVER (PARTITION BY creator_key ORDER BY rank_score DESC, id) AS creator_rank
+			FROM eligible
+		), topic_ranked AS (
+			SELECT id,
+			       rank_score,
+			       ROW_NUMBER() OVER (PARTITION BY topic_key ORDER BY rank_score DESC, id) AS topic_rank
+			FROM creator_ranked
+			WHERE creator_rank = 1
+		)
+		SELECT id
+		FROM topic_ranked
+		WHERE topic_rank <= 3
+		ORDER BY rank_score DESC
+		LIMIT $%d
+	`, where, nextArg)
+	args = append(args, script.ClipLimit)
+
+	return r.scanClipIDs(ctx, query, args)
+}
+
+// ClipOfTheDay selects the strongest current clip using velocity, total views,
+// and recency. A very small random factor prevents permanent ties.
+func (r *PlaylistCurationRepository) ClipOfTheDay(ctx context.Context, script *models.PlaylistScript) ([]models.Clip, error) {
+	where, args := baseClipFilter(script)
+	where += timeframeClause(script)
+	nextArg := len(args) + 1
+
+	query := fmt.Sprintf(`
+		SELECT c.id
+		FROM clips c
+		WHERE %s
+		ORDER BY (
+			COALESCE(c.view_velocity, 0) * 8
+			+ LN(GREATEST(c.view_count, 0) + 1) * 4
+			+ GREATEST(0, 24 - EXTRACT(EPOCH FROM (NOW() - c.created_at)) / 3600) * 2
+		) * (0.95 + random() * 0.1) DESC,
+		c.created_at DESC
+		LIMIT $%d
+	`, where, nextArg)
+	args = append(args, script.ClipLimit)
+
+	return r.scanClipIDs(ctx, query, args)
+}
+
+// WeekendMix balances quality and surprise with one clip per creator and a
+// soft cap per semantic topic.
+func (r *PlaylistCurationRepository) WeekendMix(ctx context.Context, script *models.PlaylistScript) ([]models.Clip, error) {
+	where, args := baseClipFilter(script)
+	where += timeframeClause(script)
+	nextArg := len(args) + 1
+
+	query := fmt.Sprintf(`
+		WITH eligible AS (
+			SELECT c.id,
+			       COALESCE(NULLIF(c.creator_id, ''), NULLIF(c.broadcaster_id, ''), c.id::text) AS creator_key,
+			       COALESCE(topic.slug, 'unclassified:' || COALESCE(NULLIF(c.broadcaster_id, ''), c.id::text)) AS topic_key,
+			       (
+				   COALESCE(c.view_velocity, 0) * 8
+				   + LN(GREATEST(c.view_count, 0) + 1) * 4
+				   + GREATEST(0, 72 - EXTRACT(EPOCH FROM (NOW() - c.created_at)) / 3600)
+			   ) * (0.9 + random() * 0.2) AS rank_score
+			FROM clips c
+			LEFT JOIN LATERAL (
+				SELECT category.slug
+				FROM clip_topics ct
+				JOIN categories category ON category.id = ct.topic_id
+				WHERE ct.clip_id = c.id AND category.is_active = TRUE
+				ORDER BY ct.confidence DESC, category.position, category.slug
+				LIMIT 1
+			) topic ON true
+			WHERE %s
+		), creator_ranked AS (
+			SELECT id,
+			       topic_key,
+			       rank_score,
+			       ROW_NUMBER() OVER (PARTITION BY creator_key ORDER BY rank_score DESC, id) AS creator_rank
+			FROM eligible
+		), topic_ranked AS (
+			SELECT id,
+			       rank_score,
+			       ROW_NUMBER() OVER (PARTITION BY topic_key ORDER BY rank_score DESC, id) AS topic_rank
+			FROM creator_ranked
+			WHERE creator_rank = 1
+		)
+		SELECT id
+		FROM topic_ranked
+		WHERE topic_rank <= 4
+		ORDER BY rank_score DESC
 		LIMIT $%d
 	`, where, nextArg)
 	args = append(args, script.ClipLimit)

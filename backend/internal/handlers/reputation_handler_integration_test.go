@@ -9,12 +9,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"git.subcult.tv/subculture-collective/clpr/internal/middleware"
+	"git.subcult.tv/subculture-collective/clpr/internal/repository"
+	"git.subcult.tv/subculture-collective/clpr/internal/services"
+	"git.subcult.tv/subculture-collective/clpr/internal/testutil"
+	"git.subcult.tv/subculture-collective/clpr/pkg/database"
 	"github.com/gin-gonic/gin"
-	"github.com/subculture-collective/clipper/config"
-	"github.com/subculture-collective/clipper/internal/middleware"
-	"github.com/subculture-collective/clipper/internal/repository"
-	"github.com/subculture-collective/clipper/internal/services"
-	"github.com/subculture-collective/clipper/pkg/database"
 )
 
 func TestLeaderboardIntegration(t *testing.T) {
@@ -27,14 +27,8 @@ func TestLeaderboardIntegration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// Setup database connection
-	dbConfig := &config.DatabaseConfig{
-		Host:     getEnvOrDefault("DB_HOST", "localhost"),
-		Port:     getEnvOrDefault("DB_PORT", "5437"), // Test DB port (see docker-compose.test.yml)
-		User:     getEnvOrDefault("DB_USER", "clipper"),
-		Password: getEnvOrDefault("DB_PASSWORD", "clipper_password"),
-		Name:     getEnvOrDefault("DB_NAME", "clipper_test"),
-		SSLMode:  "disable",
-	}
+	testutil.RequirePackageDatabase(t)
+	dbConfig := testutil.DatabaseConfig()
 
 	db, err := database.NewDB(dbConfig)
 	if err != nil {

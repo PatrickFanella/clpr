@@ -2,25 +2,55 @@ import { TagList } from '@/components/tag/TagList';
 import { Badge } from '@/components/ui';
 import { VerifiedBadge } from '@/components/user';
 import { useClipFavorite, useClipVote } from '@/hooks/useClips';
-import { useIsAuthenticated, useToast } from '@/hooks';
-import { cn, formatTimestamp } from '@/lib/utils';
+import { useIsAuthenticated, useMediaQuery, useToast } from '@/hooks';
+import { cn, formatCompactNumber, formatDuration, formatTimestamp } from '@/lib/utils';
 import type { Clip } from '@/types/clip';
 import { Link } from 'react-router-dom';
 import { TwitchEmbed } from './TwitchEmbed';
 import { AddToPlaylistButton } from './AddToPlaylistButton';
 import { AddToQueueButton } from './AddToQueueButton';
 import { ShareButton } from './ShareButton';
+import {
+    ArrowBigUp,
+    ArrowBigDown,
+    MessageSquare,
+    Heart,
+    Eye,
+    Check,
+    MoreHorizontal,
+} from 'lucide-react';
+import { useEffect } from 'react';
+import { useInView } from 'react-intersection-observer';
 
 interface ClipCardProps {
     clip: Clip;
+    active?: boolean;
+    autoplay?: boolean;
+    onActivate?: (clipId: string) => void;
+    onVisibilityChange?: (clipId: string, visible: boolean) => void;
+    /** Position in a ranked feed. #1 gets the tally light. */
+    rank?: number;
 }
 
-export function ClipCard({ clip }: ClipCardProps) {
+export function ClipCard({
+    clip,
+    active = false,
+    autoplay = false,
+    onActivate,
+    onVisibilityChange,
+    rank,
+}: ClipCardProps) {
     const isAuthenticated = useIsAuthenticated();
     const voteMutation = useClipVote();
     const favoriteMutation = useClipFavorite();
     const isVoting = voteMutation.isPending;
     const toast = useToast();
+    const isDesktop = useMediaQuery('(min-width: 768px)');
+    const { ref: visibilityRef, inView } = useInView({ threshold: 0.6 });
+
+    useEffect(() => {
+        onVisibilityChange?.(clip.id, inView);
+    }, [clip.id, inView, onVisibilityChange]);
 
     const handleVote = (voteType: 1 | -1) => {
         // Avoid duplicate same-direction votes
@@ -40,45 +70,40 @@ export function ClipCard({ clip }: ClipCardProps) {
         favoriteMutation.mutate({ clip_id: clip.id });
     };
 
-    const formatDuration = (seconds?: number) => {
-        if (!seconds) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const formatNumber = (num: number) => {
-        if (num >= 1000000) {
-            return `${(num / 1000000).toFixed(1)}M`;
-        }
-        if (num >= 1000) {
-            return `${(num / 1000).toFixed(1)}K`;
-        }
-        return num.toString();
-    };
-
     const voteColor =
-        clip.vote_score > 0 ? 'text-green-600 dark:text-green-400'
-        : clip.vote_score < 0 ? 'text-red-600 dark:text-red-400'
+        clip.vote_score > 0 ? 'text-upvote'
+        : clip.vote_score < 0 ? 'text-downvote'
         : 'text-muted-foreground';
 
     const timestamp = formatTimestamp(clip.created_at);
 
     return (
         <div
-            className='bg-card border-border rounded-xl hover:shadow-lg transition-shadow border lazy-render'
+            ref={visibilityRef}
+            className={cn(
+                'bg-card border-y md:border border-border md:hover:border-line-strong transition-colors lazy-render scroll-mt-28 snap-start',
+                (active || rank === 1) && 'tally-bar',
+            )}
             data-testid='clip-card'
         >
-            <div className='flex flex-col xs:flex-row gap-4 xs:gap-6 p-4 xs:p-5 md:p-6'>
+            <div className='flex flex-col md:flex-row gap-3 md:gap-6 py-4 md:p-6'>
                 {/* Vote sidebar - horizontal on mobile, vertical on larger screens */}
-                <div className='flex xs:flex-col items-center justify-center xs:justify-start xs:w-10 gap-3 xs:gap-2 order-2 xs:order-1 shrink-0'>
+                {isDesktop && <div className='flex flex-col items-center justify-start w-12 gap-1 order-1 shrink-0'>
+                    {rank !== undefined && (
+                        <span
+                            className={cn('display mb-2 text-5xl tabular-nums', rank === 1 ? 'text-tally' : 'text-text-tertiary')}
+                            aria-label={`Rank ${rank}`}
+                        >
+                            {String(rank).padStart(2, '0')}
+                        </span>
+                    )}
                     <button
                         onClick={() => handleVote(1)}
                         disabled={!isAuthenticated || isVoting}
                         className={cn(
-                            'w-11 h-11 xs:w-10 xs:h-10 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center justify-center transition-colors touch-target',
+                            'w-11 h-11 xs:w-10 xs:h-10 hover:bg-surface-hover flex items-center justify-center transition-colors touch-target',
                             clip.user_vote === 1 &&
-                                'text-purple-600 dark:text-purple-400',
+                                'text-upvote',
                             !isAuthenticated || isVoting ?
                                 'opacity-50 cursor-not-allowed hover:bg-transparent'
                             :   'cursor-pointer',
@@ -89,35 +114,29 @@ export function ClipCard({ clip }: ClipCardProps) {
                         aria-disabled={!isAuthenticated || isVoting}
                         title={isAuthenticated ? 'Upvote' : 'Log in to vote'}
                     >
-                        <svg
-                            className='w-6 h-6'
-                            fill={
-                                clip.user_vote === 1 ? 'currentColor' : 'none'
-                            }
-                            stroke='currentColor'
-                            strokeWidth={clip.user_vote === 1 ? 0 : 2}
-                            viewBox='0 0 24 24'
-                        >
-                            <path d='M12 4l8 8h-6v8h-4v-8H4z' />
-                        </svg>
+                        <ArrowBigUp
+                            size={22}
+                            fill={clip.user_vote === 1 ? 'currentColor' : 'none'}
+                            strokeWidth={1.75}
+                        />
                     </button>
 
                     <span
                         className={cn(
-                            'text-sm font-bold min-w-8 text-center',
+                            'text-xs font-bold font-mono tabular-nums min-w-8 text-center',
                             voteColor,
                         )}
                     >
-                        {formatNumber(clip.vote_score)}
+                        {formatCompactNumber(clip.vote_score)}
                     </span>
 
                     <button
                         onClick={() => handleVote(-1)}
                         disabled={!isAuthenticated || isVoting}
                         className={cn(
-                            'w-11 h-11 xs:w-10 xs:h-10 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center justify-center transition-colors touch-target',
+                            'w-11 h-11 xs:w-10 xs:h-10 hover:bg-surface-hover flex items-center justify-center transition-colors touch-target',
                             clip.user_vote === -1 &&
-                                'text-orange-600 dark:text-orange-400',
+                                'text-downvote',
                             !isAuthenticated || isVoting ?
                                 'opacity-50 cursor-not-allowed hover:bg-transparent'
                             :   'cursor-pointer',
@@ -128,34 +147,33 @@ export function ClipCard({ clip }: ClipCardProps) {
                         aria-disabled={!isAuthenticated || isVoting}
                         title={isAuthenticated ? 'Downvote' : 'Log in to vote'}
                     >
-                        <svg
-                            className='w-6 h-6'
-                            fill={
-                                clip.user_vote === -1 ? 'currentColor' : 'none'
-                            }
-                            stroke='currentColor'
-                            strokeWidth={clip.user_vote === -1 ? 0 : 2}
-                            viewBox='0 0 24 24'
-                        >
-                            <path d='M12 20l-8-8h6V4h4v8h6z' />
-                        </svg>
+                        <ArrowBigDown
+                            size={22}
+                            fill={clip.user_vote === -1 ? 'currentColor' : 'none'}
+                            strokeWidth={1.75}
+                        />
                     </button>
-                </div>
+                </div>}
 
                 {/* Main content */}
-                <div className='flex-1 min-w-0 order-1 xs:order-2'>
+                <div className='flex-1 min-w-0 order-1 md:order-2'>
                     {/* Title */}
                     <Link
                         to={`/clip/${clip.id}`}
-                        className='hover:text-primary-600 dark:hover:text-primary-400 block mb-2 transition-colors touch-target cursor-pointer'
+                        className='text-foreground hover:text-link block mb-1.5 px-4 md:px-0 transition-colors touch-target cursor-pointer'
                     >
-                        <h3 className='line-clamp-2 text-base xs:text-lg font-semibold leading-snug'>
+                        <h2 className='line-clamp-2 text-2xl md:text-[1.75rem]'>
                             {clip.title}
-                        </h3>
+                        </h2>
                     </Link>
                     {/* Metadata */}
-                    <div className='text-muted-foreground flex flex-wrap items-center gap-1.5 xs:gap-2 mb-3 text-xs xs:text-sm leading-tight'>
-                        <span className='flex items-center gap-1 font-medium'>
+                    <div className='text-muted-foreground flex flex-wrap items-center gap-1.5 md:gap-2 mb-3 px-4 md:px-0 font-mono text-[11px] uppercase tracking-[0.04em] leading-tight'>
+                        {!isDesktop && rank !== undefined && (
+                            <span className={cn('font-semibold', rank === 1 ? 'text-link' : 'text-text-secondary')}>
+                                #{String(rank).padStart(2, '0')}
+                            </span>
+                        )}
+                        <span className='flex items-center gap-1 font-medium text-foreground'>
                             <Link
                                 to={`/broadcaster/${
                                     clip.broadcaster_id || clip.broadcaster_name
@@ -168,10 +186,10 @@ export function ClipCard({ clip }: ClipCardProps) {
 
                         {clip.game_name && (
                             <>
-                                <span className='hidden xs:inline'>•</span>
+                                <span className='hidden xs:inline text-text-disabled'>·</span>
                                 <span className='flex items-center gap-1'>
                                     <Link
-                                        to={`/game/${clip.game_id}`}
+                                        to={`/twitch-category/${clip.twitch_category_id || clip.game_id}`}
                                         className='hover:text-foreground transition-colors cursor-pointer'
                                     >
                                         {clip.game_name}
@@ -184,7 +202,7 @@ export function ClipCard({ clip }: ClipCardProps) {
                             (clip.creator_id &&
                                 clip.creator_id.trim() !== '' &&
                                 clip.creator_name)) && (
-                            <span className='hidden xs:inline'>•</span>
+                            <span className='hidden xs:inline text-text-disabled'>·</span>
                         )}
 
                         {clip.submitted_by ?
@@ -215,7 +233,7 @@ export function ClipCard({ clip }: ClipCardProps) {
                             </span>
                         :   null}
 
-                        <span className='hidden xs:inline'>•</span>
+                        <span className='hidden xs:inline text-text-disabled'>·</span>
 
                         <span
                             className='truncate align-middle'
@@ -230,115 +248,119 @@ export function ClipCard({ clip }: ClipCardProps) {
                             clipId={clip.twitch_clip_id}
                             thumbnailUrl={clip.thumbnail_url}
                             title={clip.title}
+                            active={active}
+                            autoplay={autoplay}
+                            onActivate={() => onActivate?.(clip.id)}
                         />
 
-                        {/* Duration badge */}
-                        {clip.duration && (
-                            <div className='bottom-2 right-2 absolute px-2 py-1 text-xs font-medium text-white bg-black bg-opacity-75 rounded'>
-                                {formatDuration(clip.duration)}
-                            </div>
-                        )}
-
-                        {/* NSFW badge */}
-                        {clip.is_nsfw && (
-                            <div className='top-2 left-2 absolute'>
-                                <Badge variant='error'>NSFW</Badge>
-                            </div>
-                        )}
-
-                        {/* Featured badge */}
-                        {clip.is_featured && (
-                            <div className='top-2 right-2 absolute'>
-                                <Badge variant='default'>Featured</Badge>
-                            </div>
-                        )}
-
-                        {/* Watch progress indicator */}
-                        {clip.watch_progress && (
+                        {/* Twitch forbids covering the player, so badges only sit on the thumbnail. */}
+                        {!active && (
                             <>
-                                <div
-                                    className='bottom-0 left-0 right-0 absolute h-1 bg-gray-700'
-                                    role='progressbar'
-                                    aria-valuenow={Math.round(
-                                        Math.min(
-                                            100,
-                                            Math.max(
-                                                0,
-                                                clip.watch_progress
-                                                    .progress_percent,
-                                            ),
-                                        ),
-                                    )}
-                                    aria-valuemin={0}
-                                    aria-valuemax={100}
-                                    aria-label={`${Math.round(
-                                        Math.min(
-                                            100,
-                                            Math.max(
-                                                0,
-                                                clip.watch_progress
-                                                    .progress_percent,
-                                            ),
-                                        ),
-                                    )}% watched`}
-                                >
-                                    <div
-                                        className='h-full bg-purple-600'
-                                        style={{
-                                            width: `${Math.min(100, Math.max(0, clip.watch_progress.progress_percent))}%`,
-                                        }}
-                                    />
-                                </div>
-                                {clip.watch_progress.completed && (
-                                    <div className='bottom-2 left-2 absolute px-2 py-1 text-xs font-medium text-white bg-green-600 bg-opacity-90 rounded flex items-center gap-1'>
-                                        <svg
-                                            className='w-3 h-3'
-                                            fill='currentColor'
-                                            viewBox='0 0 20 20'
-                                            aria-hidden='true'
-                                        >
-                                            <path
-                                                fillRule='evenodd'
-                                                d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
-                                                clipRule='evenodd'
-                                            />
-                                        </svg>
-                                        Watched
+                                {/* Duration badge */}
+                                {clip.duration && (
+                                    <div className='burn-in bottom-2 right-2 absolute'>
+                                        {formatDuration(clip.duration)}
                                     </div>
+                                )}
+
+                                {/* NSFW badge */}
+                                {clip.is_nsfw && (
+                                    <div className='top-2 left-2 absolute'>
+                                        <Badge variant='error'>NSFW</Badge>
+                                    </div>
+                                )}
+
+                                {/* Featured badge */}
+                                {clip.is_featured && (
+                                    <div className='top-2 right-2 absolute'>
+                                        <Badge variant='default'>Featured</Badge>
+                                    </div>
+                                )}
+
+                                {/* Watch progress indicator */}
+                                {clip.watch_progress && (
+                                    <>
+                                        <div
+                                            className='bottom-0 left-0 right-0 absolute h-1 bg-surface-raised'
+                                            role='progressbar'
+                                            aria-valuenow={Math.round(
+                                                Math.min(
+                                                    100,
+                                                    Math.max(
+                                                        0,
+                                                        clip.watch_progress
+                                                            .progress_percent,
+                                                    ),
+                                                ),
+                                            )}
+                                            aria-valuemin={0}
+                                            aria-valuemax={100}
+                                            aria-label={`${Math.round(
+                                                Math.min(
+                                                    100,
+                                                    Math.max(
+                                                        0,
+                                                        clip.watch_progress
+                                                            .progress_percent,
+                                                    ),
+                                                ),
+                                            )}% watched`}
+                                        >
+                                            <div
+                                                className='h-full bg-tally'
+                                                style={{
+                                                    width: `${Math.min(100, Math.max(0, clip.watch_progress.progress_percent))}%`,
+                                                }}
+                                            />
+                                        </div>
+                                        {clip.watch_progress.completed && (
+                                            <div className='bottom-2 left-2 absolute px-1.5 py-0.5 font-mono text-[11px] font-medium uppercase text-background bg-seen flex items-center gap-1'>
+                                                <Check className='w-3 h-3' />
+                                                Watched
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </>
                         )}
                     </div>
 
                     {/* Tags */}
-                    <div className='mb-3'>
-                        <TagList clipId={clip.id} maxVisible={5} />
+                    <div className='mb-2 px-4 md:px-0'>
+                        <TagList clipId={clip.id} maxVisible={2} />
                     </div>
 
                     {/* Action bar */}
-                    <div className='flex flex-wrap items-center gap-3 xs:gap-4 text-xs xs:text-sm'>
+                    <div className='flex items-center gap-1 px-2 md:px-0 font-mono text-[11px] uppercase tracking-[0.04em]'>
+                        {!isDesktop && <div className='flex items-center min-h-11'>
+                            <button
+                                onClick={() => handleVote(1)}
+                                disabled={!isAuthenticated || isVoting}
+                                className={cn('grid size-11 place-items-center', clip.user_vote === 1 ? 'text-upvote' : 'text-muted-foreground')}
+                                aria-label={isAuthenticated ? 'Upvote' : 'Log in to upvote'}
+                            >
+                                <ArrowBigUp size={21} fill={clip.user_vote === 1 ? 'currentColor' : 'none'} />
+                            </button>
+                            <span className={cn('min-w-7 text-center text-xs font-bold font-mono tabular-nums', voteColor)}>{formatCompactNumber(clip.vote_score)}</span>
+                            <button
+                                onClick={() => handleVote(-1)}
+                                disabled={!isAuthenticated || isVoting}
+                                className={cn('grid size-11 place-items-center', clip.user_vote === -1 ? 'text-downvote' : 'text-muted-foreground')}
+                                aria-label={isAuthenticated ? 'Downvote' : 'Log in to downvote'}
+                            >
+                                <ArrowBigDown size={21} fill={clip.user_vote === -1 ? 'currentColor' : 'none'} />
+                            </button>
+                        </div>}
                         <Link
                             to={`/clip/${clip.id}#comments`}
-                            className='text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors touch-target min-h-11 cursor-pointer'
+                            className='text-muted-foreground hover:text-foreground flex min-w-11 items-center justify-center gap-1.5 transition-colors touch-target min-h-11 cursor-pointer'
                         >
-                            <svg
-                                className='w-5 h-5 shrink-0'
-                                fill='none'
-                                stroke='currentColor'
-                                viewBox='0 0 24 24'
-                            >
-                                <path
-                                    strokeLinecap='round'
-                                    strokeLinejoin='round'
-                                    strokeWidth={2}
-                                    d='M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z'
-                                />
-                            </svg>
-                            <span className='hidden xs:inline'>
-                                {formatNumber(clip.comment_count)} comments
+                            <MessageSquare size={18} className='shrink-0' strokeWidth={1.75} />
+                            <span className='hidden md:inline'>
+                                {formatCompactNumber(clip.comment_count)} comments
                             </span>
-                            <span className='xs:hidden'>
-                                {formatNumber(clip.comment_count)}
+                            <span className='md:hidden'>
+                                {formatCompactNumber(clip.comment_count)}
                             </span>
                         </Link>
 
@@ -346,9 +368,9 @@ export function ClipCard({ clip }: ClipCardProps) {
                             onClick={handleFavorite}
                             disabled={!isAuthenticated}
                             className={cn(
-                                'flex items-center gap-1.5 transition-colors touch-target min-h-11',
+                                'flex min-w-11 items-center justify-center gap-1.5 transition-colors touch-target min-h-11',
                                 clip.is_favorited ?
-                                    'text-red-500 hover:text-red-400'
+                                    'text-link'
                                 :   'text-muted-foreground hover:text-foreground',
                                 !isAuthenticated ?
                                     'opacity-50 cursor-not-allowed hover:bg-transparent'
@@ -367,52 +389,36 @@ export function ClipCard({ clip }: ClipCardProps) {
                                 )
                             }
                         >
-                            <svg
-                                className='w-5 h-5 shrink-0'
-                                fill={
-                                    clip.is_favorited ? 'currentColor' : 'none'
-                                }
-                                stroke='currentColor'
-                                viewBox='0 0 24 24'
-                            >
-                                <path
-                                    strokeLinecap='round'
-                                    strokeLinejoin='round'
-                                    strokeWidth={2}
-                                    d='M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z'
-                                />
-                            </svg>
-                            <span>{formatNumber(clip.favorite_count)}</span>
+                            <Heart
+                                size={18}
+                                className='shrink-0'
+                                fill={clip.is_favorited ? 'currentColor' : 'none'}
+                                strokeWidth={1.75}
+                            />
+                            <span>{formatCompactNumber(clip.favorite_count)}</span>
                         </button>
-
-                        <AddToPlaylistButton clipId={clip.id} />
-
-                        <AddToQueueButton clipId={clip.id} />
 
                         <ShareButton clipId={clip.id} clipTitle={clip.title} />
 
-                        <span className='text-muted-foreground flex items-center gap-1'>
-                            <svg
-                                className='w-5 h-5'
-                                fill='none'
-                                stroke='currentColor'
-                                viewBox='0 0 24 24'
-                            >
-                                <path
-                                    strokeLinecap='round'
-                                    strokeLinejoin='round'
-                                    strokeWidth={2}
-                                    d='M15 12a3 3 0 11-6 0 3 3 0 016 0z'
-                                />
-                                <path
-                                    strokeLinecap='round'
-                                    strokeLinejoin='round'
-                                    strokeWidth={2}
-                                    d='M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z'
-                                />
-                            </svg>
-                            <span>{formatNumber(clip.view_count)}</span>
+                        <span className='ml-auto text-muted-foreground hidden sm:flex items-center gap-1'>
+                            <Eye size={18} strokeWidth={1.75} />
+                            <span>{formatCompactNumber(clip.view_count)}</span>
                         </span>
+
+                        <details className='relative md:hidden'>
+                            <summary className='grid size-11 list-none place-items-center text-muted-foreground hover:bg-surface-hover cursor-pointer' aria-label='More clip actions'>
+                                <MoreHorizontal size={21} aria-hidden='true' />
+                            </summary>
+                            <div className='absolute bottom-12 right-0 z-30 flex min-w-44 flex-col gap-1 border border-line-strong bg-popover p-2 tally-bar'>
+                                <AddToPlaylistButton clipId={clip.id} />
+                                <AddToQueueButton clipId={clip.id} />
+                                <Link to={`/clip/${clip.id}`} className='flex min-h-11 items-center px-2 text-sm text-muted-foreground'>View clip details</Link>
+                            </div>
+                        </details>
+                        <div className='hidden md:flex items-center gap-4'>
+                            <AddToPlaylistButton clipId={clip.id} />
+                            <AddToQueueButton clipId={clip.id} />
+                        </div>
                     </div>
                 </div>
             </div>

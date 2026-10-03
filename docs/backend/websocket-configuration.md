@@ -1,6 +1,6 @@
 ---
 title: "Websocket Configuration"
-summary: "This document describes the WebSocket CORS (Cross-Origin Resource Sharing) configuration for the clipper backend."
+summary: "This document describes the WebSocket CORS (Cross-Origin Resource Sharing) configuration for the clpr backend."
 tags: ["backend"]
 area: "backend"
 status: "stable"
@@ -11,7 +11,7 @@ last_reviewed: 2026-01-29
 
 # WebSocket Configuration
 
-This document describes the WebSocket CORS (Cross-Origin Resource Sharing) configuration for the clipper backend.
+This document describes the WebSocket CORS (Cross-Origin Resource Sharing) configuration for the clpr backend.
 
 ## Overview
 
@@ -57,7 +57,7 @@ WEBSOCKET_ALLOWED_ORIGINS=*.clpr.tv
 ```
 
 **Important Notes:**
-- Wildcard patterns must start with `*.` 
+- Wildcard patterns must start with `*.`
 - Only subdomain wildcards are supported (not path or protocol wildcards)
 - The pattern `*.clpr.tv` matches both the base domain `clpr.tv` and any subdomain
 - Wildcards work with both HTTP and HTTPS protocols
@@ -79,7 +79,7 @@ This allows WebSocket connections from:
 
 ```bash
 # .env.staging
-WEBSOCKET_ALLOWED_ORIGINS=https://staging.clpr.tv,https://staging.clipper.app
+WEBSOCKET_ALLOWED_ORIGINS=https://staging.clpr.tv,https://staging.clpr.app
 ```
 
 This allows WebSocket connections from the staging frontend servers.
@@ -159,7 +159,7 @@ To test WebSocket CORS configuration:
 
 1. Start the backend server with your configuration:
    ```bash
-   WEBSOCKET_ALLOWED_ORIGINS=https://clpr.tv go run cmd/api/main.go
+   WEBSOCKET_ALLOWED_ORIGINS=https://clpr.tv go run ./cmd/api
    ```
 
 2. Try to connect from different origins and verify:
@@ -258,7 +258,7 @@ If you're migrating from hardcoded origins to environment-based configuration:
 allowedOrigins := []string{
     "http://localhost:3000",
     "http://localhost:5173",
-    "https://clipper.subculture.gg",
+    "https://clpr.subculture.gg",
 }
 ```
 
@@ -278,6 +278,5 @@ WEBSOCKET_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,https://cl
 
 ## Related Documentation
 
-- [Backend API Documentation](./api.md)
-- [Security Guide](./security.md)
-- [Chat Channel Architecture](../archive/chat-channel-migration-consolidation.md)
+- Backend API Documentation
+- Security Guide

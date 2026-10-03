@@ -12,9 +12,11 @@ aliases: ["home", "docs home", "documentation"]
 
 # Clipper Documentation
 
-> A modern, community-driven Twitch clip curation platform
+> Twitch clips by creator, topic and tag
 
-Welcome to the Clipper documentation! This is your comprehensive guide to using, developing, and deploying Clipper.
+Documentation for using, developing and deploying Clipper (now CLPR).
+
+For repository-backed navigation, use the [documentation reference inventory](reference-inventory.md). The [launch feature inventory](LAUNCH_FEATURE_INVENTORY.md) is authoritative when older design or implementation reports disagree with current release scope.
 
 ## 🚀 Quick Start
 
@@ -125,6 +127,8 @@ In-depth documentation for major platform features:
 - **[[operations/secrets-management|Secrets Management]]** - Secure credential handling
 - **[[operations/security-scanning|Security Scanning]]** - Automated security checks
 - **[[operations/observability|Observability]]** - Distributed tracing and metrics
+- **[[production-readiness-report-2026-08-08|Production Readiness Report]]** - Release findings, gates, and remediation status
+- **[[security/jwt-secret-history-review-2026-08-09|JWT and Secret-History Review]]** - Redacted signing-material and repository-history assessment
 
 ### Architecture Decisions
 
@@ -172,8 +176,8 @@ In-depth documentation for major platform features:
 - ✅ OpenSearch integration
 - ✅ Semantic vector search
 - ✅ React frontend (web)
-- ✅ React Native mobile apps
-- ✅ Premium subscription system
+- 📋 Native mobile workspace is planned and is not part of this release
+- 🚧 Premium subscriptions remain disabled until the Stripe lifecycle gate passes
 - ✅ CI/CD pipeline
 - 🚧 Production hardening
 - 🚧 Mobile app release
@@ -182,60 +186,51 @@ In-depth documentation for major platform features:
 
 ## 🔗 External Links
 
-- [GitHub Repository](https://github.com/subculture-collective/clipper)
-- [Issue Tracker](https://github.com/subculture-collective/clipper/issues)
-- [Discussions](https://github.com/subculture-collective/clipper/discussions)
+- [GitHub Repository](https://git.subcult.tv/subculture-collective/clpr)
+- [Issue Tracker](https://git.subcult.tv/subculture-collective/clpr/issues)
+- [Discussions](https://git.subcult.tv/subculture-collective/clpr/discussions)
 - [Twitch API Documentation](https://dev.twitch.tv/docs/api/)
 
 ## 💡 Using This Documentation
 
-This documentation is structured as an [Obsidian](https://obsidian.md/) vault for easy navigation and knowledge management.
-
-**New to Obsidian?** See the [[obsidian-guide|Obsidian Setup Guide]] for complete setup instructions, navigation tips, and best practices.
+This documentation is structured for repository-based browsing, code review, and CI validation.
 
 ### Navigation Tips
 
-- **Search**: Press `Ctrl/Cmd + O` to quickly find any page
-- **Quick Switcher**: Press `Ctrl/Cmd + P` to search content across all docs
-- **Backlinks**: See what pages link to the current document in the right sidebar
-- **Graph View**: Visualize the relationships between documentation pages
-- **Wikilinks**: Click `[[page-name]]` links to navigate between related pages
-- **Edit Mode**: Toggle between reading and editing with `Ctrl/Cmd + E`
-- **Tags**: Use the tag pane to browse by category (see [[.obsidian/tag-taxonomy|Tag Taxonomy]])
+- **Search**: Use your editor or repository search to find pages quickly
+- **Indexes**: Start from this page or section hubs to navigate docs
+- **Wikilinks**: Many docs still use `[[page-name]]` links for concise internal references
 
 ### Markdown Conventions
 
 - **Wikilinks**: `[[page-name]]` or `[[page-name|Display Text]]`
-- **Relative Links**: `[Link Text](./relative/path.md)`
+- **Relative Links**: `Link Text`
 - **Code Blocks**: Triple backticks with language identifier
 - **Callouts**: Use `> [!note]`, `> [!warning]`, `> [!tip]` for emphasis
 - **Tables**: GitHub-flavored markdown tables for structured data
-- **Frontmatter**: All pages include YAML metadata (see [[.obsidian/templates/frontmatter-template|Frontmatter Template]])
+- **Frontmatter**: All pages include concise YAML metadata for title, summary, area, status, owner, and review date
 
 ### Contributing to Docs
 
 Found an error or want to improve the documentation?
 
 1. Check [[contributing|Contributing Guide]] for guidelines
-2. Follow the [[.obsidian/templates/frontmatter-template|frontmatter template]] for new pages
-3. Use approved tags from [[.obsidian/tag-taxonomy|Tag Taxonomy]]
-4. Run quality checks locally: `npm run docs:check`
-5. Submit a PR with your changes
-6. Tag with `documentation` label
-7. Documentation changes are validated via CI (see [[contributing/docs-quality-checks|Quality Checks]])
+2. Match frontmatter and formatting conventions from nearby pages
+3. Run quality checks locally: `npm run docs:check`
+4. Submit a PR with your changes
+5. Tag with `documentation` label
+6. Documentation changes are validated via CI (see [[contributing/docs-quality-checks|Quality Checks]])
 
 ## 📝 Documentation Validation
 
 All documentation is automatically validated on every commit:
 
 - **Markdown Linting**: Ensures consistent formatting
-- **Spell Checking**: Catches typos and errors (respects Obsidian patterns)
+- **Spell Checking**: Catches typos and errors
 - **Link Validation**: Verifies all links work (excludes localhost)
 - **Anchor Checking**: Confirms internal link targets exist
 - **Orphan Detection**: Finds unreachable documentation (BFS from index.md)
 - **Asset Hygiene**: Checks for unused or oversized images
-
-**All checks exclude `/vault/**` directory.**
 
 📚 **See [[contributing/docs-quality-checks|Documentation Quality Checks]]** for:
 - How to run checks locally
@@ -244,18 +239,18 @@ All documentation is automatically validated on every commit:
 - Configuration file documentation
 - Best practices
 
-Related: [CI Workflow](.github/workflows/docs.yml) | Issues [#803](https://github.com/subculture-collective/clipper/issues/803), [#845](https://github.com/subculture-collective/clipper/issues/845), [#846](https://github.com/subculture-collective/clipper/issues/846), [#805](https://github.com/subculture-collective/clipper/issues/805)
+Related: [CI Workflow](../.github/workflows/docs.yml) | Issues [#803](https://git.subcult.tv/subculture-collective/clpr/issues/803), [#845](https://git.subcult.tv/subculture-collective/clpr/issues/845), [#846](https://git.subcult.tv/subculture-collective/clpr/issues/846), [#805](https://git.subcult.tv/subculture-collective/clpr/issues/805)
 
 ## 🆘 Getting Help
 
 - **Users**: Check [[users/faq|FAQ]] or [[users/user-guide|User Guide]]
 - **Developers**: See [[setup/troubleshooting|Troubleshooting]] or open an issue
 - **Contributors**: Read [[contributing|Contributing Guide]]
-- **Bugs**: [Report an issue](https://github.com/subculture-collective/clipper/issues/new)
+- **Bugs**: [Report an issue](https://git.subcult.tv/subculture-collective/clpr/issues/new)
 
 ---
 
 **Last Updated**: 2026-01-29  
-**Maintained by**: [Subculture Collective](https://github.com/subculture-collective)
+**Maintained by**: [Subculture Collective](https://git.subcult.tv/subculture-collective)
 
-**Related Issues**: [#803](https://github.com/subculture-collective/clipper/issues/803), [#845](https://github.com/subculture-collective/clipper/issues/845), [#846](https://github.com/subculture-collective/clipper/issues/846)
+**Related Issues**: [#803](https://git.subcult.tv/subculture-collective/clpr/issues/803), [#845](https://git.subcult.tv/subculture-collective/clpr/issues/845), [#846](https://git.subcult.tv/subculture-collective/clpr/issues/846)

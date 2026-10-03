@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit, Trash2, Eye } from 'lucide-react';
@@ -13,8 +13,15 @@ const DELETE_CONFIRMATION_TIMEOUT = 5000;
 
 export function AdminDiscoveryListsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    return () => {
+      if (deleteConfirmTimerRef.current) clearTimeout(deleteConfirmTimerRef.current);
+    };
+  }, []);
 
   // Fetch all discovery lists
   const { data: lists, isLoading } = useQuery({
@@ -53,8 +60,8 @@ export function AdminDiscoveryListsPage() {
       deleteMutation.mutate(listId);
     } else {
       setDeleteConfirm(listId);
-      // Auto-cancel confirm after timeout
-      setTimeout(() => setDeleteConfirm(null), DELETE_CONFIRMATION_TIMEOUT);
+      if (deleteConfirmTimerRef.current) clearTimeout(deleteConfirmTimerRef.current);
+      deleteConfirmTimerRef.current = setTimeout(() => setDeleteConfirm(null), DELETE_CONFIRMATION_TIMEOUT);
     }
   };
 
@@ -74,27 +81,27 @@ export function AdminDiscoveryListsPage() {
     <Container className="py-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Discovery Lists Management</h1>
+          <h1 className="text-3xl font-bold mb-2">Curated Collections</h1>
           <p className="text-muted-foreground">
-            Create and manage curated discovery lists
+            Create and manage editorial clip collections
           </p>
         </div>
-        <Link to="/admin/discovery-lists/new">
-          <Button>
+        <Button asChild>
+          <Link to="/admin/discovery-lists/new">
             <Plus className="w-4 h-4 mr-2" />
             Create New List
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold">All Discovery Lists</h2>
+          <h2 className="text-xl font-semibold">All Collections</h2>
         </CardHeader>
         <CardBody>
           {!lists || lists.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <p className="text-lg">No discovery lists yet</p>
+              <p className="text-lg">No curated collections yet</p>
               <p className="text-sm mt-2">Create your first discovery list to get started</p>
             </div>
           ) : (
@@ -153,16 +160,16 @@ export function AdminDiscoveryListsPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex justify-end gap-2">
-                          <Link to={`/discover/lists/${list.id}`} target="_blank">
-                            <Button variant="ghost" size="sm" title="Preview">
+                          <Button asChild variant="ghost" size="sm">
+                            <Link to={`/discover/lists/${list.id}`} target="_blank" title="Preview" aria-label={`Preview ${list.name}`}>
                               <Eye className="w-4 h-4" />
-                            </Button>
-                          </Link>
-                          <Link to={`/admin/discovery-lists/${list.id}/edit`}>
-                            <Button variant="ghost" size="sm" title="Edit">
+                            </Link>
+                          </Button>
+                          <Button asChild variant="ghost" size="sm">
+                            <Link to={`/admin/discovery-lists/${list.id}/edit`} title="Edit" aria-label={`Edit ${list.name}`}>
                               <Edit className="w-4 h-4" />
-                            </Button>
-                          </Link>
+                            </Link>
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
