@@ -52,7 +52,9 @@ describe('SEO social metadata', () => {
             'summary_large_image',
         );
         expect(meta('meta[name="twitter:creator"]')).toBe('@clpr_tv');
-        expect(meta('meta[name="twitter:image:alt"]')).toContain('clpr');
+        expect(meta('meta[name="twitter:image:alt"]')).toContain(
+            'Somebody clipped it.',
+        );
     });
 
     it('does not claim default dimensions for a custom clip thumbnail', async () => {

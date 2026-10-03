@@ -189,7 +189,7 @@ func TestShareClipPreviewNotFoundReturnsGenericTags(t *testing.T) {
 			assertShareContains(t, recorder.Body.String(),
 				`<link rel="canonical" href="https://clpr.example/">`,
 				`<meta property="og:type" content="website">`,
-				`<meta property="og:title" content="clpr - Discover Creators and Live Moments">`,
+				`<meta property="og:title" content="clpr - Twitch clips by creator, topic and tag">`,
 				`<meta property="og:image" content="https://clpr.example/social-card.png">`,
 			)
 		})
@@ -215,7 +215,7 @@ func TestShareClipPreviewRepositoryFailureIsNotCached(t *testing.T) {
 	if got := recorder.Header().Get("Cache-Control"); got != "no-store" {
 		t.Errorf("Cache-Control = %q, want no-store", got)
 	}
-	assertShareContains(t, recorder.Body.String(), `<meta property="og:title" content="clpr - Discover Creators and Live Moments">`)
+	assertShareContains(t, recorder.Body.String(), `<meta property="og:title" content="clpr - Twitch clips by creator, topic and tag">`)
 }
 
 func TestShareClipPreviewDescriptionFormatting(t *testing.T) {

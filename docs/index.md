@@ -12,9 +12,9 @@ aliases: ["home", "docs home", "documentation"]
 
 # Clipper Documentation
 
-> A modern, community-driven Twitch clip curation platform
+> Twitch clips by creator, topic and tag
 
-Welcome to the Clipper documentation! This is your comprehensive guide to using, developing, and deploying Clipper.
+Documentation for using, developing and deploying Clipper (now CLPR).
 
 For repository-backed navigation, use the [documentation reference inventory](reference-inventory.md). The [launch feature inventory](LAUNCH_FEATURE_INVENTORY.md) is authoritative when older design or implementation reports disagree with current release scope.
 

@@ -55,14 +55,14 @@ describe('ExtensionPage', () => {
         expect(screen.queryByRole('link', { name: /get clpr for chrome/i })).not.toBeInTheDocument();
     });
 
-    it('renders the Features section', () => {
+    it('renders the feature list', () => {
         renderPage();
         expect(
-            screen.getByRole('heading', { name: /features/i }),
+            screen.getByRole('heading', { name: /what it does/i }),
         ).toBeInTheDocument();
         expect(screen.getByText(/auto-detect clips/i)).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: /context menu/i, level: 3 })).toBeInTheDocument();
-        expect(screen.getByText(/one-click submit/i)).toBeInTheDocument();
+        expect(screen.getByText(/submit from the popup/i)).toBeInTheDocument();
     });
 
     it('renders the How it works section', () => {

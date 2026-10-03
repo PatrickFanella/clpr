@@ -9,7 +9,7 @@ test('account access is open and support is optional', async ({ page }) => {
 
     await page.goto('/support');
 
-    await expect(page.getByRole('heading', { name: /clpr is for the culture/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /clpr is free/i })).toBeVisible();
     await expect(page.getByText('No account tiers')).toBeVisible();
     await expect(page.getByText('No feature paywalls')).toBeVisible();
     await expect(page.getByRole('link', { name: /support subcult on patreon/i })).toHaveAttribute(

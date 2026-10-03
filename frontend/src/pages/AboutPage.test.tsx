@@ -22,12 +22,12 @@ describe('AboutPage', () => {
     return render(<QueryClientProvider client={client}><MemoryRouter><AboutPage /></MemoryRouter></QueryClientProvider>);
   };
 
-  it('presents clpr as creator-first live culture discovery', () => {
+  it('presents clpr as a place to find clips by creator, topic and tag', () => {
     fetchClipsMock.mockResolvedValue({ clips: [] });
     renderPage();
-    expect(screen.getByRole('heading', { name: /find the creators/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /more than gaming/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /what you can do/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /somebody clipped it/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /streams wander/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /what.s in here/i })).toBeInTheDocument();
   });
 
   it("shows today's clips and leaves out flagged or thumbnail-less ones", async () => {

@@ -349,8 +349,8 @@ func (h *PagesHandler) GetStreamerGamePage(c *gin.Context) {
 
 func (h *PagesHandler) render404(c *gin.Context) {
 	c.HTML(http.StatusNotFound, "404.html", models.PageData{
-		Title:       "Page Not Found",
-		Description: "The page you're looking for doesn't exist.",
+		Title:       "Page not found",
+		Description: "Nothing at this address.",
 	})
 }
 

@@ -7,7 +7,7 @@ describe('SupportPage', () => {
     it('states that access is free and sends optional support to Patreon', () => {
         render(<HelmetProvider><SupportPage /></HelmetProvider>);
 
-        expect(screen.getByRole('heading', { name: /clpr is for the culture/i })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /clpr is free/i })).toBeInTheDocument();
         expect(screen.getByText('No account tiers')).toBeInTheDocument();
         expect(screen.getByText('No feature paywalls')).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /support subcult on patreon/i })).toHaveAttribute(

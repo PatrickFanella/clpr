@@ -10,12 +10,12 @@ export function TopicsPage() {
         <>
             <SEO
                 title='Topics'
-                description='Browse Twitch clips by topic, interest, and community.'
+                description='Twitch clips sorted by what they are about.'
                 canonicalUrl='/topics'
             />
             <Container className='py-8'>
                 <h1 className='text-3xl font-bold text-foreground mb-2'>Topics</h1>
-                <p className='text-muted-foreground mb-8'>Find clips across the conversations, interests, and communities you care about.</p>
+                <p className='text-muted-foreground mb-8'>Clips sorted by what they&apos;re about, whatever category the stream was in.</p>
                 {isLoading ? (
                     <div className='flex justify-center py-16'><Spinner size='xl' /></div>
                 ) : isError ? (

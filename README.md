@@ -1,25 +1,22 @@
 # CLPR
 
-**Find the Twitch moments worth keeping.**
+**Somebody clipped it. It's probably in here.**
 
-CLPR is a place to discover, organize, and share Twitch clips. Find a moment from
-a favorite streamer, collect clips into playlists, and give other viewers a way
-to return to the good parts.
+CLPR sorts Twitch clips by creator, topic and tag. Search for the one you half
+remember, save clips into playlists, and send a playlist to the people who
+missed the stream.
 
 [Explore CLPR](https://clpr.tv) · [Product overview](https://subcult.tv/products/clpr) · [Report a bug or suggest a feature](https://git.subcult.tv/subculture-collective/clpr/issues)
 
 ![CLPR home and clip discovery](https://subcult.tv/screenshots/clpr-home-1440.webp)
 
-## From a clip to a collection
+## What it does
 
-- **Discover:** browse Twitch clips and search for the moments you want to revisit.
-- **Collect:** save clips into playlists instead of losing them in a stream of links.
-- **Share:** submit existing clips and share collections with other viewers.
-- **Discuss:** add community context through comments and interactions, with
-  moderation and reporting tools.
-
-CLPR puts curation at the center. A clip can be a joke, a highlight, or the start
-of a conversation; a collection gives those moments a home.
+- **Browse and search:** find Twitch clips by creator, topic, tag or Twitch category.
+- **Playlists:** save clips into playlists and share them.
+- **Submit:** send in an existing Twitch clip that isn't on CLPR yet.
+- **Vote and comment:** upvotes and comments move clips in the feed. Reporting
+  and moderation tools cover the rest.
 
 ## Available today
 

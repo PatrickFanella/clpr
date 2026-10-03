@@ -416,7 +416,7 @@ export function ClipFeed({
                     {/* End of results */}
                     {!hasNextPage && !isError && validClips.length > 0 && (
                         <div className="text-center py-8 text-muted-foreground">
-                            <p>You've reached the end!</p>
+                            <p>That's all of them.</p>
                         </div>
                     )}
                 </div>

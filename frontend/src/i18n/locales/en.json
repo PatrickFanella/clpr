@@ -82,12 +82,12 @@
   },
   "error": {
     "somethingWentWrong": "Something went wrong",
-    "unexpectedError": "We're sorry, but something unexpected happened. The error has been reported and we'll look into it.",
+    "unexpectedError": "Something broke on our end. The error was reported. Reload the page to try again.",
     "devDetails": "Error details (dev mode):",
     "persistContact": "If this problem persists, please contact support:",
     "authFailed": "Authentication failed: {{error}}",
-    "notFound": "Page Not Found",
-    "notFoundDescription": "The page you're looking for doesn't exist or has been moved.",
+    "notFound": "Page not found",
+    "notFoundDescription": "Nothing at this address. The link may be old, or the page moved.",
     "notFoundCode": "404"
   },
   "login": {

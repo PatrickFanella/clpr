@@ -355,7 +355,7 @@ export function SearchPage() {
     const seoDescription =
         query ?
             `Search results for "${query}" on clpr. Find Twitch clips, creators, tags, and categories matching your query.`
-        :   'Search Twitch clips, creators, tags, and categories on clpr. Discover the people and moments shaping live culture.';
+        :   'Search Twitch clips, creators, tags, and categories on clpr.';
 
     if (!query.trim()) {
         return (

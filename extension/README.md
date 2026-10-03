@@ -1,6 +1,6 @@
 # clpr Browser Extension
 
-Share Twitch clips to [clpr](https://clpr.tv) with one click.
+Submits the Twitch clip you are watching to [clpr](https://clpr.tv). It fills in the title, lets you add tags, and sends the clip for review.
 
 ## Features
 

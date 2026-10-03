@@ -181,7 +181,7 @@ export function FavoritesPage() {
             </div>
             <h3 className="text-xl font-semibold mb-2">No favorites yet</h3>
             <p className="text-muted-foreground mb-6">
-              Start favoriting clips to see them here!
+              Favorite a clip and it lands here.
             </p>
             <Button asChild><Link to="/">Browse Clips</Link></Button>
           </div>

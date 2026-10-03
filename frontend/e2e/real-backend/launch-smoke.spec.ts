@@ -57,7 +57,7 @@ test.describe('real-backend launch smoke', () => {
             page.getByRole('link', { name: 'CLPR release smoke clip' }),
         ).toBeVisible();
         await expect(
-            page.getByRole('heading', { name: 'Curated Collections' }),
+            page.getByRole('heading', { name: 'Collections' }),
         ).toHaveCount(0);
     });
 
@@ -66,7 +66,7 @@ test.describe('real-backend launch smoke', () => {
         await page.getByRole('navigation', { name: 'Main navigation' })
             .getByRole('link', { name: 'Discover', exact: true }).click();
         await expect(page).toHaveURL(/\/discover\/lists$/);
-        await expect(page.getByRole('heading', { name: 'Discovery Lists', exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Collections', exact: true })).toBeVisible();
     });
 
     test('public empty search returns stable arrays and renders without a page error', async ({

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "clpr - Share Twitch Clips",
   "short_name": "clpr",
-  "description": "Share Twitch clips to clpr with one click. Pre-filled metadata, tag selection, and instant submission.",
+  "description": "Submit the Twitch clip you are watching to clpr. Fills in the title, lets you add tags, and sends it for review.",
   "version": "1.0.0",
   "permissions": [
     "contextMenus",

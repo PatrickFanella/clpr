@@ -238,7 +238,7 @@ export function PlaylistManager() {
                         <div className="text-center py-12 text-muted-foreground">
                             <ListMusic className="h-12 w-12 mx-auto mb-3 opacity-40" />
                             <p>You don't have any playlists yet.</p>
-                            <p className="text-sm mt-1">Click "Create Playlist" to get started!</p>
+                            <p className="text-sm mt-1">Click "Create Playlist" to start one.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

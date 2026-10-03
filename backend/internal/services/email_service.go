@@ -364,18 +364,18 @@ func (s *EmailService) prepareEmailContent(
 		subject = fmt.Sprintf("%s mentioned you in a comment", data["AuthorName"])
 		htmlBody, textBody = s.prepareMentionEmail(data)
 	case models.NotificationTypeSubmissionApproved:
-		subject = "Your Clip Submission Has Been Approved! 🎉"
+		subject = "Your clip is live on clpr"
 		htmlBody, textBody = s.prepareSubmissionApprovedEmail(data)
 	case models.NotificationTypeSubmissionRejected:
 		subject = "Clip Submission Status Update"
 		htmlBody, textBody = s.prepareSubmissionRejectedEmail(data)
 	case models.NotificationTypeContentTrending:
-		subject = "🔥 Your Clip is Trending!"
+		subject = "Your clip is trending on clpr"
 		htmlBody, textBody = s.prepareClipTrendingEmail(data)
 
 	// Account & Auth notifications
 	case "welcome":
-		subject = "Welcome to clpr! 🎬"
+		subject = "Welcome to clpr"
 		htmlBody, textBody = s.prepareWelcomeEmail(data)
 	case "password_reset":
 		subject = "Reset Your clpr Password"
@@ -394,7 +394,7 @@ func (s *EmailService) prepareEmailContent(
 
 	// System alerts
 	case models.NotificationTypeLoginNewDevice:
-		subject = "⚠️ New Login Detected"
+		subject = "New Login Detected"
 		htmlBody, textBody = s.prepareSecurityAlertEmail(data)
 	case "policy_update":
 		subject = "Important Update to Our Policies"
@@ -444,7 +444,7 @@ func (s *EmailService) prepareReplyEmail(data map[string]interface{}) (html, tex
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">💬 New Reply on clpr</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">New reply on clpr</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -472,7 +472,7 @@ func (s *EmailService) prepareReplyEmail(data map[string]interface{}) (html, tex
 </html>
 `, authorName, clipTitle, commentPreview, clipURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`New Reply on clpr
+	text = fmt.Sprintf(`New reply on clpr
 
 %s replied to your comment on "%s"
 
@@ -502,11 +502,11 @@ func (s *EmailService) prepareMentionEmail(data map[string]interface{}) (html, t
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>You Were Mentioned</title>
+    <title>You were mentioned</title>
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #f093fb 0%%, #f5576c 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">📢 You Were Mentioned!</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">You were mentioned</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -534,7 +534,7 @@ func (s *EmailService) prepareMentionEmail(data map[string]interface{}) (html, t
 </html>
 `, authorName, clipTitle, commentPreview, clipURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`You Were Mentioned on clpr!
+	text = fmt.Sprintf(`You were mentioned on clpr
 
 %s mentioned you in a comment on "%s"
 
@@ -816,7 +816,7 @@ func (s *EmailService) prepareWelcomeEmail(data map[string]interface{}) (html, t
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 28px;">🎬 Welcome to clpr!</h1>
+        <h1 style="color: white; margin: 0; font-size: 28px;">Welcome to clpr</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
@@ -825,16 +825,16 @@ func (s *EmailService) prepareWelcomeEmail(data map[string]interface{}) (html, t
         </p>
         
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Welcome to clpr.tv - the community-driven platform for discovering and sharing the best Twitch clips!
+            You're in. clpr sorts Twitch clips by creator, topic and tag, so the one you're thinking of is easier to find.
         </p>
         
         <div style="background: white; padding: 20px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #667eea;">
-            <h3 style="margin-top: 0; color: #667eea;">Getting Started</h3>
+            <h3 style="margin-top: 0; color: #667eea;">Getting started</h3>
             <ul style="margin: 0; padding-left: 20px;">
-                <li style="margin-bottom: 10px;">Browse trending clips on the homepage</li>
-                <li style="margin-bottom: 10px;">Vote on your favorite clips to help them rise</li>
-                <li style="margin-bottom: 10px;">Submit your own clips for the community</li>
-                <li style="margin-bottom: 10px;">Earn uppies by contributing quality content</li>
+                <li style="margin-bottom: 10px;">See what's trending on the homepage</li>
+                <li style="margin-bottom: 10px;">Upvote the clips that deserve it</li>
+                <li style="margin-bottom: 10px;">Submit a Twitch clip that isn't here yet</li>
+                <li style="margin-bottom: 10px;">Earn uppies for what you contribute</li>
             </ul>
         </div>
         
@@ -843,7 +843,7 @@ func (s *EmailService) prepareWelcomeEmail(data map[string]interface{}) (html, t
         </p>
         
         <p style="font-size: 14px; color: #666; margin-top: 30px;">
-            Need help? Check out our <a href="%s/docs" style="color: #667eea;">documentation</a> or visit our <a href="%s/support" style="color: #667eea;">support center</a>.
+            Questions? Read the <a href="%s/community-rules" style="color: #667eea;">community rules</a> or <a href="%s/contact" style="color: #667eea;">contact us</a>.
         </p>
         
         <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
@@ -857,21 +857,21 @@ func (s *EmailService) prepareWelcomeEmail(data map[string]interface{}) (html, t
 </html>
 `, username, s.baseURL, s.baseURL, s.baseURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`Welcome to clpr!
+	text = fmt.Sprintf(`Welcome to clpr
 
 Hi %s,
 
-Welcome to clpr.tv - the community-driven platform for discovering and sharing the best Twitch clips!
+You're in. clpr sorts Twitch clips by creator, topic and tag, so the one you're thinking of is easier to find.
 
-Getting Started:
-- Browse trending clips on the homepage
-- Vote on your favorite clips to help them rise
-- Submit your own clips for the community
-- Earn uppies by contributing quality content
+Getting started:
+- See what's trending on the homepage
+- Upvote the clips that deserve it
+- Submit a Twitch clip that isn't here yet
+- Earn uppies for what you contribute
 
 Explore Clips: %s
 
-Need help? Check out our documentation at %s/docs or visit our support center at %s/support.
+Questions? The community rules are at %s/community-rules, and you can reach us at %s/contact.
 
 ---
 Unsubscribe: %s
@@ -974,7 +974,7 @@ func (s *EmailService) prepareEmailVerificationEmail(data map[string]interface{}
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Thanks for signing up! Please verify your email address to get started with clpr.
+            Thanks for signing up. Verify your email address to finish setting up clpr.
         </p>
         
         <p style="text-align: center; margin: 30px 0;">
@@ -983,7 +983,7 @@ func (s *EmailService) prepareEmailVerificationEmail(data map[string]interface{}
         
         <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0; border-radius: 5px;">
             <p style="margin: 0; color: #0c5460;">
-                <strong>Security Info:</strong> This verification link is unique to your account and can only be used once. Keep it secure!
+                <strong>Security Info:</strong> This verification link is unique to your account and can only be used once. Keep it to yourself.
             </p>
         </div>
         
@@ -1009,11 +1009,11 @@ func (s *EmailService) prepareEmailVerificationEmail(data map[string]interface{}
 
 	text = fmt.Sprintf(`Verify Your Email
 
-Thanks for signing up! Please verify your email address to get started with clpr.
+Thanks for signing up. Verify your email address to finish setting up clpr.
 
 Verify Email Address: %s
 
-Security Info: This verification link is unique to your account and can only be used once. Keep it secure!
+Security Info: This verification link is unique to your account and can only be used once. Keep it to yourself.
 
 Didn't receive the email? Resend verification link: %s
 
@@ -1043,16 +1043,16 @@ func (s *EmailService) prepareSubmissionApprovedEmail(data map[string]interface{
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #4ade80 0%%, #22c55e 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">🎉 Your Clip Has Been Approved!</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">Your clip is live</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Great news! Your submission <strong>"%s"</strong> has been approved and is now live on clpr!
+            Your submission <strong>"%s"</strong> was approved and is live on clpr.
         </p>
         
         <div style="background: white; padding: 20px; margin: 20px 0; border-radius: 5px; border: 2px solid #4ade80;">
-            <h3 style="margin-top: 0; color: #22c55e;">📊 Stats Snapshot</h3>
+            <h3 style="margin-top: 0; color: #22c55e;">Stats so far</h3>
             <p style="margin: 10px 0;"><strong>Views:</strong> %v</p>
             <p style="margin: 10px 0;"><strong>Vote Score:</strong> %v</p>
         </div>
@@ -1063,7 +1063,7 @@ func (s *EmailService) prepareSubmissionApprovedEmail(data map[string]interface{
         
         <div style="background: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0; border-radius: 5px;">
             <p style="margin: 0; color: #0c5460;">
-                <strong>Share it!</strong> Help your clip rise to the top by sharing it with the community. The more engagement, the higher it ranks!
+                <strong>Send it to someone.</strong> Views, votes and comments are what move a clip up the feed.
             </p>
         </div>
         
@@ -1078,17 +1078,17 @@ func (s *EmailService) prepareSubmissionApprovedEmail(data map[string]interface{
 </html>
 `, clipTitle, viewCount, voteScore, clipURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`Your Clip Has Been Approved!
+	text = fmt.Sprintf(`Your clip is live
 
-Great news! Your submission "%s" has been approved and is now live on clpr!
+Your submission "%s" was approved and is live on clpr.
 
-Stats Snapshot:
+Stats so far:
 - Views: %v
 - Vote Score: %v
 
 View Your Clip: %s
 
-Share it! Help your clip rise to the top by sharing it with the community. The more engagement, the higher it ranks!
+Send it to someone. Views, votes and comments are what move a clip up the feed.
 
 ---
 Unsubscribe: %s
@@ -1121,7 +1121,7 @@ func (s *EmailService) prepareSubmissionRejectedEmail(data map[string]interface{
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Thank you for submitting <strong>"%s"</strong> to clpr. After review, we're unable to approve this submission at this time.
+            Thanks for submitting <strong>"%s"</strong> to clpr. After review, it was not approved.
         </p>
         
         <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 5px;">
@@ -1131,7 +1131,7 @@ func (s *EmailService) prepareSubmissionRejectedEmail(data map[string]interface{
         </div>
         
         <div style="background: white; padding: 20px; margin: 20px 0; border-radius: 5px;">
-            <h3 style="margin-top: 0; color: #d97706;">💡 Resubmission Tips</h3>
+            <h3 style="margin-top: 0; color: #d97706;">Before you resubmit</h3>
             <ul style="margin: 0; padding-left: 20px;">
                 <li style="margin-bottom: 10px;">Review our <a href="%s" style="color: #d97706;">community guidelines</a></li>
                 <li style="margin-bottom: 10px;">Ensure your clip meets quality standards</li>
@@ -1158,11 +1158,11 @@ func (s *EmailService) prepareSubmissionRejectedEmail(data map[string]interface{
 
 	text = fmt.Sprintf(`Submission Status Update
 
-Thank you for submitting "%s" to clpr. After review, we're unable to approve this submission at this time.
+Thanks for submitting "%s" to clpr. After review, it was not approved.
 
 Reason: %s
 
-Resubmission Tips:
+Before you resubmit:
 - Review our community guidelines: %s
 - Ensure your clip meets quality standards
 - Check that it hasn't been submitted recently
@@ -1198,27 +1198,27 @@ func (s *EmailService) prepareClipTrendingEmail(data map[string]interface{}) (ht
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #fc4a1a 0%%, #f7b733 100%%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">🔥 Your Clip is Trending!</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">Your clip is trending</h1>
     </div>
     
     <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
         <p style="font-size: 16px; margin-bottom: 20px;">
-            Congratulations! Your clip <strong>"%s"</strong> is gaining traction and trending on clpr!
+            Your clip <strong>"%s"</strong> is trending on clpr. Good eye.
         </p>
         
         <div style="background: white; padding: 20px; margin: 20px 0; border-radius: 5px; border: 2px solid #fc4a1a;">
-            <h3 style="margin-top: 0; color: #fc4a1a;">📈 Current Stats</h3>
+            <h3 style="margin-top: 0; color: #fc4a1a;">Current stats</h3>
             <table style="width: 100%%;">
                 <tr>
-                    <td style="padding: 5px;"><strong>👁️ Views:</strong></td>
+                    <td style="padding: 5px;"><strong>Views:</strong></td>
                     <td style="padding: 5px; text-align: right;">%v</td>
                 </tr>
                 <tr>
-                    <td style="padding: 5px;"><strong>⬆️ Vote Score:</strong></td>
+                    <td style="padding: 5px;"><strong>Vote score:</strong></td>
                     <td style="padding: 5px; text-align: right;">%v</td>
                 </tr>
                 <tr>
-                    <td style="padding: 5px;"><strong>💬 Comments:</strong></td>
+                    <td style="padding: 5px;"><strong>Comments:</strong></td>
                     <td style="padding: 5px; text-align: right;">%v</td>
                 </tr>
             </table>
@@ -1230,7 +1230,7 @@ func (s *EmailService) prepareClipTrendingEmail(data map[string]interface{}) (ht
         
         <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 5px;">
             <p style="margin: 0; color: #155724;">
-                <strong>Keep the momentum going!</strong> Engage with comments and share your clip to help it reach even more viewers.
+                <strong>Want it to keep going?</strong> Answer the comments and pass the link around.
             </p>
         </div>
         
@@ -1245,18 +1245,18 @@ func (s *EmailService) prepareClipTrendingEmail(data map[string]interface{}) (ht
 </html>
 `, clipTitle, viewCount, voteScore, commentCount, clipURL, unsubURL, s.baseURL)
 
-	text = fmt.Sprintf(`Your Clip is Trending!
+	text = fmt.Sprintf(`Your clip is trending
 
-Congratulations! Your clip "%s" is gaining traction and trending on clpr!
+Your clip "%s" is trending on clpr. Good eye.
 
-Current Stats:
+Current stats:
 - Views: %v
 - Vote Score: %v
 - Comments: %v
 
 View Your Trending Clip: %s
 
-Keep the momentum going! Engage with comments and share your clip to help it reach even more viewers.
+Want it to keep going? Answer the comments and pass the link around.
 
 ---
 Unsubscribe: %s

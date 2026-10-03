@@ -215,12 +215,12 @@ async function handleSubmit(): Promise<void> {
     chrome.notifications.create({
       type: 'basic',
       iconUrl: '../icons/icon-48.png',
-      title: 'Clip submitted!',
+      title: 'Clip submitted',
       message: `"${title}" is now pending review on clpr.`,
     });
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : 'An unknown error occurred.';
+      err instanceof Error ? err.message : 'That did not go through. Try again.';
     errorEl.textContent = message;
     errorEl.classList.remove('hidden');
     submitBtn.disabled = false;

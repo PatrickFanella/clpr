@@ -16,9 +16,9 @@ import {
 import { tagApi } from '../lib/tag-api';
 
 const steps = [
-    { eyebrow: 'Step 1 of 3', title: 'Follow creators', detail: 'Start with people you already want more from.' },
-    { eyebrow: 'Step 2 of 3', title: 'Choose topics', detail: 'Tell us which corners of live culture pull you in.' },
-    { eyebrow: 'Step 3 of 3', title: 'Pick your moments', detail: 'Choose the energy you want clips to bring.' },
+    { eyebrow: 'Step 1 of 3', title: 'Who do you watch?', detail: "Follow the ones you'd watch more of." },
+    { eyebrow: 'Step 2 of 3', title: 'Pick some topics', detail: "The stuff you'd stop scrolling for." },
+    { eyebrow: 'Step 3 of 3', title: 'Pick some tags', detail: 'Tags say what kind of clip it is. Take the ones you like.' },
 ];
 
 export function OnboardingPage() {
@@ -81,7 +81,7 @@ export function OnboardingPage() {
             aria-labelledby='onboarding-heading'
             className='min-h-[calc(100vh-4rem)] bg-background px-4 py-10 sm:py-16'
         >
-            <SEO title='Shape your feed' description='Follow creators and choose the topics and moments you want on Clpr.' noindex />
+            <SEO title='Set up your feed' description='Follow creators and pick the topics and tags you want on clpr.' noindex />
             <div className='mx-auto max-w-5xl'>
                 <div className='mb-10 flex items-center justify-between gap-6'>
                     <div>
@@ -109,7 +109,7 @@ export function OnboardingPage() {
                                     className={`group relative overflow-hidden rounded-2xl border p-3 text-left transition ${selected ? 'border-primary-500 bg-primary-500/10' : 'border-border bg-card hover:border-primary-500/50'}`}>
                                     <img src={creator.latest_clip_thumbnail || '/icons/icon.svg'} alt='' className='mb-3 aspect-square w-full rounded-xl object-cover' />
                                     <span className='block truncate font-bold'>{creator.broadcaster_name}</span>
-                                    <span className='mt-1 block truncate text-xs text-muted-foreground'>{creator.twitch_category_name || 'Live culture'}</span>
+                                    <span className='mt-1 block truncate text-xs text-muted-foreground'>{creator.twitch_category_name || 'Twitch creator'}</span>
                                     {selected && <Check className='absolute right-5 top-5 rounded-full bg-primary-400 p-1 text-background' size={24} />}
                                 </button>
                             );
@@ -150,7 +150,7 @@ export function OnboardingPage() {
                         <Button variant='outline' className='mt-3' disabled={currentQuery.isFetching} onClick={() => currentQuery.refetch()}>Try again</Button>
                     </div>
                 )}
-                {mutation.isError && <p role='alert' className='mt-6 text-sm text-error-400'>We could not save your feed yet. Your selections are still here. Please try again.</p>}
+                {mutation.isError && <p role='alert' className='mt-6 text-sm text-error-400'>That did not save. Your picks are still here, so try again.</p>}
                 <p className='mt-6 text-sm text-muted-foreground'>All choices are optional. You can change your interests later.</p>
 
                 <footer className='mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6'>
@@ -162,7 +162,7 @@ export function OnboardingPage() {
                         <Button onClick={() => changeStep(step + 1)}>Continue <ChevronRight size={18} /></Button>
                     ) : (
                         <Button disabled={mutation.isPending} onClick={() => selectionCount === 0 ? navigate('/', { replace: true }) : mutation.mutate({ followed_creators: creators, preferred_topics: topics, preferred_tags: tags })}>
-                            {mutation.isPending ? 'Shaping your feed…' : selectionCount === 0 ? 'Browse clips' : 'Build my feed'}
+                            {mutation.isPending ? 'Saving…' : selectionCount === 0 ? 'Browse clips' : 'Build my feed'}
                         </Button>
                     )}
                 </footer>

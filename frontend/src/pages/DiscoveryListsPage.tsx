@@ -34,16 +34,14 @@ export function DiscoveryListsPage() {
   return (
     <>
       <SEO
-        title="Discovery Lists"
-        description="Browse curated Twitch clip collections organized around creators, topics, moments, and community favorites."
+        title="Collections"
+        description="Twitch clip collections built around creators, topics and moments, refreshed daily and weekly."
         canonicalUrl="/discover/lists"
       />
       <FeedLayout sidebar={<FeedSidebar showTrendingPlaylists={false} />}>
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">
-              Discovery Lists
-            </h1>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Collections</h1>
             <p className="text-muted-foreground">
               Clip collections built around creators, topics and moments, refreshed daily and weekly.
             </p>
@@ -76,19 +74,15 @@ export function DiscoveryListsPage() {
                     size="lg"
                     disabled={isFetchingNextPage}
                   >
-                    {isFetchingNextPage ? 'Loading…' : 'Load More Lists'}
+                    {isFetchingNextPage ? 'Loading…' : 'Load more'}
                   </Button>
                 </div>
               )}
             </>
           ) : (
             <div className="text-center py-12 bg-card border border-border rounded-xl">
-              <h2 className="text-xl font-semibold mb-2">
-                No Discovery Lists Yet
-              </h2>
-              <p className="text-muted-foreground">
-                Check back soon for curated collections of clips
-              </p>
+              <h2 className="text-xl font-semibold mb-2">No collections yet</h2>
+              <p className="text-muted-foreground">Nothing has been put together yet. Check back later.</p>
             </div>
           )}
       </FeedLayout>

@@ -673,7 +673,7 @@ The logo, app icon and promotional graphics follow the CLPR brand pack in the pr
 | Wordmark with play triangle | `frontend/src/assets/brand/clpr-logo.svg`, `frontend/public/clpr-logo.svg` | Header logo at 32px tall. The pack's 220px minimum lockup width applies to promotional layouts; the header is a deliberate exception. The mark alone stays at 32px or wider |
 | Play mark | `frontend/src/assets/brand/clpr-mark.svg` | Outer triangle `#291D47`, inner `#8C5CFF` |
 | App icon | `frontend/public/icons/icon.svg`, `icon-maskable.svg`, `frontend/public/favicon.svg` | Play mark on ink; the maskable icon keeps the mark inside the safe zone |
-| Social card | `frontend/public/social-card.png` | Clip stack layout: wordmark, headline, three clip cards (`#211B30`, back cards ruled `#493C64`), mint progress line, violet rule |
+| Social card | `frontend/public/social-card.png` | Clip stack layout: wordmark, headline, line, three clip cards (`#211B30`, back cards ruled `#493C64`), mint progress line, violet rule, mono tag and `clpr.tv` |
 
 The SVGs copy the Studio path data unchanged, with editor-only attributes removed. Do not stretch, skew, recolour or redraw the marks, and keep a quarter of the mark's height clear around it. Change the logo in Studio first, then copy it here and run `node scripts/render-brand-assets.mjs` from `frontend/` to rebuild the PWA icons, favicons, social card, banner PNGs and browser-extension icons. The script prints the command that assembles `favicon.ico`.
 
@@ -695,6 +695,25 @@ Two controls switch content, and they are not interchangeable:
 Playlist cards label only exceptions: private, unlisted or processing. Public is the expected state in a directory, and whether a script built the list is not shown on cards. Counts of zero are omitted. Collection descriptions say what a viewer gets, not how the list is generated.
 
 Marketing and information pages follow the feed's language: kicker, display heading, ruled definition rows and real clips. They do not use icon tiles, glow backgrounds or checkmark lists.
+
+### Voice
+
+The governing guide is `studio/content/VOICE.md` in the private `subculture-collective/subcult-tv` repository (section "clpr"). Facts and limits come from the claims register beside it and from `docs/LAUNCH_FEATURE_INVENTORY.md`. This summary covers what interface copy needs.
+
+clpr talks like a regular in chat who clips everything and remembers which stream it was: quick, a little amused, and specific about clips. "The one from last Tuesday" is the register.
+
+- Write `clpr` in lowercase in interface text. `CLPR` is for Studio documents, artwork labels and this repository's README.
+- "Clip" works as a verb. Say "creator", "topic", "tag", "playlist" and "collection"; these are the names in the navigation.
+- Avoid "content", "discover" in running copy, "moments that matter", "live culture" and "curated". The route and navigation label "Discover" stay until the owner renames them.
+- Voice belongs in headings, empty states, onboarding and the marketing pages. Buttons, labels, settings and legal pages stay plain.
+- Errors say what failed and what to do next. No apology paragraph.
+- At most one exclamation mark on a page, and none in email subjects. No emoji in interface copy or in email subjects.
+- Do not advertise anything the launch inventory disables: watch parties, the live feed, stream clip creation, CDN delivery, mirroring, automated account deletion or automated data export.
+- Never add a number, user count, testimonial or availability claim that the code does not produce.
+
+Sample lines in use: "Somebody clipped it. It's probably in here." (About), "You missed it live" (home feed), "You remember who. Start there." (creators).
+
+The social card reads "SOMEBODY / CLIPPED IT.", "It's probably in here." and "TWITCH CLIPS / CREATOR, TOPIC, TAG", the same text as the Studio banner (`brands/clpr/social/banner-x-bluesky`). The text lives in `frontend/scripts/render-brand-assets.mjs`; changing it means re-rendering `social-card.png` and updating the default image alt text in `frontend/index.html`, `frontend/src/components/SEO.tsx` and `backend/internal/handlers/share_handler.go`.
 
 ## 10. Maintenance and verification
 

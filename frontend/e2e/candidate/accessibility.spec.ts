@@ -61,7 +61,7 @@ test.describe('deployed candidate accessibility', () => {
         {
             name: 'community support',
             path: '/support',
-            heading: /clpr is for the culture/i,
+            heading: /clpr is free/i,
         },
         { name: 'forum', path: '/forum', heading: /forum discussions/i },
     ];
