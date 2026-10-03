@@ -1,6 +1,6 @@
 # clpr
 
-![clpr: Somebody clipped it. Clip-stack artwork in purple on dark ink.](docs/assets/readme/banner.png)
+![clpr: Somebody clipped it. Clip-stack artwork in purple on dark ink.](https://git.subcult.tv/api/v1/repos/subculture-collective/clpr/raw/docs/assets/readme/banner.png?ref=fb7e563fccd2a4617185a5765c68dc5a0f75ea9a)
 
 **Somebody clipped it. It's probably in here.**
 
