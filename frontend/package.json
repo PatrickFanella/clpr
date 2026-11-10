@@ -32,7 +32,7 @@
   "dependencies": {
     "@dr.pogodin/react-helmet": "^3.0.4",
     "@sentry/react": "^10.22.0",
-    "@sentry/vite-plugin": "^5.4.0",
+    "@sentry/vite-plugin": "^11.12.0",
     "@tanstack/react-query": "^5.90.6",
     "@tanstack/react-virtual": "3.14.11",
     "axios": "^1.13.2",
@@ -73,7 +73,7 @@
     "@vitest/ui": "^4.0.7",
     "autoprefixer": "^10.4.21",
     "axe-core": "^4.11.0",
-    "baseline-browser-mapping": "^2.11.13",
+    "baseline-browser-mapping": "^2.11.35",
     "esbuild": "^0.25.12",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -89,6 +89,6 @@
     "tailwindcss": "^4.1.16",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.3",
-    "vitest": "^4.0.7"
+    "vitest": "^5.1.0"
   }
 }
